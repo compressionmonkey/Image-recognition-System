@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Landing Page</title>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+        }
+        .hero-section {
+            text-align: center;
+            padding: 80px 20px;
+        }
+        .hero-section h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .hero-section p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            color: #666;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        .cta-button:hover {
+            background-color: #45a049;
+        }
+        #progress-bar {
+            width: 0;
+            height: 20px;
+            background-color: #4CAF50;
+            margin-top: 20px;
+            display: none;
+        }
+        footer {
+            text-align: center;
+            padding: 20px 0;
+            background-color: #333;
+            color: white;
+            margin-top: 50px;
+        }
+        @media (max-width: 768px) {
+            .hero-section h1 {
+                font-size: 2em;
+            }
+            .hero-section p {
+                font-size: 1em;
+            }
+            .cta-button {
+                padding: 10px 20px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>My Landing Page</h1>
+        </div>
+    </header>
+    
+    <section class="hero-section">
+        <div class="container">
+            <h1>Welcome to Our Website</h1>
+            <p>Please upload a file or turn on your camera to get started!</p>
+            <input type="file" id="file-upload" accept="image/*" style="display: none;">
+            <a href="#" class="cta-button" onclick="document.getElementById('file-upload').click(); return false;">Upload File</a>
+            <a href="#" class="cta-button">Turn On Camera</a>
+            <div id="progress-bar"></div>
+            <p id="upload-status"></p>
+            <a href="#" id="test-button" class="cta-button" style="display: none;">Test</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 My Landing Page. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
+    <script>
+        const fileUpload = document.getElementById('file-upload');
+        const progressBar = document.getElementById('progress-bar');
+        const uploadStatus = document.getElementById('upload-status');
+        const testButton = document.getElementById('test-button');
+
+        // Create a worker pool for Tesseract with dynamic allocation
+        const workerPool = [];
+        const maxWorkers = navigator.hardwareConcurrency;
+        let activeWorkers = 0;
+
+        async function createWorker() {
+            const worker = await Tesseract.createWorker({
+                corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@4.0.0/tesseract-core.wasm.js',
+                logger: info => console.log(info)
+            });
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+            return worker;
+        }
+
+        async function getWorker() {
+            if (workerPool.length > 0) {
+                return workerPool.pop();
+            } else if (activeWorkers < maxWorkers) {
+                activeWorkers++;
+                return await createWorker();
+            } else {
+                return null;
+            }
+        }
+
+        function returnWorker(worker) {
+            workerPool.push(worker);
+        }
+
+        fileUpload.addEventListener('change', function() {
+            const file = fileUpload.files[0];
+            if (file) {
+                progressBar.style.display = 'block';
+                uploadStatus.textContent = '';
+                
+                const fakeUploadDuration = 3000; // Simulate upload time
+                let startTime = Date.now();
+
+                function updateProgress() {
+                    const elapsedTime = Date.now() - startTime;
+                    const progress = Math.min((elapsedTime / fakeUploadDuration) * 100, 100);
+                    progressBar.style.width = progress + '%';
+
+                    if (progress < 100) {
+                        requestAnimationFrame(updateProgress);
+                    } else {
+                        uploadStatus.textContent = 'Upload complete!';
+                        testButton.style.display = 'inline-block';
+                    }
+                }
+
+                requestAnimationFrame(updateProgress);
+            }
+        });
+
+        testButton.addEventListener('click', async function() {
+            const file = fileUpload.files[0];
+            if (file) {
+                const startTime = performance.now();
+
+                if (!file.type.startsWith('image/')) {
+                    uploadStatus.textContent = 'Please upload a valid image file.';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = async function(event) {
+                    const img = new Image();
+                    img.onload = async function() {
+                        const resizedImageData = preprocessImage(img, 800, 800); // Moderate size for balance between speed and accuracy
+                        const worker = await getWorker(); // Get an available worker
+
+                        if (!worker) {
+                            uploadStatus.textContent = 'All workers are busy. Please try again later.';
+                            return;
+                        }
+
+                        try {
+                            const { data: { text } } = await worker.recognize(resizedImageData);
+                            const endTime = performance.now();
+                            console.log('Recognized Text:', text);
+                            console.log(`Processing time: ${(endTime - startTime).toFixed(2)} milliseconds`);
+
+                            // Stop processing if RRN is found and save it
+                            const rrnMatch = text.match(/RRN : (\d+)/);
+                            if (rrnMatch) {
+                                const rrn = rrnMatch[1];
+                                console.log('RRN found:', rrn);
+                                uploadStatus.textContent = `RRN found: ${rrn}`;
+                                return; // Stop further processing once RRN is found
+                            }
+                        } catch (error) {
+                            const endTime = performance.now();
+                            console.error('Error:', error);
+                            uploadStatus.textContent = 'Error occurred during processing. Please try again with a valid image.';
+                            console.log(`Processing time (with error): ${(endTime - startTime).toFixed(2)} milliseconds`);
+                        } finally {
+                            returnWorker(worker); // Return worker to the pool
+                        }
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function preprocessImage(image, maxWidth, maxHeight) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            let width = image.width;
+            let height = image.height;
+
+            if (width > height) {
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width *= maxHeight / height;
+                    height = maxHeight;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(image, 0, 0, width, height);
+
+            // Use WebGL for faster preprocessing if available
+            if (window.WebGLRenderingContext) {
+                // WebGL-based preprocessing can be added here for faster image operations
+                console.log('WebGL is supported. Implement WebGL-based preprocessing here for better performance.');
+            } else {
+                // Fallback to canvas-based preprocessing
+                // Convert image to grayscale with adaptive thresholding
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    const avg = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+                    imageData.data[i] = avg;
+                    imageData.data[i + 1] = avg;
+                    imageData.data[i + 2] = avg;
+                }
+                ctx.putImageData(imageData, 0, 0);
+            }
+
+            return canvas.toDataURL('image/jpeg');
+        }
+    </script>
+    
+    <!-- vercel.json configuration for static deployment -->
+    <script type="application/json" id="vercel-config">
+    {
+      "rewrites": [
+        { "source": "/", "destination": "/index.html" }
+      ]
+    }
+    </script>
+</body>
+</html>
