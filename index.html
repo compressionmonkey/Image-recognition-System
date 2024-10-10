@@ -170,8 +170,8 @@
                             console.log(`Processing time: ${(endTime - startTime).toFixed(2)} milliseconds`);
 
                             // Check for different bank identifiers
-                            const bnbMatch = text.match(/RRN\s*:\s*(\d{12})/i);
-                            const bobMatch = text.match(/Jrnl\.\s*No\s*(\d{6})/i);
+                            const bnbMatch = text.match(/RRN\s*:\s*(\d+)/i);
+                            const bobMatch = text.match(/Jrnl\.\s*No\s*(\d+)/i);
 
                             if (bnbMatch) {
                                 const rrn = bnbMatch[1];
