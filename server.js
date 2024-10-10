@@ -31,6 +31,7 @@ app.get('/', (req, res) => {
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+    console.log('API Key:', apiKey); // Add this line
 
     try {
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
