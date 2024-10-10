@@ -1,0 +1,22 @@
+{
+  "name": "image-recognition-system",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "repository": "git@github.com:compressionmonkey/Image-recognition-System.git",
+  "author": "Kelden Dradul Dorji <keldendraduldorji@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "node-fetch": "^3.3.2"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
