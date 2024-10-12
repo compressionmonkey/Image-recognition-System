@@ -71,6 +71,7 @@
             }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
@@ -96,6 +97,16 @@
             <p>&copy; 2024 My Landing Page. All Rights Reserved.</p>
         </div>
     </footer>
+
+    <canvas id="analyticsChart"></canvas>
+
+    <div>
+        <h2>Analytics</h2>
+        <button onclick="viewLogs()">View Logs</button>
+        <button onclick="downloadLogs()">Download Logs (CSV)</button>
+    </div>
+
+    <div id="logsContainer"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ua-parser-js/0.7.28/ua-parser.min.js"></script>
     <script>
@@ -156,6 +167,66 @@
                 reader.readAsDataURL(file);
             }
         });
+
+        async function fetchLogs() {
+            const response = await fetch('/log');
+            const data = await response.json();
+            return data;
+        }
+
+        async function updateChart() {
+            const logs = await fetchLogs();
+            const ctx = document.getElementById('analyticsChart').getContext('2d');
+
+            const timestamps = logs.map(log => new Date(log.timestamp));
+            const processingTimes = logs.map(log => log.processingTime);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timestamps,
+                    datasets: [{
+                        label: 'Processing Time (ms)',
+                        data: processingTimes,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Call updateChart when you want to update the graph
+        updateChart();
+
+        async function viewLogs() {
+            try {
+                const response = await fetch('/logs');
+                const logs = await response.json();
+                const logsContainer = document.getElementById('logsContainer');
+                logsContainer.innerHTML = '<h3>Recent Logs</h3>' + 
+                    logs.map(log => `<p>${JSON.stringify(log)}</p>`).join('');
+            } catch (error) {
+                console.error('Error viewing logs:', error);
+            }
+        }
+
+        function downloadLogs() {
+            window.location.href = '/download-logs';
+        }
     </script>
 
 </body>
