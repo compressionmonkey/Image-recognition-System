@@ -97,6 +97,7 @@
         </div>
     </footer>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ua-parser-js/0.7.28/ua-parser.min.js"></script>
     <script>
         const fileUpload = document.getElementById('file-upload');
         const uploadStatus = document.getElementById('upload-status');
@@ -120,15 +121,24 @@
 
                 const reader = new FileReader();
                 reader.onload = async function(event) {
-                    const imageBase64 = event.target.result.split(',')[1]; // Get base64 part of the Data URL
+                    const imageBase64 = event.target.result.split(',')[1];
                     try {
+                        const startTime = performance.now();
                         const response = await fetch('/vision-api', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
                             },
-                            body: JSON.stringify({ image: imageBase64 })
+                            body: JSON.stringify({ 
+                                image: imageBase64,
+                                deviceInfo: navigator.userAgent,
+                                screenResolution: `${window.screen.width}x${window.screen.height}`,
+                                imageSize: file.size
+                            })
                         });
+
+                        const endTime = performance.now();
+                        const processingTime = endTime - startTime;
 
                         if (!response.ok) {
                             throw new Error('Failed to fetch OCR data');
@@ -137,7 +147,7 @@
                         const data = await response.json();
                         const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
                         console.log('Recognized Text:', text);
-                        uploadStatus.textContent = `Recognized Text: ${text}`;
+                        uploadStatus.textContent = `Recognized Text: ${text}\nProcessing Time: ${processingTime.toFixed(2)}ms`;
                     } catch (error) {
                         console.error('Error:', error);
                         uploadStatus.textContent = 'Error occurred during processing. Please try again.';
@@ -147,7 +157,6 @@
             }
         });
     </script>
-    
-    <!-- Remove the vercel.json configuration as it's not needed for local development -->
+
 </body>
 </html>
