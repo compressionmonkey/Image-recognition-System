@@ -23,6 +23,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// New route for analytics page
+app.get('/analytics', (req, res) => {
+  res.sendFile(path.join(__dirname, 'analytics.html'));
+});
+
 // Simplified logAnalytics function
 async function logAnalytics(data) {
   const timestamp = new Date().toISOString();
@@ -88,11 +93,10 @@ app.post('/vision-api', async (req, res) => {
     }
 });
 
-// New route to get logs
+// Route to get logs
 app.get('/logs', async (req, res) => {
   try {
     const logs = await kv.lrange('analytics_logs', 0, -1);
-    // The logs are already JSON objects, so we don't need to parse them
     res.json(logs);
   } catch (error) {
     console.error('Error fetching logs:', error);
@@ -100,11 +104,10 @@ app.get('/logs', async (req, res) => {
   }
 });
 
-// New route to download logs as CSV
+// Route to download logs as CSV
 app.get('/download-logs', async (req, res) => {
   try {
     const logs = await kv.lrange('analytics_logs', 0, -1);
-    // The logs are already JSON objects, so we don't need to parse them
     const csvContent = [
       'timestamp,processingTime,deviceInfo,imageSizeBytes,success,error',
       ...logs.map(log => {
