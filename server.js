@@ -44,6 +44,7 @@ app.post('/vision-api', async (req, res) => {
     const startTime = Date.now();
 
     try {
+        console.log('Received request for Vision API');
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
             headers: {
@@ -66,6 +67,7 @@ app.post('/vision-api', async (req, res) => {
         });
 
         const data = await response.json();
+        console.log('Vision API response:', JSON.stringify(data));
         const endTime = Date.now();
         const processingTime = endTime - startTime;
 
@@ -80,7 +82,8 @@ app.post('/vision-api', async (req, res) => {
 
         res.json(data);
     } catch (error) {
-        console.error('Error calling Vision API:', error);
+        console.error('Detailed error in Vision API call:', error);
+        console.error('Error stack:', error.stack);
 
         // Log error analytics
         logAnalytics({
@@ -241,4 +244,10 @@ app.get('/log', async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+});
+
+// Add this near the end of your server.js file
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(500).send('An unexpected error occurred');
 });
