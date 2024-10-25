@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Recognition Analytics</title>
+    <title>Receipt Recognition</title>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
@@ -51,13 +51,6 @@
         .cta-button:hover {
             background-color: #45a049;
         }
-        footer {
-            text-align: center;
-            padding: 20px 0;
-            background-color: #333;
-            color: white;
-            margin-top: 50px;
-        }
         @media (max-width: 768px) {
             .hero-section h1 {
                 font-size: 2em;
@@ -71,8 +64,6 @@
             }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <link rel="icon" href="data:,">
 </head>
@@ -89,32 +80,12 @@
             <p>Please upload a file or turn on your camera to get started!</p>
             <input type="file" id="file-upload" accept="image/*" style="display: none;">
             <a href="#" class="cta-button" onclick="document.getElementById('file-upload').click(); return false;">Upload File</a>
-            <a href="#" class="cta-button">Turn On Camera</a>
             <p id="upload-status"></p>
             <a href="#" id="test-button" class="cta-button" style="display: none;">Test</a>
         </div>
     </section>
 
-    <footer>
-        <div class="container">
-            <p>&copy; 2024 My Landing Page. All Rights Reserved.</p>
-            <a href="/analytics">View Analytics</a>
-        </div>
-    </footer>
-
-    <div>
-        <h2>Analytics</h2>
-        <button onclick="viewLogs()">View Logs</button>
-        <button onclick="downloadLogs()">Download Logs (CSV)</button>
-    </div>
-
-    <canvas id="analyticsChart"></canvas>
-
-    <div id="logsContainer"></div>
-
     <script>
-        let viewLogs;
-        let downloadLogs;
 
         function initializeApp() {
             if (typeof UAParser === 'undefined') {
@@ -139,6 +110,7 @@
             });
 
             testButton.addEventListener('click', async function() {
+                const startTime = performance.now();
                 const file = fileUpload.files[0];
                 if (file) {
                     if (!file.type.startsWith('image/')) {
@@ -150,7 +122,6 @@
                     reader.onload = async function(event) {
                         const imageBase64 = event.target.result.split(',')[1];
                         try {
-                            const startTime = performance.now();
                             const response = await fetch('/vision-api', {
                                 method: 'POST',
                                 headers: {
@@ -166,7 +137,7 @@
 
                             const endTime = performance.now();
                             const processingTime = endTime - startTime;
-
+                            console.log('Res:', response.ok);
                             if (!response.ok) {
                                 throw new Error('Failed to fetch OCR data');
                             }
@@ -184,150 +155,6 @@
                 }
             });
 
-            async function fetchLogs() {
-                const response = await fetch('/logs');
-                return await response.json();
-            }
-
-            let myChart = null;
-
-            async function updateChart() {
-                const logs = await fetchLogs();
-                const ctx = document.getElementById('analyticsChart').getContext('2d');
-
-                // Destroy the existing chart if it exists
-                if (myChart) {
-                    myChart.destroy();
-                }
-
-                // Process the logs data
-                const processedLogs = logs.map(log => {
-                    const parsedLog = typeof log === 'string' ? JSON.parse(log) : log;
-                    return {
-                        timestamp: new Date(parsedLog.timestamp),
-                        processingTimeSeconds: parsedLog.processingTime / 1000,
-                        deviceInfo: parseDeviceInfo(parsedLog.deviceInfo),
-                        imageSizeMB: parsedLog.imageSizeBytes / (1024 * 1024),
-                        success: parsedLog.success
-                    };
-                });
-
-                // Calculate success rate
-                const successRate = (processedLogs.filter(log => log.success).length / processedLogs.length) * 100;
-
-                // Group logs by device
-                const deviceGroups = groupBy(processedLogs, 'deviceInfo');
-
-                // Create datasets for each device
-                const datasets = Object.entries(deviceGroups).map(([device, logs], index) => ({
-                    label: device,
-                    data: logs.map(log => ({ x: log.timestamp, y: log.processingTimeSeconds })),
-                    borderColor: getColor(index),
-                    fill: false
-                }));
-
-                // Create a new chart instance
-                myChart = new Chart(ctx, {
-                    type: 'line',
-                    data: { datasets },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: { unit: 'minute' },
-                                title: { display: true, text: 'Time' }
-                            },
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Processing Time (seconds)' }
-                            }
-                        },
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: `Processing Time by Device (Success Rate: ${successRate.toFixed(2)}%)`
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const log = processedLogs[context.dataIndex];
-                                        return [
-                                            `Device: ${log.deviceInfo}`,
-                                            `Processing Time: ${log.processingTimeSeconds.toFixed(2)}s`,
-                                            `Image Size: ${log.imageSizeMB.toFixed(2)}MB`,
-                                            `Success: ${log.success ? 'Yes' : 'No'}`
-                                        ];
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-
-                // Display additional statistics
-                displayStats(processedLogs);
-            }
-
-            function parseDeviceInfo(deviceInfo) {
-                const result = parser.setUA(deviceInfo).getResult();
-                return `${result.browser.name} on ${result.os.name}`;
-            }
-
-            function groupBy(array, key) {
-                return array.reduce((result, item) => {
-                    (result[item[key]] = result[item[key]] || []).push(item);
-                    return result;
-                }, {});
-            }
-
-            function getColor(index) {
-                const colors = ['rgb(75, 192, 192)', 'rgb(255, 99, 132)', 'rgb(255, 205, 86)', 'rgb(54, 162, 235)', 'rgb(153, 102, 255)'];
-                return colors[index % colors.length];
-            }
-
-            function displayStats(logs) {
-                const statsContainer = document.getElementById('statsContainer') || createStatsContainer();
-                const avgProcessingTime = logs.reduce((sum, log) => sum + log.processingTimeSeconds, 0) / logs.length;
-                const avgImageSize = logs.reduce((sum, log) => sum + log.imageSizeMB, 0) / logs.length;
-                const successRate = (logs.filter(log => log.success).length / logs.length) * 100;
-
-                statsContainer.innerHTML = `
-                    <h3>Statistics</h3>
-                    <p>Average Processing Time: ${avgProcessingTime.toFixed(2)} seconds</p>
-                    <p>Average Image Size: ${avgImageSize.toFixed(2)} MB</p>
-                    <p>Success Rate: ${successRate.toFixed(2)}%</p>
-                `;
-            }
-
-            function createStatsContainer() {
-                const container = document.createElement('div');
-                container.id = 'statsContainer';
-                document.body.insertBefore(container, document.getElementById('logsContainer'));
-                return container;
-            }
-
-            viewLogs = async function() {
-                try {
-                    const logs = await fetchLogs();
-                    const logsContainer = document.getElementById('logsContainer');
-                    logsContainer.innerHTML = '<h3>Recent Logs</h3>' + 
-                        logs.map(log => `<p>${JSON.stringify(log)}</p>`).join('');
-                    updateChart();
-                } catch (error) {
-                    console.error('Error viewing logs:', error);
-                }
-            }
-
-            downloadLogs = function() {
-                window.location.href = '/download-logs';
-            }
-
-            // Call updateChart when everything is initialized
-            updateChart();
-
-            // Update chart every 5 minutes
-            setInterval(updateChart, 5 * 60 * 1000);
         }
 
         // Start the initialization process when the page loads

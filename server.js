@@ -2,9 +2,9 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import fetch from 'node-fetch';
-import { kv } from '@vercel/kv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Airtable from 'airtable';
 
 dotenv.config();
 
@@ -23,16 +23,58 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// New route for analytics page
-app.get('/analytics', (req, res) => {
-  res.sendFile(path.join(__dirname, 'analytics.html'));
-});
+// Configure Airtable
+const airtableApiKey = process.env.AIRTABLE_API_KEY;
+const baseId = 'apptAcEDVua80Ab5c'; // Replace with your Airtable base ID
+const tableName = 'receipt analytics'; // Replace with your table name
 
-// Simplified logAnalytics function
+const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 async function logAnalytics(data) {
-  const timestamp = new Date().toISOString();
-  await kv.lpush('analytics_logs', JSON.stringify({ timestamp, ...data }));
-  await kv.ltrim('analytics_logs', 0, 999); // Keep last 1000 entries
+  const timestamp = formatDate(new Date());
+  const logEntry = {
+    timestamp,
+    ...data
+  };
+
+  console.log('Analytics Log:', JSON.stringify(logEntry, null, 2));
+
+  let record;
+  try {
+    // Log to Airtable
+    record = {
+      fields: {
+        Timestamp: logEntry.timestamp,
+        ProcessingTimeSeconds: parseFloat(logEntry.ProcessingTimeSeconds.toFixed(2)), // Convert to number with 2 decimal places
+        DeviceInfo: logEntry.DeviceInfo,
+        ImageSizeMb: logEntry.ImageSizeMb.toString(), // Keep as string
+        Success: logEntry.Success.toString(), // Convert boolean to string
+        ErrorMessage: logEntry.ErrorMessage || ''
+      }
+    };
+
+    console.log('Sending to Airtable:', JSON.stringify(record, null, 2));
+
+    await base(tableName).create([record]);
+    console.log('Logged to Airtable successfully.');
+  } catch (error) {
+    console.error('Error logging to Airtable:', error);
+    if (error.error === 'INVALID_VALUE_FOR_COLUMN') {
+      console.error('Invalid value details:', error.message);
+      console.error('Problematic record:', record ? JSON.stringify(record, null, 2) : 'Record not created');
+    }
+  }
 }
 
 app.post('/vision-api', async (req, res) => {
@@ -64,16 +106,16 @@ app.post('/vision-api', async (req, res) => {
         });
 
         const data = await response.json();
-        console.log('Vision API response:', JSON.stringify(data));
         const endTime = Date.now();
         const processingTime = endTime - startTime;
 
         // Log analytics
         await logAnalytics({
-            processingTime: processingTime,
-            deviceInfo: req.headers['user-agent'],
-            imageSizeBytes: Buffer.from(imageBase64, 'base64').length,
-            success: true
+            ProcessingTimeSeconds: processingTime / 1000,
+            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+            Success: 'true', // Send as string
+            ErrorMessage: ''
         });
 
         res.json(data);
@@ -82,48 +124,17 @@ app.post('/vision-api', async (req, res) => {
 
         // Log error analytics
         await logAnalytics({
-            processingTime: Date.now() - startTime,
-            deviceInfo: req.headers['user-agent'],
-            imageSizeBytes: Buffer.from(imageBase64, 'base64').length,
-            success: false,
-            error: error.message
+            ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
+            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+            Success: 'false', // Send as string
+            ErrorMessage: error.message
         });
 
         res.status(500).send('Error calling Vision API');
     }
 });
 
-// Route to get logs
-app.get('/logs', async (req, res) => {
-  try {
-    const logs = await kv.lrange('analytics_logs', 0, -1);
-    res.json(logs);
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    res.status(500).send('Error fetching logs');
-  }
-});
-
-// Route to download logs as CSV
-app.get('/download-logs', async (req, res) => {
-  try {
-    const logs = await kv.lrange('analytics_logs', 0, -1);
-    const csvContent = [
-      'timestamp,processingTime,deviceInfo,imageSizeBytes,success,error',
-      ...logs.map(log => {
-        const { timestamp, processingTime, deviceInfo, imageSizeBytes, success, error } = log;
-        return `${timestamp},${processingTime},"${deviceInfo}",${imageSizeBytes},${success},${error || ''}`;
-      })
-    ].join('\n');
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=analytics_logs.csv');
-    res.send(csvContent);
-  } catch (error) {
-    console.error('Error downloading logs:', error);
-    res.status(500).send('Error downloading logs');
-  }
-});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
