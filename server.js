@@ -5,6 +5,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
+import sharp from 'sharp';
 
 dotenv.config();
 
@@ -77,6 +78,37 @@ async function logAnalytics(data) {
   }
 }
 
+async function preprocessImage(base64Image) {
+    try {
+        // Remove data URL prefix if present
+        const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+
+        // Process the image using sharp
+        const processedBuffer = await sharp(imageBuffer)
+            // Convert to grayscale for better OCR
+            .grayscale()
+            // Increase contrast
+            .contrast(1.2)
+            // Sharpen the image
+            .sharpen({
+                sigma: 1.5,
+                flat: 1.5,
+                jagged: 0.5
+            })
+            // Ensure consistent format and quality
+            .jpeg({ quality: 85 })
+            .toBuffer();
+
+        // Convert back to base64
+        return processedBuffer.toString('base64');
+    } catch (error) {
+        console.error('Error preprocessing image:', error);
+        // Return original image if preprocessing fails
+        return base64Image;
+    }
+}
+
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
@@ -84,24 +116,24 @@ app.post('/vision-api', async (req, res) => {
 
     try {
         console.log('Received request for Vision API');
+        
+        // Preprocess the image
+        const preprocessedImage = await preprocessImage(imageBase64);
+        
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                requests: [
-                    {
-                        image: {
-                            content: imageBase64
-                        },
-                        features: [
-                            {
-                                type: 'TEXT_DETECTION'
-                            }
-                        ]
-                    }
-                ]
+                requests: [{
+                    image: {
+                        content: preprocessedImage
+                    },
+                    features: [{
+                        type: 'TEXT_DETECTION'
+                    }]
+                }]
             })
         });
 
@@ -110,26 +142,26 @@ app.post('/vision-api', async (req, res) => {
         const processingTime = endTime - startTime;
 
         // Log analytics
-        // await logAnalytics({
-        //     ProcessingTimeSeconds: processingTime / 1000,
-        //     DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-        //     ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-        //     Success: 'true', // Send as string
-        //     ErrorMessage: ''
-        // });
+        await logAnalytics({
+            ProcessingTimeSeconds: processingTime / 1000,
+            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+            Success: 'true', // Send as string
+            ErrorMessage: ''
+        });
 
         res.json(data);
     } catch (error) {
         console.error('Error:', error);
 
         // Log error analytics
-        // await logAnalytics({
-        //     ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
-        //     DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-        //     ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-        //     Success: 'false', // Send as string
-        //     ErrorMessage: error.message
-        // });
+        await logAnalytics({
+            ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
+            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+            Success: 'false', // Send as string
+            ErrorMessage: error.message
+        });
 
         res.status(500).send('Error calling Vision API');
     }
