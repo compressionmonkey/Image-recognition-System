@@ -88,8 +88,8 @@ async function preprocessImage(base64Image) {
         const processedBuffer = await sharp(imageBuffer)
             // Convert to grayscale for better OCR
             .grayscale()
-            // Increase contrast
-            .contrast(1.2)
+            // Adjust contrast using linear transformation
+            .linear(1.2, -20) // Alternative to contrast: multiply and offset
             // Sharpen the image
             .sharpen({
                 sigma: 1.5,
