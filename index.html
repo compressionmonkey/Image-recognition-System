@@ -237,6 +237,39 @@
         let lastCapturedImage = null;
         let isProcessing = false;
 
+        // Update the text detection logic in both camera capture and file upload handlers
+        async function detectText(imageData) {
+            try {
+                // First try with detect() for speed
+                const result = await worker.detect(imageData);
+                
+                // More lenient check for any potential text
+                if (result.data && result.data.text && result.data.text.trim().length > 0) {
+                    return true;
+                }
+
+                // If detect() fails, try recognize() with lower confidence
+                const recognition = await worker.recognize(imageData, {
+                    tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,!@#$%^&*()- ',
+                    tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                    tessjs_create_pdf: '0',
+                    tessjs_create_hocr: '0',
+                    tessjs_create_tsv: '0',
+                    tessjs_create_box: '0',
+                    tessjs_create_unlv: '0',
+                    tessjs_create_osd: '0',
+                });
+
+                // Check if any words were detected with minimal confidence
+                return recognition.data.words && recognition.data.words.length > 0 && 
+                       recognition.data.words.some(word => word.confidence > 30);
+            } catch (error) {
+                console.error('Text detection error:', error);
+                return false;
+            }
+        }
+
+        // Update the capture image function
         async function captureImage() {
             if (!stream || isProcessing) return;
             
@@ -245,43 +278,32 @@
             quickCheckStatus.className = '';
 
             try {
-                // Capture image from video
                 canvas.width = videoPreview.videoWidth;
                 canvas.height = videoPreview.videoHeight;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(videoPreview, 0, 0);
 
-                // Convert to lower quality JPEG
-                const imageData = canvas.toDataURL('image/jpeg', 0.5);
+                const imageData = canvas.toDataURL('image/jpeg', 0.7); // Increased quality
+                const hasText = await detectText(imageData);
 
-                // Simple text detection
-                const result = await worker.detect(imageData);
-                
-                // Check if any text was found
-                if (result.data && result.data.text && result.data.text.trim().length > 0) {
-                    // Text found - show success
+                if (hasText) {
                     quickCheckStatus.textContent = 'Text detected!';
                     quickCheckStatus.className = 'success-status';
                     testButton.style.display = 'inline-block';
-                    
-                    // Store image for later
                     lastCapturedImage = imageData.split(',')[1];
                     
-                    // Stop camera and show retry button
                     stopCamera();
                     retryButton.style.display = 'inline-block';
                     captureButton.style.display = 'none';
 
-                    // Play success sound
                     try {
-                        const successSound = new Audio('data:audio/wav;base64,...'); // Base64 sound data
+                        const successSound = new Audio('data:audio/wav;base64,...');
                         await successSound.play();
                     } catch (audioError) {
                         console.log('Audio playback failed:', audioError);
                     }
                 } else {
-                    // No text found
-                    quickCheckStatus.textContent = 'No text detected. Please try again.';
+                    quickCheckStatus.textContent = 'No clear text detected. Please try again.';
                     quickCheckStatus.className = 'error-status';
                 }
             } catch (error) {
@@ -360,52 +382,35 @@
                 const reader = new FileReader();
                 reader.onload = async function(event) {
                     try {
-                        // Convert to lower quality JPEG for faster processing
                         const img = new Image();
                         img.onload = async function() {
-                            // Create canvas and resize image
                             const canvas = document.createElement('canvas');
                             const ctx = canvas.getContext('2d');
-                            const maxDim = 1280;
-                            let width = img.width;
-                            let height = img.height;
+                            let { width, height } = img;
                             
-                            if (width > maxDim || height > maxDim) {
-                                const ratio = Math.min(maxDim / width, maxDim / height);
-                                width *= ratio;
-                                height *= ratio;
+                            // Maintain minimum dimensions for better text detection
+                            const minDim = 800;
+                            if (width < minDim && height < minDim) {
+                                const scale = minDim / Math.min(width, height);
+                                width *= scale;
+                                height *= scale;
                             }
                             
                             canvas.width = width;
                             canvas.height = height;
                             ctx.drawImage(img, 0, 0, width, height);
                             
-                            // Convert to lower quality JPEG
-                            const imageData = canvas.toDataURL('image/jpeg', 0.5);
-                            
-                            // Quick text detection
-                            const result = await worker.detect(imageData);
-                            const endTime = performance.now();
-                            const timeElapsed = (endTime - startTime) / 1000;
+                            const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                            const hasText = await detectText(imageData);
+                            const timeElapsed = (performance.now() - startTime) / 1000;
 
-                            if (result.data && result.data.text && result.data.text.trim().length > 0) {
-                                // Text found - show success
+                            if (hasText) {
                                 quickCheckStatus.textContent = `Text detected! (${timeElapsed.toFixed(2)}s)`;
                                 quickCheckStatus.className = 'success-status';
                                 testButton.style.display = 'inline-block';
-                                
-                                // Store image for later processing
                                 lastCapturedImage = imageData.split(',')[1];
-
-                                // Play success sound
-                                try {
-                                    const successSound = new Audio('data:audio/wav;base64,...'); // Base64 sound data
-                                    await successSound.play();
-                                } catch (audioError) {
-                                    console.log('Audio playback failed:', audioError);
-                                }
                             } else {
-                                quickCheckStatus.textContent = 'No text detected. Please try another image.';
+                                quickCheckStatus.textContent = 'No clear text detected. Please try another image.';
                                 quickCheckStatus.className = 'error-status';
                                 testButton.style.display = 'none';
                             }
