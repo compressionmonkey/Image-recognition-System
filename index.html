@@ -92,29 +92,47 @@
         #camera-container {
             max-width: 640px;
             margin: 20px auto;
-            text-align: center;
+            position: relative;
         }
         #video-preview {
             width: 100%;
             max-width: 640px;
             border-radius: 8px;
-            margin-bottom: 10px;
             display: none;
+            background-color: #000;
         }
         #canvas {
             display: none;
         }
+        .camera-controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
         .camera-button {
             background-color: #2196F3;
             color: white;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border-radius: 5px;
             border: none;
             cursor: pointer;
-            margin: 5px;
+            font-size: 16px;
+            transition: background-color 0.3s;
         }
         .camera-button:hover {
             background-color: #1976D2;
+        }
+        .camera-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #quick-check-status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 500;
+            text-align: center;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
@@ -137,11 +155,12 @@
             <div id="camera-container">
                 <video id="video-preview" autoplay playsinline></video>
                 <canvas id="canvas"></canvas>
-                <div>
+                <div class="camera-controls">
                     <button id="start-camera" class="camera-button">Start Camera</button>
                     <button id="capture-image" class="camera-button" style="display: none;">Capture</button>
                     <button id="retry-camera" class="camera-button" style="display: none;">Retry</button>
                 </div>
+                <div id="quick-check-status"></div>
             </div>
 
             <!-- Existing upload buttons -->
@@ -149,7 +168,6 @@
             <a href="#" class="cta-button" onclick="document.getElementById('file-upload').click(); return false;">Upload File</a>
             <p id="upload-status"></p>
             <a href="#" id="test-button" class="cta-button" style="display: none;">Test</a>
-            <div id="quick-check-status"></div>
         </div>
     </section>
 
@@ -216,47 +234,62 @@
             }
         }
 
+        let lastCapturedImage = null;
+        let isProcessing = false;
+
         async function captureImage() {
-            if (!stream) return;
-
-            // Set canvas dimensions to match video
-            canvas.width = videoPreview.videoWidth;
-            canvas.height = videoPreview.videoHeight;
+            if (!stream || isProcessing) return;
             
-            // Draw video frame to canvas
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(videoPreview, 0, 0);
+            isProcessing = true;
+            quickCheckStatus.textContent = 'Processing...';
+            quickCheckStatus.className = '';
 
-            // Convert to base64
-            const imageData = canvas.toDataURL('image/jpeg', 0.8);
-
-            // Stop camera
-            stopCamera();
-
-            // Show retry button
-            retryButton.style.display = 'inline-block';
-            captureButton.style.display = 'none';
-
-            // Process image
             try {
-                const imageUrl = imageData;
-                const result = await worker.detect(imageUrl);
+                // Capture image from video
+                canvas.width = videoPreview.videoWidth;
+                canvas.height = videoPreview.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoPreview, 0, 0);
+
+                // Convert to lower quality JPEG
+                const imageData = canvas.toDataURL('image/jpeg', 0.5);
+
+                // Simple text detection
+                const result = await worker.detect(imageData);
                 
-                if (result.data && result.data.words && result.data.words.length > 0) {
+                // Check if any text was found
+                if (result.data && result.data.text && result.data.text.trim().length > 0) {
+                    // Text found - show success
                     quickCheckStatus.textContent = 'Text detected!';
                     quickCheckStatus.className = 'success-status';
                     testButton.style.display = 'inline-block';
                     
-                    // Store image data for later use
+                    // Store image for later
                     lastCapturedImage = imageData.split(',')[1];
+                    
+                    // Stop camera and show retry button
+                    stopCamera();
+                    retryButton.style.display = 'inline-block';
+                    captureButton.style.display = 'none';
+
+                    // Play success sound
+                    try {
+                        const successSound = new Audio('data:audio/wav;base64,...'); // Base64 sound data
+                        await successSound.play();
+                    } catch (audioError) {
+                        console.log('Audio playback failed:', audioError);
+                    }
                 } else {
-                    quickCheckStatus.textContent = 'No text detected';
+                    // No text found
+                    quickCheckStatus.textContent = 'No text detected. Please try again.';
                     quickCheckStatus.className = 'error-status';
                 }
             } catch (error) {
                 console.error('Error:', error);
-                quickCheckStatus.textContent = 'Error processing image';
+                quickCheckStatus.textContent = 'Error processing image. Please try again.';
                 quickCheckStatus.className = 'error-status';
+            } finally {
+                isProcessing = false;
             }
         }
 
@@ -313,6 +346,86 @@
             quickCheckStatus.textContent = 'Camera not supported on this browser';
             quickCheckStatus.className = 'error-status';
         }
+
+        // Update the file upload event listener (around line 197)
+        fileUpload.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const startTime = performance.now();
+            quickCheckStatus.textContent = 'Checking for text...';
+            quickCheckStatus.className = '';
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(event) {
+                    try {
+                        // Convert to lower quality JPEG for faster processing
+                        const img = new Image();
+                        img.onload = async function() {
+                            // Create canvas and resize image
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const maxDim = 1280;
+                            let width = img.width;
+                            let height = img.height;
+                            
+                            if (width > maxDim || height > maxDim) {
+                                const ratio = Math.min(maxDim / width, maxDim / height);
+                                width *= ratio;
+                                height *= ratio;
+                            }
+                            
+                            canvas.width = width;
+                            canvas.height = height;
+                            ctx.drawImage(img, 0, 0, width, height);
+                            
+                            // Convert to lower quality JPEG
+                            const imageData = canvas.toDataURL('image/jpeg', 0.5);
+                            
+                            // Quick text detection
+                            const result = await worker.detect(imageData);
+                            const endTime = performance.now();
+                            const timeElapsed = (endTime - startTime) / 1000;
+
+                            if (result.data && result.data.text && result.data.text.trim().length > 0) {
+                                // Text found - show success
+                                quickCheckStatus.textContent = `Text detected! (${timeElapsed.toFixed(2)}s)`;
+                                quickCheckStatus.className = 'success-status';
+                                testButton.style.display = 'inline-block';
+                                
+                                // Store image for later processing
+                                lastCapturedImage = imageData.split(',')[1];
+
+                                // Play success sound
+                                try {
+                                    const successSound = new Audio('data:audio/wav;base64,...'); // Base64 sound data
+                                    await successSound.play();
+                                } catch (audioError) {
+                                    console.log('Audio playback failed:', audioError);
+                                }
+                            } else {
+                                quickCheckStatus.textContent = 'No text detected. Please try another image.';
+                                quickCheckStatus.className = 'error-status';
+                                testButton.style.display = 'none';
+                            }
+                        };
+                        img.src = event.target.result;
+                    } catch (error) {
+                        console.error('Error:', error);
+                        quickCheckStatus.textContent = 'Error processing image. Please try again.';
+                        quickCheckStatus.className = 'error-status';
+                        testButton.style.display = 'none';
+                    }
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error:', error);
+                quickCheckStatus.textContent = 'Error reading file. Please try again.';
+                quickCheckStatus.className = 'error-status';
+                testButton.style.display = 'none';
+            }
+        });
 
     </script>
 
