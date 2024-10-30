@@ -110,26 +110,26 @@ app.post('/vision-api', async (req, res) => {
         const processingTime = endTime - startTime;
 
         // Log analytics
-        await logAnalytics({
-            ProcessingTimeSeconds: processingTime / 1000,
-            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-            Success: 'true', // Send as string
-            ErrorMessage: ''
-        });
+        // await logAnalytics({
+        //     ProcessingTimeSeconds: processingTime / 1000,
+        //     DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+        //     ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+        //     Success: 'true', // Send as string
+        //     ErrorMessage: ''
+        // });
 
         res.json(data);
     } catch (error) {
         console.error('Error:', error);
 
         // Log error analytics
-        await logAnalytics({
-            ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
-            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-            Success: 'false', // Send as string
-            ErrorMessage: error.message
-        });
+        // await logAnalytics({
+        //     ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
+        //     DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+        //     ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+        //     Success: 'false', // Send as string
+        //     ErrorMessage: error.message
+        // });
 
         res.status(500).send('Error calling Vision API');
     }
