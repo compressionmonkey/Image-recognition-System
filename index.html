@@ -63,8 +63,19 @@
                 font-size: 0.9em;
             }
         }
+        #quick-check-status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .success-status {
+            color: #4CAF50;
+        }
+        .error-status {
+            color: #f44336;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -82,83 +93,150 @@
             <a href="#" class="cta-button" onclick="document.getElementById('file-upload').click(); return false;">Upload File</a>
             <p id="upload-status"></p>
             <a href="#" id="test-button" class="cta-button" style="display: none;">Test</a>
+            <div id="quick-check-status"></div>
         </div>
     </section>
 
     <script>
+        let worker = null;
 
-        function initializeApp() {
-            if (typeof UAParser === 'undefined') {
-                console.error('UAParser is not loaded. Retrying in 100ms...');
-                setTimeout(initializeApp, 100);
-                return;
-            }
-
-            // Initialize UAParser
-            const parser = new UAParser();
-
-            const fileUpload = document.getElementById('file-upload');
-            const uploadStatus = document.getElementById('upload-status');
-            const testButton = document.getElementById('test-button');
-
-            fileUpload.addEventListener('change', function() {
-                const file = fileUpload.files[0];
-                if (file) {
-                    uploadStatus.textContent = 'File selected';
-                    testButton.style.display = 'inline-block';
-                }
+        // Initialize Tesseract worker
+        async function initializeTesseract() {
+            worker = await Tesseract.createWorker({
+                logger: m => console.log(m),
+                workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/worker.min.js',
+                corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@4.0.0/tesseract-core.wasm.js',
             });
-
-            testButton.addEventListener('click', async function() {
-                const startTime = performance.now();
-                const file = fileUpload.files[0];
-                if (file) {
-                    if (!file.type.startsWith('image/')) {
-                        uploadStatus.textContent = 'Please upload a valid image file.';
-                        return;
-                    }
-
-                    const reader = new FileReader();
-                    reader.onload = async function(event) {
-                        const imageBase64 = event.target.result.split(',')[1];
-                        try {
-                            const response = await fetch('/vision-api', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ 
-                                    image: imageBase64,
-                                    deviceInfo: navigator.userAgent,
-                                    screenResolution: `${window.screen.width}x${window.screen.height}`,
-                                    imageSize: file.size
-                                })
-                            });
-
-                            const endTime = performance.now();
-                            const processingTime = endTime - startTime;
-                            console.log('Res:', response.ok);
-                            if (!response.ok) {
-                                throw new Error('Failed to fetch OCR data');
-                            }
-
-                            const data = await response.json();
-                            const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
-                            console.log('Recognized Text:', text);
-                            uploadStatus.textContent = `Recognized Text: ${text}\nProcessing Time: ${processingTime.toFixed(2)}ms`;
-                        } catch (error) {
-                            console.error('Error:', error);
-                            uploadStatus.textContent = 'Error occurred during processing. Please try again.';
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+            // Optimize for speed
+            await worker.setParameters({
+                tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
             });
-
         }
 
-        // Start the initialization process when the page loads
-        window.addEventListener('load', initializeApp);
+        // Initialize when page loads
+        initializeTesseract();
+
+        const fileUpload = document.getElementById('file-upload');
+        const uploadStatus = document.getElementById('upload-status');
+        const testButton = document.getElementById('test-button');
+        const quickCheckStatus = document.getElementById('quick-check-status');
+
+        fileUpload.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const startTime = performance.now();
+            quickCheckStatus.textContent = 'Checking for text...';
+            quickCheckStatus.className = '';
+
+            try {
+                // Quick image preprocessing
+                const img = new Image();
+                const reader = new FileReader();
+                
+                reader.onload = async function(event) {
+                    img.onload = async function() {
+                        // Resize for quick processing
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const maxDim = 800;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > height && width > maxDim) {
+                            height *= maxDim / width;
+                            width = maxDim;
+                        } else if (height > maxDim) {
+                            width *= maxDim / height;
+                            height = maxDim;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        try {
+                            // Quick text detection
+                            const result = await worker.recognize(canvas.toDataURL('image/jpeg', 0.7));
+                            const endTime = performance.now();
+                            const timeElapsed = (endTime - startTime) / 1000;
+
+                            if (result.data.text.trim().length > 0) {
+                                successSound.play();
+                                quickCheckStatus.textContent = `Text detected! (${timeElapsed.toFixed(2)}s)`;
+                                quickCheckStatus.className = 'success-status';
+                                
+                                // Continue with your existing Google Vision API call
+                                // ... your existing code for vision-api call ...
+                            } else {
+                                quickCheckStatus.textContent = 'No text detected';
+                                quickCheckStatus.className = 'error-status';
+                            }
+                        } catch (error) {
+                            console.error('Error:', error);
+                            quickCheckStatus.textContent = 'Error checking text';
+                            quickCheckStatus.className = 'error-status';
+                        }
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error:', error);
+                quickCheckStatus.textContent = 'Error processing image';
+                quickCheckStatus.className = 'error-status';
+            }
+        });
+
+        testButton.addEventListener('click', async function() {
+            const startTime = performance.now();
+            const file = fileUpload.files[0];
+            if (file) {
+                if (!file.type.startsWith('image/')) {
+                    uploadStatus.textContent = 'Please upload a valid image file.';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = async function(event) {
+                    const imageBase64 = event.target.result.split(',')[1];
+                    try {
+                        const response = await fetch('/vision-api', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 
+                                image: imageBase64,
+                                deviceInfo: navigator.userAgent,
+                                screenResolution: `${window.screen.width}x${window.screen.height}`,
+                                imageSize: file.size
+                            })
+                        });
+
+                        const endTime = performance.now();
+                        const processingTime = endTime - startTime;
+                        console.log('Res:', response.ok);
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch OCR data');
+                        }
+
+                        const data = await response.json();
+                        const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
+                        console.log('Recognized Text:', text);
+                        uploadStatus.textContent = `Recognized Text: ${text}\nProcessing Time: ${processingTime.toFixed(2)}ms`;
+                    } catch (error) {
+                        console.error('Error:', error);
+                        uploadStatus.textContent = 'Error occurred during processing. Please try again.';
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
     </script>
 
 </body>
