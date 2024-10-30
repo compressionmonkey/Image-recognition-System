@@ -89,6 +89,33 @@
                 padding: 8px;
             }
         }
+        #camera-container {
+            max-width: 640px;
+            margin: 20px auto;
+            text-align: center;
+        }
+        #video-preview {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: none;
+        }
+        #canvas {
+            display: none;
+        }
+        .camera-button {
+            background-color: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .camera-button:hover {
+            background-color: #1976D2;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
@@ -105,6 +132,19 @@
         <div class="container">
             <h1>Welcome to Our Website</h1>
             <p>Please upload a file or turn on your camera to get started!</p>
+            
+            <!-- Add camera container -->
+            <div id="camera-container">
+                <video id="video-preview" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+                <div>
+                    <button id="start-camera" class="camera-button">Start Camera</button>
+                    <button id="capture-image" class="camera-button" style="display: none;">Capture</button>
+                    <button id="retry-camera" class="camera-button" style="display: none;">Retry</button>
+                </div>
+            </div>
+
+            <!-- Existing upload buttons -->
             <input type="file" id="file-upload" accept="image/*" style="display: none;">
             <a href="#" class="cta-button" onclick="document.getElementById('file-upload').click(); return false;">Upload File</a>
             <p id="upload-status"></p>
@@ -139,123 +179,140 @@
         const uploadStatus = document.getElementById('upload-status');
         const testButton = document.getElementById('test-button');
         const quickCheckStatus = document.getElementById('quick-check-status');
+        const videoPreview = document.getElementById('video-preview');
+        const canvas = document.getElementById('canvas');
+        const startCameraButton = document.getElementById('start-camera');
+        const captureButton = document.getElementById('capture-image');
+        const retryButton = document.getElementById('retry-camera');
+        let stream = null;
 
-        fileUpload.addEventListener('change', async function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const startTime = performance.now();
-            quickCheckStatus.textContent = 'Checking for text...';
-            quickCheckStatus.className = '';
-
+        // Camera handling functions
+        async function startCamera() {
             try {
-                const img = new Image();
-                const reader = new FileReader();
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment', // Use back camera on mobile
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                videoPreview.srcObject = stream;
+                videoPreview.style.display = 'block';
+                captureButton.style.display = 'inline-block';
+                startCameraButton.style.display = 'none';
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                quickCheckStatus.textContent = 'Error accessing camera. Please check permissions.';
+                quickCheckStatus.className = 'error-status';
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                videoPreview.srcObject = null;
+                videoPreview.style.display = 'none';
+                stream = null;
+            }
+        }
+
+        async function captureImage() {
+            if (!stream) return;
+
+            // Set canvas dimensions to match video
+            canvas.width = videoPreview.videoWidth;
+            canvas.height = videoPreview.videoHeight;
+            
+            // Draw video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoPreview, 0, 0);
+
+            // Convert to base64
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+            // Stop camera
+            stopCamera();
+
+            // Show retry button
+            retryButton.style.display = 'inline-block';
+            captureButton.style.display = 'none';
+
+            // Process image
+            try {
+                const imageUrl = imageData;
+                const result = await worker.detect(imageUrl);
                 
-                reader.onload = async function(event) {
-                    img.onload = async function() {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        const maxDim = 400;
-                        let width = img.width;
-                        let height = img.height;
-                        
-                        // Calculate new dimensions
-                        const ratio = Math.min(maxDim / width, maxDim / height);
-                        width = Math.floor(width * ratio);
-                        height = Math.floor(height * ratio);
-                        
-                        canvas.width = width;
-                        canvas.height = height;
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        try {
-                            // Create a lower quality image for faster processing
-                            const imageUrl = canvas.toDataURL('image/jpeg', 0.3);
-                            
-                            // Use detect() for faster initial check
-                            const result = await worker.detect(imageUrl);
-                            const endTime = performance.now();
-                            const timeElapsed = (endTime - startTime) / 1000;
-
-                            // Update UI first
-                            if (result.data && result.data.words && result.data.words.length > 0) {
-                                quickCheckStatus.textContent = `Text detected! (${timeElapsed.toFixed(2)}s)`;
-                                quickCheckStatus.className = 'success-status';
-                                testButton.style.display = 'inline-block';
-                                
-                                // Try to play sound after UI update
-                                try {
-                                    const successSound = new Audio('data:audio/wav;base64,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');
-                                    await successSound.play();
-                                } catch (audioError) {
-                                    console.log('Audio playback failed:', audioError);
-                                }
-                            } else {
-                                quickCheckStatus.textContent = 'No text detected';
-                                quickCheckStatus.className = 'error-status';
-                            }
-                        } catch (error) {
-                            console.error('Error:', error);
-                            quickCheckStatus.textContent = 'Error checking text';
-                            quickCheckStatus.className = 'error-status';
-                        }
-                    };
-                    img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
+                if (result.data && result.data.words && result.data.words.length > 0) {
+                    quickCheckStatus.textContent = 'Text detected!';
+                    quickCheckStatus.className = 'success-status';
+                    testButton.style.display = 'inline-block';
+                    
+                    // Store image data for later use
+                    lastCapturedImage = imageData.split(',')[1];
+                } else {
+                    quickCheckStatus.textContent = 'No text detected';
+                    quickCheckStatus.className = 'error-status';
+                }
             } catch (error) {
                 console.error('Error:', error);
                 quickCheckStatus.textContent = 'Error processing image';
                 quickCheckStatus.className = 'error-status';
             }
+        }
+
+        // Event listeners
+        startCameraButton.addEventListener('click', startCamera);
+        captureButton.addEventListener('click', captureImage);
+        retryButton.addEventListener('click', () => {
+            retryButton.style.display = 'none';
+            startCamera();
         });
 
+        // Clean up on page unload
+        window.addEventListener('beforeunload', stopCamera);
+
+        // Modify existing test button click handler to use captured image
         testButton.addEventListener('click', async function() {
             const startTime = performance.now();
-            const file = fileUpload.files[0];
-            if (file) {
-                if (!file.type.startsWith('image/')) {
-                    uploadStatus.textContent = 'Please upload a valid image file.';
-                    return;
-                }
+            
+            if (lastCapturedImage) {
+                try {
+                    const response = await fetch('/vision-api', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            image: lastCapturedImage,
+                            deviceInfo: navigator.userAgent,
+                            screenResolution: `${window.screen.width}x${window.screen.height}`,
+                            imageSize: lastCapturedImage.length
+                        })
+                    });
 
-                const reader = new FileReader();
-                reader.onload = async function(event) {
-                    const imageBase64 = event.target.result.split(',')[1];
-                    try {
-                        const response = await fetch('/vision-api', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ 
-                                image: imageBase64,
-                                deviceInfo: navigator.userAgent,
-                                screenResolution: `${window.screen.width}x${window.screen.height}`,
-                                imageSize: file.size
-                            })
-                        });
-
-                        const endTime = performance.now();
-                        const processingTime = endTime - startTime;
-                        console.log('Res:', response.ok);
-                        if (!response.ok) {
-                            throw new Error('Failed to fetch OCR data');
-                        }
-
-                        const data = await response.json();
-                        const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
-                        console.log('Recognized Text:', text);
-                        uploadStatus.textContent = `Recognized Text: ${text}\nProcessing Time: ${processingTime.toFixed(2)}ms`;
-                    } catch (error) {
-                        console.error('Error:', error);
-                        uploadStatus.textContent = 'Error occurred during processing. Please try again.';
+                    const endTime = performance.now();
+                    const processingTime = endTime - startTime;
+                    console.log('Res:', response.ok);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch OCR data');
                     }
-                };
-                reader.readAsDataURL(file);
+
+                    const data = await response.json();
+                    const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
+                    console.log('Recognized Text:', text);
+                    uploadStatus.textContent = `Recognized Text: ${text}\nProcessing Time: ${processingTime.toFixed(2)}ms`;
+                } catch (error) {
+                    console.error('Error:', error);
+                    uploadStatus.textContent = 'Error occurred during processing. Please try again.';
+                }
             }
         });
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            startCameraButton.style.display = 'none';
+            quickCheckStatus.textContent = 'Camera not supported on this browser';
+            quickCheckStatus.className = 'error-status';
+        }
 
     </script>
 
