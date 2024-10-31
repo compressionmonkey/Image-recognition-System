@@ -27,9 +27,15 @@ app.get('/', (req, res) => {
 // Configure Airtable
 const airtableApiKey = process.env.AIRTABLE_API_KEY;
 const baseId = 'apptAcEDVua80Ab5c'; // Replace with your Airtable base ID
-const tableName = 'receipt analytics'; // Replace with your table name
 
-const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+// Map customer IDs to their table names
+const customerTables = {
+    'a8358': 'Customer1',
+    '0e702': 'Customer2',
+    '571b6': 'Customer3',
+    'be566': 'Customer4',
+    '72d72': 'Customer5'
+};
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -42,40 +48,187 @@ function formatDate(date) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-async function logAnalytics(data) {
-  const timestamp = formatDate(new Date());
-  const logEntry = {
-    timestamp,
-    ...data
-  };
-
-  console.log('Analytics Log:', JSON.stringify(logEntry, null, 2));
-
-  let record;
-  try {
-    // Log to Airtable
-    record = {
-      fields: {
-        Timestamp: logEntry.timestamp,
-        ProcessingTimeSeconds: parseFloat(logEntry.ProcessingTimeSeconds.toFixed(2)), // Convert to number with 2 decimal places
-        DeviceInfo: logEntry.DeviceInfo,
-        ImageSizeMb: logEntry.ImageSizeMb.toString(), // Keep as string
-        Success: logEntry.Success.toString(), // Convert boolean to string
-        ErrorMessage: logEntry.ErrorMessage || ''
-      }
+// Add this function to determine bank type and get reference number
+function categorizeBank(text) {
+    const result = {
+        bankType: null,
+        referenceNo: null
     };
 
-    console.log('Sending to Airtable:', JSON.stringify(record, null, 2));
-
-    await base(tableName).create([record]);
-    console.log('Logged to Airtable successfully.');
-  } catch (error) {
-    console.error('Error logging to Airtable:', error);
-    if (error.error === 'INVALID_VALUE_FOR_COLUMN') {
-      console.error('Invalid value details:', error.message);
-      console.error('Problematic record:', record ? JSON.stringify(record, null, 2) : 'Record not created');
+    // Check for BOB (Bank of Bhutan)
+    const bobMatch = text.match(/Jrnl\.\s*No\s*[:.]\s*(\w+)/i);
+    if (bobMatch) {
+        result.bankType = 'BOB';
+        result.referenceNo = bobMatch[1];
+        return result;
     }
-  }
+
+    // Check for BNB (Bhutan National Bank)
+    const bnbMatch = text.match(/RRN\s*[:.]\s*(\w+)/i);
+    if (bnbMatch) {
+        result.bankType = 'BNB';
+        result.referenceNo = bnbMatch[1];
+        return result;
+    }
+
+    return result;
+}
+
+// Update the parseReceiptData function
+function parseReceiptData(text) {
+    try {
+        // First determine the bank type
+        const bankInfo = categorizeBank(text);
+        console.log('Bank categorization:', bankInfo);
+
+        // Initialize result object with bank type
+        const result = {
+            Timestamp: null,
+            ReferenceNo: bankInfo.referenceNo, // Use the reference number from bank categorization
+            BankType: bankInfo.bankType,       // Add bank type to the result
+            Amount: null,
+            FromAccount: null,
+            ToAccount: null,
+            Purpose: null,
+            Remarks: null
+        };
+
+        // Split text into lines for easier processing
+        const lines = text.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            const nextLine = lines[i + 1]?.trim() || '';
+
+            // Amount (Look for 'Nu.' pattern)
+            const amountMatch = line.match(/Nu\.\s*([\d,]+\.?\d*)/i);
+            if (amountMatch && !result.Amount) {
+                result.Amount = amountMatch[1].replace(/,/g, '');
+            }
+
+            // Timestamp
+            const dateMatch = line.match(/Date\s*[:.]\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/i);
+            const timeMatch = line.match(/(\d{1,2}:\d{2}(?:\s*(?:AM|PM)?)?)/i);
+            
+            if (dateMatch && timeMatch && !result.Timestamp) {
+                result.Timestamp = `${dateMatch[1]} ${timeMatch[1]}`;
+            }
+
+            // Account Numbers
+            const fromAccMatch = line.match(/From\s*A\/c\s*[:.]\s*(\d+[X\d]*\d+)/i);
+            if (fromAccMatch && !result.FromAccount) {
+                result.FromAccount = fromAccMatch[1];
+            }
+
+            const toAccMatch = line.match(/To\s*A\/c\s*[:.]\s*(\d+[X\d]*\d+)/i);
+            if (toAccMatch && !result.ToAccount) {
+                result.ToAccount = toAccMatch[1];
+            }
+
+            // Purpose
+            const purposeMatch = line.match(/Purpose\s*[:.]\s*(.*)/i);
+            if (purposeMatch && !result.Purpose) {
+                result.Purpose = purposeMatch[1].trim();
+                if (nextLine && !nextLine.includes(':')) {
+                    result.Purpose += ' ' + nextLine;
+                }
+            }
+
+            // Remarks (BNB specific)
+            if (result.BankType === 'BNB') {
+                const remarksMatch = line.match(/Remarks\s*[:.]\s*(.*)/i);
+                if (remarksMatch && !result.Remarks) {
+                    result.Remarks = remarksMatch[1].trim();
+                    if (nextLine && !nextLine.includes(':')) {
+                        result.Remarks += ' ' + nextLine;
+                    }
+                }
+            }
+        }
+
+        // Use current timestamp if none found
+        if (!result.Timestamp) {
+            result.Timestamp = formatDate(new Date());
+        }
+
+        console.log('Parsed Receipt Data:', result);
+        return result;
+    } catch (error) {
+        console.error('Error parsing receipt:', error);
+        return {
+            Timestamp: formatDate(new Date()),
+            ReferenceNo: 'ERROR',
+            BankType: null,
+            Amount: '0.00',
+            FromAccount: null,
+            ToAccount: null,
+            Purpose: null,
+            Remarks: null
+        };
+    }
+}
+
+// Function to update receipt data in customer's table
+async function updateReceiptData(customerID, receiptData) {
+    try {
+        const tableName = customerTables[customerID];
+        if (!tableName) {
+            throw new Error('Invalid customer ID or table name not found');
+        }
+
+        const record = {
+            fields: {
+                'Timestamp': receiptData.Timestamp,
+                'Reference Number': receiptData.ReferenceNo,
+                'Amount': receiptData.Amount,
+                // 'From Account': receiptData.FromAccount || 'N/A',
+                // 'To Account': receiptData.ToAccount || 'N/A',
+                // 'Purpose': receiptData.Purpose || 'N/A',
+                // 'Remarks': receiptData.Remarks || 'N/A'
+            }
+        };
+
+        console.log(`Updating receipt data for ${tableName}:`, JSON.stringify(record, null, 2));
+        
+        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+        await base(tableName).create([record]);
+        console.log('Receipt data updated successfully');
+        return true;
+    } catch (error) {
+        console.error('Error updating receipt data:', error);
+        return false;
+    }
+}
+
+// Function to update analytics data in analytics table
+async function updateAnalytics(customerID, analyticsData) {
+    try {
+        const tableName = `${customerTables[customerID]}_Analytics`; // e.g., Customer1_Analytics
+        if (!tableName) {
+            throw new Error('Invalid customer ID or analytics table name not found');
+        }
+
+        const record = {
+            fields: {
+                'Timestamp': formatDate(new Date()),
+                'ProcessingTimeSeconds': parseFloat(analyticsData.ProcessingTimeSeconds.toFixed(2)),
+                'DeviceInfo': analyticsData.DeviceInfo,
+                'ImageSizeMb': analyticsData.ImageSizeMb.toString(),
+                'Success': analyticsData.Success.toString(),
+                'ErrorMessage': analyticsData.ErrorMessage || ''
+            }
+        };
+
+        console.log(`Updating analytics for ${tableName}:`, JSON.stringify(record, null, 2));
+        
+        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+        await base(tableName).create([record]);
+        console.log('Analytics updated successfully');
+        return true;
+    } catch (error) {
+        console.error('Error updating analytics:', error);
+        return false;
+    }
 }
 
 async function preprocessImage(base64Image) {
@@ -113,6 +266,7 @@ app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
     const startTime = Date.now();
+    const customerID = req.body.customerID;
 
     try {
         console.log('Received request for Vision API');
@@ -131,35 +285,61 @@ app.post('/vision-api', async (req, res) => {
                         content: preprocessedImage
                     },
                     features: [{
-                        type: 'TEXT_DETECTION'
-                    }]
+                        type: 'DOCUMENT_TEXT_DETECTION'
+                    }],
+                    imageContext: {
+                        languageHints: ['en'],
+                        textDetectionParams: {
+                            enableTextDetectionConfidenceScore: true
+                        }
+                    }
                 }]
             })
         });
 
         const data = await response.json();
         const endTime = Date.now();
-        const processingTime = endTime - startTime;
+        const processingTime = (endTime - startTime) / 1000;
 
-        // Log analytics
-        await logAnalytics({
-            ProcessingTimeSeconds: processingTime / 1000,
-            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-            Success: 'true', // Send as string
-            ErrorMessage: ''
-        });
+        // Get the recognized text with confidence scores
+        const textResult = data.responses[0]?.fullTextAnnotation;
+        const recognizedText = textResult?.text || '';
+        const confidence = textResult?.pages?.[0]?.blocks?.reduce((acc, block) => 
+            acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
 
-        res.json(data);
+        console.log('Text Confidence Score:', confidence);
+        console.log('Recognized Text:', recognizedText);
+
+        // Only process text if confidence is above threshold
+        if (confidence > 0.7) {  // Adjust threshold as needed
+            // Parse receipt data
+            const receiptData = parseReceiptData(recognizedText);
+
+            // Update receipt data in customer's table
+            await updateReceiptData(customerID, receiptData);
+
+            // Update analytics data
+            await updateAnalytics(customerID, {
+                ProcessingTimeSeconds: processingTime,
+                DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
+                ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
+                Success: 'true',
+                ErrorMessage: ''
+            });
+
+            res.json(data);
+        } else {
+            res.status(400).send('Text confidence score is below threshold');
+        }
     } catch (error) {
         console.error('Error:', error);
 
-        // Log error analytics
-        await logAnalytics({
+        // Update analytics with error information
+        await updateAnalytics(customerID, {
             ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
             DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
             ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-            Success: 'false', // Send as string
+            Success: 'false',
             ErrorMessage: error.message
         });
 

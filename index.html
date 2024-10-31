@@ -345,6 +345,7 @@
             
             if (lastCapturedImage) {
                 try {
+                    const customerID = sessionStorage.getItem('customerID'); // Get customerID from session storage
                     const response = await fetch('/vision-api', {
                         method: 'POST',
                         headers: {
@@ -354,7 +355,8 @@
                             image: lastCapturedImage,
                             deviceInfo: navigator.userAgent,
                             screenResolution: `${window.screen.width}x${window.screen.height}`,
-                            imageSize: lastCapturedImage.length
+                            imageSize: lastCapturedImage.length,
+                            customerID: customerID  // Add customerID to request body
                         })
                     });
 
