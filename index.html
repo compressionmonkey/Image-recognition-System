@@ -481,7 +481,8 @@
             };
             
             if (dashboardUrls[customerID]) {
-                window.location.href = dashboardUrls[customerID];
+                // Open in new tab using window.open()
+                window.open(dashboardUrls[customerID], '_blank');
             }
         }
 
