@@ -171,6 +171,19 @@
         </div>
     </section>
 
+    <div id="loginOverlay" style="display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 300px; text-align: center;">
+            <h2>Customer Login</h2>
+            <input type="text" id="customerID" placeholder="Enter Customer ID" style="width: 80%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px;">
+            <button onclick="validateLogin()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Login</button>
+            <p id="loginMessage" style="color: red; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <div id="userNav" style="display: none; position: absolute; top: 20px; right: 20px;">
+        <button id="dashboardButton" class="cta-button">View Dashboard</button>
+    </div>
+
     <script>
         let worker = null;
 
@@ -431,6 +444,69 @@
                 testButton.style.display = 'none';
             }
         });
+
+        const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
+        let isLoggedIn = false;
+
+        function validateLogin() {
+            const customerID = document.getElementById('customerID').value.trim();
+            const loginMessage = document.getElementById('loginMessage');
+            const loginOverlay = document.getElementById('loginOverlay');
+            const userNav = document.getElementById('userNav');
+
+            if (validCustomerIDs.includes(customerID)) {
+                isLoggedIn = true;
+                loginOverlay.style.display = 'none';
+                userNav.style.display = 'block';
+                // Store login state and customer ID
+                sessionStorage.setItem('isLoggedIn', 'true');
+                sessionStorage.setItem('customerID', customerID);
+            } else {
+                loginMessage.textContent = 'Invalid Customer ID. Please try again.';
+                setTimeout(() => {
+                    loginMessage.textContent = '';
+                }, 3000);
+            }
+        }
+
+        // Add dashboard routing function
+        function routeToDashboard() {
+            const customerID = sessionStorage.getItem('customerID');
+            const dashboardUrls = {
+                'a8358': 'https://airtable.com/apptAcEDVua80Ab5c/shrfhyETl087DpYrR',
+                '0e702': 'https://airtable.com/apptAcEDVua80Ab5c/shrsORYszps6kro68',
+                '571b6': 'https://airtable.com/apptAcEDVua80Ab5c/shrBeHtVC6gAavgWM',
+                'be566': 'https://airtable.com/apptAcEDVua80Ab5c/shrC1T08P7aRTZUrC',
+                '72d72': 'https://airtable.com/apptAcEDVua80Ab5c/shrm3TT6h9ZiV8KSc'
+            };
+            
+            if (dashboardUrls[customerID]) {
+                window.location.href = dashboardUrls[customerID];
+            }
+        }
+
+        // Add click event listener for dashboard button
+        document.getElementById('dashboardButton').addEventListener('click', routeToDashboard);
+
+        // Update the window load event listener to show dashboard button if logged in
+        window.addEventListener('load', () => {
+            const loginOverlay = document.getElementById('loginOverlay');
+            const userNav = document.getElementById('userNav');
+            
+            if (sessionStorage.getItem('isLoggedIn') === 'true') {
+                isLoggedIn = true;
+                loginOverlay.style.display = 'none';
+                userNav.style.display = 'block';
+            }
+        });
+
+        // Protect all sensitive operations with login check
+        function checkLogin() {
+            if (!isLoggedIn) {
+                document.getElementById('loginOverlay').style.display = 'block';
+                return false;
+            }
+        }
 
     </script>
 
