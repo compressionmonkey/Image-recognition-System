@@ -230,13 +230,12 @@ async function updateAnalytics(customerID, analyticsData) {
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
-    const startTime = req.body.startTime; // Get the start time from client
+    const startTime = req.body.startTime;
     const customerID = req.body.customerID;
 
     try {
         console.log('Received request for Vision API');
         
-        // Make API call
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
             headers: {
@@ -260,10 +259,20 @@ app.post('/vision-api', async (req, res) => {
             })
         });
 
-        // Get the response data
         const data = await response.json();
+        
+        // Try to get processing time from Vision API response first
+        let totalProcessingTime;
+        if (data.responses[0]?.latencyInfo?.totalLatencyMillis) {
+            totalProcessingTime = data.responses[0].latencyInfo.totalLatencyMillis / 1000;
+            console.log('Using Vision API latency:', totalProcessingTime);
+        } else {
+            // Fallback to manual calculation
+            const endTime = Date.now();
+            totalProcessingTime = (endTime - startTime) / 1000;
+            console.log('Using manual latency calculation:', totalProcessingTime);
+        }
 
-        // Get the recognized text with confidence scores
         const textResult = data.responses[0]?.fullTextAnnotation;
         const recognizedText = textResult?.text || '';
         const confidence = textResult?.pages?.[0]?.blocks?.reduce((acc, block) => 
@@ -273,17 +282,11 @@ app.post('/vision-api', async (req, res) => {
             const receiptData = parseReceiptData(recognizedText);
             await updateReceiptData(customerID, receiptData);
 
-            // Calculate time only after all processing is complete
-            const endTime = Date.now();
-            const totalProcessingTime = (endTime - startTime) / 1000;
-
             console.log('Processing time details:', {
-                startTime,
-                endTime,
+                apiProvidedLatency: data.responses[0]?.latencyInfo?.totalLatencyMillis ? 'yes' : 'no',
                 totalProcessingTimeSeconds: totalProcessingTime
             });
 
-            // Update analytics with the total time
             await updateAnalytics(customerID, {
                 ProcessingTimeSeconds: totalProcessingTime,
                 DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
