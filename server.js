@@ -180,11 +180,7 @@ async function updateReceiptData(customerID, receiptData) {
             fields: {
                 'Timestamp': receiptData.Timestamp,
                 'Reference Number': receiptData.ReferenceNo,
-                'Amount': receiptData.Amount,
-                // 'From Account': receiptData.FromAccount || 'N/A',
-                // 'To Account': receiptData.ToAccount || 'N/A',
-                // 'Purpose': receiptData.Purpose || 'N/A',
-                // 'Remarks': receiptData.Remarks || 'N/A'
+                'Amount': receiptData.Amount
             }
         };
 
@@ -203,7 +199,7 @@ async function updateReceiptData(customerID, receiptData) {
 // Function to update analytics data in analytics table
 async function updateAnalytics(customerID, analyticsData) {
     try {
-        const tableName = `${customerTables[customerID]}_Analytics`; // e.g., Customer1_Analytics
+        const tableName = `receipt analytics`; // Analytics
         if (!tableName) {
             throw new Error('Invalid customer ID or analytics table name not found');
         }
@@ -231,49 +227,16 @@ async function updateAnalytics(customerID, analyticsData) {
     }
 }
 
-async function preprocessImage(base64Image) {
-    try {
-        // Remove data URL prefix if present
-        const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
-        const imageBuffer = Buffer.from(base64Data, 'base64');
-
-        // Process the image using sharp
-        const processedBuffer = await sharp(imageBuffer)
-            // Convert to grayscale for better OCR
-            .grayscale()
-            // Adjust contrast using linear transformation
-            .linear(1.2, -20) // Alternative to contrast: multiply and offset
-            // Sharpen the image
-            .sharpen({
-                sigma: 1.5,
-                flat: 1.5,
-                jagged: 0.5
-            })
-            // Ensure consistent format and quality
-            .jpeg({ quality: 85 })
-            .toBuffer();
-
-        // Convert back to base64
-        return processedBuffer.toString('base64');
-    } catch (error) {
-        console.error('Error preprocessing image:', error);
-        // Return original image if preprocessing fails
-        return base64Image;
-    }
-}
-
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
-    const startTime = Date.now();
+    const startTime = req.body.startTime; // Get the start time from client
     const customerID = req.body.customerID;
 
     try {
         console.log('Received request for Vision API');
         
-        // Preprocess the image
-        const preprocessedImage = await preprocessImage(imageBase64);
-        
+        // Make API call
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
             headers: {
@@ -282,7 +245,7 @@ app.post('/vision-api', async (req, res) => {
             body: JSON.stringify({
                 requests: [{
                     image: {
-                        content: preprocessedImage
+                        content: imageBase64
                     },
                     features: [{
                         type: 'DOCUMENT_TEXT_DETECTION'
@@ -297,9 +260,8 @@ app.post('/vision-api', async (req, res) => {
             })
         });
 
+        // Get the response data
         const data = await response.json();
-        const endTime = Date.now();
-        const processingTime = (endTime - startTime) / 1000;
 
         // Get the recognized text with confidence scores
         const textResult = data.responses[0]?.fullTextAnnotation;
@@ -307,20 +269,23 @@ app.post('/vision-api', async (req, res) => {
         const confidence = textResult?.pages?.[0]?.blocks?.reduce((acc, block) => 
             acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
 
-        console.log('Text Confidence Score:', confidence);
-        console.log('Recognized Text:', recognizedText);
-
-        // Only process text if confidence is above threshold
-        if (confidence > 0.7) {  // Adjust threshold as needed
-            // Parse receipt data
+        if (confidence > 0.7) {
             const receiptData = parseReceiptData(recognizedText);
-
-            // Update receipt data in customer's table
             await updateReceiptData(customerID, receiptData);
 
-            // Update analytics data
+            // Calculate time only after all processing is complete
+            const endTime = Date.now();
+            const totalProcessingTime = (endTime - startTime) / 1000;
+
+            console.log('Processing time details:', {
+                startTime,
+                endTime,
+                totalProcessingTimeSeconds: totalProcessingTime
+            });
+
+            // Update analytics with the total time
             await updateAnalytics(customerID, {
-                ProcessingTimeSeconds: processingTime,
+                ProcessingTimeSeconds: totalProcessingTime,
                 DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
                 ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
                 Success: 'true',
@@ -332,11 +297,12 @@ app.post('/vision-api', async (req, res) => {
             res.status(400).send('Text confidence score is below threshold');
         }
     } catch (error) {
+        const errorTime = Date.now();
+        const totalErrorTime = (errorTime - startTime) / 1000;
         console.error('Error:', error);
 
-        // Update analytics with error information
         await updateAnalytics(customerID, {
-            ProcessingTimeSeconds: (Date.now() - startTime) / 1000,
+            ProcessingTimeSeconds: totalErrorTime,
             DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
             ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
             Success: 'false',

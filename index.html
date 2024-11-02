@@ -339,13 +339,13 @@
         // Clean up on page unload
         window.addEventListener('beforeunload', stopCamera);
 
-        // Modify existing test button click handler to use captured image
+        // Modify existing test button click handler
         testButton.addEventListener('click', async function() {
-            const startTime = performance.now();
+            const startTime = new Date().getTime(); // Start time when button is clicked
             
             if (lastCapturedImage) {
                 try {
-                    const customerID = sessionStorage.getItem('customerID'); // Get customerID from session storage
+                    const customerID = sessionStorage.getItem('customerID');
                     const response = await fetch('/vision-api', {
                         method: 'POST',
                         headers: {
@@ -356,21 +356,18 @@
                             deviceInfo: navigator.userAgent,
                             screenResolution: `${window.screen.width}x${window.screen.height}`,
                             imageSize: lastCapturedImage.length,
-                            customerID: customerID  // Add customerID to request body
+                            customerID: customerID,
+                            startTime: startTime // Pass the start time to server
                         })
                     });
 
-                    const endTime = performance.now();
-                    const processingTime = endTime - startTime;
-                    console.log('Res:', response.ok);
                     if (!response.ok) {
                         throw new Error('Failed to fetch OCR data');
                     }
 
                     const data = await response.json();
                     const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
-                    console.log('Recognized Text:', text);
-                    uploadStatus.textContent = `Recognized Text: ${text}\nProcessing Time: ${processingTime.toFixed(2)}ms`;
+                    uploadStatus.textContent = `Recognized Text: ${text}`;
                 } catch (error) {
                     console.error('Error:', error);
                     uploadStatus.textContent = 'Error occurred during processing. Please try again.';
