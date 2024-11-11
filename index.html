@@ -6,12 +6,22 @@
     <title>Receipt Recognition</title>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #2196F3;
+            --primary-dark: #1976D2;
+            --success-color: #4CAF50;
+            --error-color: #f44336;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --background: #f9f9f9;
+        }
+
         body {
             font-family: 'Open Sans', sans-serif;
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            background-color: #f9f9f9;
+            background-color: var(--background);
         }
         .container {
             max-width: 1200px;
@@ -19,14 +29,29 @@
             padding: 0 20px;
         }
         header {
-            background-color: #4CAF50;
+            background-color: var(--primary-color);
             color: white;
-            padding: 20px 0;
+            padding: 1rem 0;
             text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2rem;
+        }
+        .logo {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+            text-decoration: none;
         }
         .hero-section {
-            text-align: center;
-            padding: 80px 20px;
+            padding: 4rem 2rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 2rem;
         }
         .hero-section h1 {
             font-size: 2.5em;
@@ -40,16 +65,19 @@
         }
         .cta-button {
             display: inline-block;
-            padding: 15px 30px;
-            background-color: #4CAF50;
+            padding: 12px 24px;
+            background-color: var(--primary-color);
             color: white;
             text-decoration: none;
-            border-radius: 5px;
+            border-radius: 25px;
             font-weight: 600;
-            transition: background-color 0.3s;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .cta-button:hover {
-            background-color: #45a049;
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         @media (max-width: 768px) {
             .hero-section h1 {
@@ -93,6 +121,10 @@
             max-width: 640px;
             margin: 20px auto;
             position: relative;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         #video-preview {
             width: 100%;
@@ -134,6 +166,598 @@
             font-weight: 500;
             text-align: center;
         }
+        #loginOverlay {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+        #loginOverlay .login-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 400px;
+        }
+        .login-input {
+            width: 100%;
+            padding: 12px;
+            margin: 1rem 0;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        .login-input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+        .login-button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f5f7fa;
+            padding: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+        }
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            position: relative;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .logo-circle {
+            width: 80px;
+            height: 80px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .features {
+            margin: 30px 0;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            font-size: 0.9em;
+            color: #444;
+        }
+
+        .feature-item .icon {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .terms {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        .terms a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+
+        /* Main content styles after login */
+        #mainContent {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f5f7fa;
+            z-index: 900;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .action-buttons {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 90%;
+            max-width: 400px;
+            padding: 20px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .primary-button, .secondary-button {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .primary-button {
+            background: #000;
+            color: white;
+        }
+
+        .secondary-button {
+            background: white;
+            color: #000;
+            border: 1px solid #000;
+        }
+
+        .photo-options-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .modal-content button {
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .modal-content button:first-child {
+            background: #000;
+            color: white;
+        }
+
+        .modal-content button:nth-child(2) {
+            background: #f5f5f5;
+            color: #000;
+        }
+
+        .modal-content button:last-child {
+            background: white;
+            color: #666;
+            border: 1px solid #ddd;
+        }
+
+        .camera-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .camera-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .camera-button {
+            background-color: #2196F3;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .camera-button:hover {
+            background-color: #1976D2;
+        }
+
+        .camera-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 9999;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast-info {
+            background: #2196F3;
+        }
+
+        .toast-success {
+            background: #4CAF50;
+        }
+
+        .toast-error {
+            background: #f44336;
+        }
+
+        .modal-content h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            text-align: center;
+        }
+
+        .photo-option-btn {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 8px;
+            background: #2196F3;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .photo-option-btn:hover {
+            background: #1976D2;
+        }
+
+        .cancel-btn {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .cancel-btn:hover {
+            background: #f5f5f5;
+        }
+
+        /* Success Modal Styles */
+        .success-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .success-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 20px;
+        }
+
+        /* Checkmark Animation */
+        .checkmark {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 2;
+            stroke: #4CAF50;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px #4CAF50;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+
+        .checkmark__circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 2;
+            stroke-miterlimit: 10;
+            stroke: #4CAF50;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .checkmark__check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        .receipt-details {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: left;
+        }
+
+        .close-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        @keyframes stroke {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes scale {
+            0%, 100% {
+                transform: none;
+            }
+            50% {
+                transform: scale3d(1.1, 1.1, 1);
+            }
+        }
+
+        @keyframes fill {
+            100% {
+                box-shadow: inset 0px 0px 0px 30px #4CAF50;
+            }
+        }
+
+        /* Update success modal styles */
+        .receipt-summary {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .receipt-text {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        .receipt-text pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .success-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .success-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .receipt-text {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            text-align: left;
+            margin: 20px 0;
+        }
+
+        .receipt-text pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: monospace;
+        }
+
+        .checkmark {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 2;
+            stroke: #4CAF50;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px #4CAF50;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+
+        .checkmark__circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 2;
+            stroke-miterlimit: 10;
+            stroke: #4CAF50;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .checkmark__check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        .close-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .fade-out {
+            animation: fadeOut 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        @keyframes stroke {
+            100% { stroke-dashoffset: 0; }
+        }
+
+        @keyframes scale {
+            0%, 100% { transform: none; }
+            50% { transform: scale3d(1.1, 1.1, 1); }
+        }
+
+        @keyframes fill {
+            100% { box-shadow: inset 0px 0px 0px 30px #4CAF50; }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
@@ -171,12 +795,48 @@
         </div>
     </section>
 
-    <div id="loginOverlay" style="display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 300px; text-align: center;">
-            <h2>Customer Login</h2>
-            <input type="text" id="customerID" placeholder="Enter Customer ID" style="width: 80%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px;">
-            <button onclick="validateLogin()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Login</button>
-            <p id="loginMessage" style="color: red; margin-top: 10px;"></p>
+    <div id="loginOverlay" class="login-container">
+        <div class="login-card">
+            <div class="logo-circle">
+                LOGO
+            </div>
+            <h2>Welcome to ReceiptScan</h2>
+            <p class="subtitle">Simplify your financial tracking with our easy-to-use receipt scanning app. Capture, organize, and manage your expenses effortlessly.</p>
+            
+            <div class="features">
+                <div class="feature-item">
+                    <span class="icon">📸</span>
+                    <span>Snap photos of your receipts</span>
+                </div>
+                <div class="feature-item">
+                    <span class="icon">📄</span>
+                    <span>Automatically extract receipt numbers</span>
+                </div>
+                <div class="feature-item">
+                    <span class="icon">📊</span>
+                    <span>Track and manage your expenses</span>
+                </div>
+            </div>
+
+            <input type="text" id="customerID" class="login-input" placeholder="Enter Customer ID">
+            <button id="login-button" onclick="validateLogin()" class="login-button">
+                <span id="loginSpinner" class="spinner" style="display: none;"></span>
+                Login
+            </button>
+            <p id="loginMessage" class="error-message"></p>
+            
+            <p class="terms">By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</p>
+        </div>
+    </div>
+
+    <div id="mainContent" style="display: none;">
+        <div class="action-buttons">
+            <button id="addPhotoBtn" class="primary-button">
+                <span class="icon">📸</span> Add Photo
+            </button>
+            <button id="addManualBtn" class="secondary-button">
+                <span class="icon">+</span> Add Reference Number Manually
+            </button>
         </div>
     </div>
 
@@ -448,24 +1108,42 @@
         let isLoggedIn = false;
 
         function validateLogin() {
-            const customerID = document.getElementById('customerID').value.trim();
+            const loginButton = document.getElementById('login-button');
+            const spinner = document.getElementById('loginSpinner');
             const loginMessage = document.getElementById('loginMessage');
-            const loginOverlay = document.getElementById('loginOverlay');
-            const userNav = document.getElementById('userNav');
+            const mainContent = document.getElementById('mainContent');
 
-            if (validCustomerIDs.includes(customerID)) {
-                isLoggedIn = true;
-                loginOverlay.style.display = 'none';
-                userNav.style.display = 'block';
-                // Store login state and customer ID
-                sessionStorage.setItem('isLoggedIn', 'true');
-                sessionStorage.setItem('customerID', customerID);
-            } else {
-                loginMessage.textContent = 'Invalid Customer ID. Please try again.';
-                setTimeout(() => {
-                    loginMessage.textContent = '';
-                }, 3000);
-            }
+            loginButton.disabled = true;
+            spinner.style.display = 'inline-block';
+            loginMessage.textContent = '';
+
+            setTimeout(() => {
+                const customerID = document.getElementById('customerID').value.trim();
+                
+                if (validCustomerIDs.includes(customerID)) {
+                    isLoggedIn = true;
+                    sessionStorage.setItem('isLoggedIn', 'true');
+                    sessionStorage.setItem('customerID', customerID);
+                    
+                    // Hide hero section and camera container
+                    document.querySelector('.hero-section').style.display = 'none';
+                    document.getElementById('camera-container').style.display = 'none';
+                    
+                    // Fade out login overlay and show main content
+                    const loginOverlay = document.getElementById('loginOverlay');
+                    loginOverlay.style.opacity = '0';
+                    loginOverlay.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => {
+                        loginOverlay.style.display = 'none';
+                        mainContent.style.display = 'block';
+                        document.getElementById('userNav').style.display = 'block';
+                    }, 300);
+                } else {
+                    loginMessage.textContent = 'Invalid Customer ID. Please try again.';
+                    loginButton.disabled = false;
+                    spinner.style.display = 'none';
+                }
+            }, 1000);
         }
 
         // Add dashboard routing function
@@ -492,11 +1170,19 @@
         window.addEventListener('load', () => {
             const loginOverlay = document.getElementById('loginOverlay');
             const userNav = document.getElementById('userNav');
+            const mainContent = document.getElementById('mainContent');
+            const heroSection = document.querySelector('.hero-section');
+            const cameraContainer = document.getElementById('camera-container');
             
             if (sessionStorage.getItem('isLoggedIn') === 'true') {
                 isLoggedIn = true;
                 loginOverlay.style.display = 'none';
                 userNav.style.display = 'block';
+                mainContent.style.display = 'block';
+                
+                // Hide initial content
+                if (heroSection) heroSection.style.display = 'none';
+                if (cameraContainer) cameraContainer.style.display = 'none';
             }
         });
 
@@ -508,7 +1194,394 @@
             }
         }
 
+        function showPhotoOptions() {
+            const options = document.createElement('div');
+            options.className = 'photo-options-modal';
+            options.innerHTML = `
+                <div class="modal-content">
+                    <button onclick="handlePhotoOption('camera')" class="photo-option-btn">
+                        <span class="icon">📸</span>
+                        Take Photo
+                    </button>
+                    <button onclick="handlePhotoOption('gallery')" class="photo-option-btn">
+                        <span class="icon">🖼️</span>
+                        Choose from Gallery
+                    </button>
+                    <button onclick="closePhotoOptions()" class="cancel-btn">Cancel</button>
+                </div>
+            `;
+            document.body.appendChild(options);
+        }
+
+        function closePhotoOptions() {
+            const modal = document.querySelector('.photo-options-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function handlePhotoOption(source) {
+            closePhotoOptions();
+            
+            if (source === 'camera') {
+                // Show camera UI
+                const cameraContainer = document.createElement('div');
+                cameraContainer.className = 'camera-modal';
+                cameraContainer.innerHTML = `
+                    <div class="camera-content">
+                        <video id="camera-preview" autoplay playsinline></video>
+                        <div class="camera-controls">
+                            <button id="capture-photo" class="camera-button">Capture</button>
+                            <button onclick="closeCameraModal()" class="camera-button">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(cameraContainer);
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' }, 
+                        audio: false 
+                    });
+                    const video = document.getElementById('camera-preview');
+                    video.srcObject = stream;
+
+                    // Handle capture button click
+                    document.getElementById('capture-photo').onclick = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+                        
+                        // Stop camera stream
+                        stream.getTracks().forEach(track => track.stop());
+                        closeCameraModal();
+                        
+                        // Convert to file and process
+                        canvas.toBlob(async (blob) => {
+                            const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+                            if (isLoggedIn) {
+                                await processImage(file);
+                            } else {
+                                document.getElementById('loginOverlay').style.display = 'block';
+                            }
+                        }, 'image/jpeg', 0.8);
+                    };
+                } catch (error) {
+                    console.error('Error accessing camera:', error);
+                    closeCameraModal();
+                    // Fallback to file input if camera access fails
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.capture = 'environment';
+                    input.onchange = async (e) => {
+                        const file = e.target.files[0];
+                        if (file && isLoggedIn) {
+                            await processImage(file);
+                        } else if (file) {
+                            document.getElementById('loginOverlay').style.display = 'block';
+                        }
+                    };
+                    input.click();
+                }
+            } else {
+                // Gallery option - use file input without capture
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (file && isLoggedIn) {
+                        await processImage(file);
+                    } else if (file) {
+                        document.getElementById('loginOverlay').style.display = 'block';
+                    }
+                };
+                input.click();
+            }
+        }
+
+        function closeCameraModal() {
+            const modal = document.querySelector('.camera-modal');
+            if (modal) {
+                // Stop any active streams
+                const video = document.getElementById('camera-preview');
+                if (video && video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+                modal.remove();
+            }
+        }
+
+        async function processImage(file) {
+            const startTime = performance.now();
+            showToast('Processing image...', 'info');
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(event) {
+                    const img = new Image();
+                    img.onload = async function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        let { width, height } = img;
+                        
+                        // Maintain minimum dimensions for better text detection
+                        const minDim = 800;
+                        if (width < minDim && height < minDim) {
+                            const scale = minDim / Math.min(width, height);
+                            width *= scale;
+                            height *= scale;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        const imageData = canvas.toDataURL('image/jpeg', 0.7);
+                        const base64Image = imageData.split(',')[1];
+                        
+                        // Upload to server
+                        await uploadToServer(base64Image);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('No Receipt detected. Please try again.', 'error');
+            }
+        }
+
+        async function uploadToServer(imageData) {
+            try {
+                const customerID = sessionStorage.getItem('customerID');
+                const response = await fetch('/vision-api', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        image: imageData,
+                        deviceInfo: navigator.userAgent,
+                        screenResolution: `${window.screen.width}x${window.screen.height}`,
+                        imageSize: imageData.length,
+                        customerID: customerID,
+                        startTime: new Date().getTime()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to upload image');
+                }
+
+                const data = await response.json();
+                
+                // Show success modal with the API response text
+                const modal = document.getElementById('successModal');
+                const successContent = modal.querySelector('.success-content');
+
+                // Update the content
+                successContent.innerHTML = `
+                    <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                        <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                        <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                    </svg>
+                    
+                    <h2>Success!</h2>
+                    
+                    <div class="receipt-text">
+                        <h4>Detected Text:</h4>
+                        <pre>${data.text || 'No text found'}</pre>
+                    </div>
+                    
+                    <button class="close-button">Done</button>
+                `;
+
+                // Show the modal
+                modal.style.display = 'flex';
+
+                // Show confetti animation
+                showConfetti();
+
+                // Update close button functionality
+                const closeButton = modal.querySelector('.close-button');
+                closeButton.addEventListener('click', function handleClose() {
+                    // Disable the button and remove event listener
+                    closeButton.disabled = true;
+                    closeButton.removeEventListener('click', handleClose);
+                    
+                    // Add fade-out class
+                    modal.classList.add('fade-out');
+                    
+                    // Hide the modal after animation
+                    setTimeout(() => {
+                        modal.style.display = 'none';
+                        modal.classList.remove('fade-out');
+                        closeButton.disabled = false;
+                    }, 300);
+                });
+
+                // Add click outside modal to close
+                modal.addEventListener('click', function(event) {
+                    if (event.target === modal) {
+                        closeButton.click();
+                    }
+                });
+
+                // Add escape key to close
+                document.addEventListener('keydown', function(event) {
+                    if (event.key === 'Escape' && modal.style.display === 'flex') {
+                        closeButton.click();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error processing image. Please try again.', 'error');
+            }
+        }
+
+        // Add function to show retry prompt
+        function showRetryPrompt() {
+            const retryModal = document.createElement('div');
+            retryModal.className = 'photo-options-modal';
+            retryModal.innerHTML = `
+                <div class="modal-content">
+                    <h3>Would you like to try again?</h3>
+                    <button onclick="handlePhotoOption('camera')" class="photo-option-btn">
+                        <span class="icon">📸</span>
+                        Take Another Photo
+                    </button>
+                    <button onclick="handlePhotoOption('gallery')" class="photo-option-btn">
+                        <span class="icon">🖼️</span>
+                        Choose from Gallery
+                    </button>
+                    <button onclick="closePhotoOptions()" class="cancel-btn">Cancel</button>
+                </div>
+            `;
+            document.body.appendChild(retryModal);
+        }
+
+        // Add toast functionality
+        function showToast(message, type = 'info') {
+            // Remove existing toast if any
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 100);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Add toast styles
+        const styles = document.createElement('style');
+        styles.textContent = `
+            .toast {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%) translateY(100px);
+                padding: 12px 24px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 9999;
+                opacity: 0;
+                transition: all 0.3s ease;
+            }
+
+            .toast.show {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+
+            .toast-info {
+                background: #2196F3;
+            }
+
+            .toast-success {
+                background: #4CAF50;
+            }
+
+            .toast-error {
+                background: #f44336;
+            }
+        `;
+        document.head.appendChild(styles);
+
+        // Add event listener for the Add Photo button
+        document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
+
+        // Add confetti animation function
+        function showConfetti() {
+            const duration = 3000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+            function randomInRange(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            const interval = setInterval(function() {
+                const timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                const particleCount = 50 * (timeLeft / duration);
+                
+                // Create confetti from both sides
+                confetti({
+                    ...defaults,
+                    particleCount,
+                    origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+                });
+                confetti({
+                    ...defaults,
+                    particleCount,
+                    origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+                });
+            }, 250);
+        }
+
     </script>
+
+    <!-- Add this before </body> -->
+    <div id="successModal" class="success-modal" style="display: none;">
+        <div class="success-content">
+            <!-- Content will be dynamically updated -->
+        </div>
+    </div>
+
+    <!-- Add this for photo options modal -->
+    <div id="photoOptionsModal" class="photo-options-modal" style="display: none;">
+        <div class="modal-content">
+            <button onclick="handlePhotoOption('camera')" class="photo-option-btn">
+                <span class="icon">📸</span>
+                Take Photo
+            </button>
+            <button onclick="handlePhotoOption('gallery')" class="photo-option-btn">
+                <span class="icon">🖼️</span>
+                Choose from Gallery
+            </button>
+            <button onclick="closePhotoOptions()" class="cancel-btn">Cancel</button>
+        </div>
+    </div>
 
 </body>
 </html>
