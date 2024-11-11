@@ -542,7 +542,7 @@
             padding: 30px;
             border-radius: 20px;
             text-align: center;
-            max-width: 400px;
+            max-width: 500px;
             width: 90%;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
@@ -761,6 +761,7 @@
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -1356,6 +1357,21 @@
 
         async function uploadToServer(imageData) {
             try {
+                // First, close any existing modals
+                const photoOptionsModal = document.getElementById('photoOptionsModal');
+                const cameraModal = document.querySelector('.camera-modal');
+                
+                // Close photo options modal if open
+                if (photoOptionsModal) {
+                    photoOptionsModal.style.display = 'none';
+                }
+                
+                // Close camera modal if open
+                if (cameraModal) {
+                    closeCameraModal();
+                }
+
+                // Make API call
                 const customerID = sessionStorage.getItem('customerID');
                 const response = await fetch('/vision-api', {
                     method: 'POST',
@@ -1372,17 +1388,25 @@
                     })
                 });
 
+                const data = await response.json();
+
+                // First check if response is not ok
                 if (!response.ok) {
-                    throw new Error('Failed to upload image');
+                    showToast('Server error. Please try again.', 'error');
+                    return;
                 }
 
-                const data = await response.json();
-                
-                // Show success modal with the API response text
+                // Then check the data structure
+                if (!data || !data.text || data.text.trim() === '') {
+                    showToast('No receipt text detected. Please try again.', 'error');
+                    return;
+                }
+
+                // If we get here, we have a successful response with text
                 const modal = document.getElementById('successModal');
                 const successContent = modal.querySelector('.success-content');
 
-                // Update the content
+                // Update success modal content
                 successContent.innerHTML = `
                     <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
                         <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
@@ -1393,29 +1417,23 @@
                     
                     <div class="receipt-text">
                         <h4>Detected Text:</h4>
-                        <pre>${data.text || 'No text found'}</pre>
+                        <pre>${data.text}</pre>
                     </div>
                     
                     <button class="close-button">Done</button>
                 `;
 
-                // Show the modal
+                // Show success modal and confetti
                 modal.style.display = 'flex';
-
-                // Show confetti animation
                 showConfetti();
 
-                // Update close button functionality
+                // Handle close button
                 const closeButton = modal.querySelector('.close-button');
                 closeButton.addEventListener('click', function handleClose() {
-                    // Disable the button and remove event listener
                     closeButton.disabled = true;
                     closeButton.removeEventListener('click', handleClose);
-                    
-                    // Add fade-out class
                     modal.classList.add('fade-out');
                     
-                    // Hide the modal after animation
                     setTimeout(() => {
                         modal.style.display = 'none';
                         modal.classList.remove('fade-out');
@@ -1423,45 +1441,10 @@
                     }, 300);
                 });
 
-                // Add click outside modal to close
-                modal.addEventListener('click', function(event) {
-                    if (event.target === modal) {
-                        closeButton.click();
-                    }
-                });
-
-                // Add escape key to close
-                document.addEventListener('keydown', function(event) {
-                    if (event.key === 'Escape' && modal.style.display === 'flex') {
-                        closeButton.click();
-                    }
-                });
-
             } catch (error) {
                 console.error('Error:', error);
                 showToast('Error processing image. Please try again.', 'error');
             }
-        }
-
-        // Add function to show retry prompt
-        function showRetryPrompt() {
-            const retryModal = document.createElement('div');
-            retryModal.className = 'photo-options-modal';
-            retryModal.innerHTML = `
-                <div class="modal-content">
-                    <h3>Would you like to try again?</h3>
-                    <button onclick="handlePhotoOption('camera')" class="photo-option-btn">
-                        <span class="icon">📸</span>
-                        Take Another Photo
-                    </button>
-                    <button onclick="handlePhotoOption('gallery')" class="photo-option-btn">
-                        <span class="icon">🖼️</span>
-                        Choose from Gallery
-                    </button>
-                    <button onclick="closePhotoOptions()" class="cancel-btn">Cancel</button>
-                </div>
-            `;
-            document.body.appendChild(retryModal);
         }
 
         // Add toast functionality
