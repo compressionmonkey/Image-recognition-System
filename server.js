@@ -260,6 +260,8 @@ app.post('/vision-api', async (req, res) => {
         });
 
         const data = await response.json();
+
+        console.log('herertjhajksfdhhjk', JSON.stringify(data))
         
         // Try to get processing time from Vision API response first
         let totalProcessingTime;
