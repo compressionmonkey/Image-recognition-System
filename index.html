@@ -884,6 +884,75 @@
         .try-again-button:hover {
             background: #ff6666;
         }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .save-image-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        .save-image-button:hover {
+            background: #45a049;
+        }
+
+        .camera-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .camera-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #camera-preview {
+            flex: 1;
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+        }
+
+        .camera-controls {
+            padding: 20px;
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .camera-button {
+            padding: 12px 24px;
+            border-radius: 25px;
+            border: none;
+            background: #2196F3;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .camera-button:hover {
+            background: #1976D2;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
@@ -1071,48 +1140,105 @@
 
         // Update the capture image function
         async function captureImage() {
-            if (!stream || isProcessing) return;
+            const videoPreview = document.getElementById('camera-preview');
+            const canvas = document.createElement('canvas');
             
-            isProcessing = true;
-            quickCheckStatus.textContent = 'Processing...';
-            quickCheckStatus.className = '';
+            if (!videoPreview || !videoPreview.srcObject) {
+                showToast('Camera not ready', 'error');
+                return;
+            }
 
             try {
-                canvas.width = videoPreview.videoWidth;
-                canvas.height = videoPreview.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(videoPreview, 0, 0);
-
-                const imageData = canvas.toDataURL('image/jpeg', 0.7); // Increased quality
-                const hasText = await detectText(imageData);
-
-                if (hasText) {
-                    quickCheckStatus.textContent = 'Text detected!';
-                    quickCheckStatus.className = 'success-status';
-                    testButton.style.display = 'inline-block';
-                    lastCapturedImage = imageData.split(',')[1];
-                    
-                    stopCamera();
-                    retryButton.style.display = 'inline-block';
-                    captureButton.style.display = 'none';
-
-                    try {
-                        const successSound = new Audio('data:audio/wav;base64,...');
-                        await successSound.play();
-                    } catch (audioError) {
-                        console.log('Audio playback failed:', audioError);
-                    }
-                } else {
-                    quickCheckStatus.textContent = 'No clear text detected. Please try again.';
-                    quickCheckStatus.className = 'error-status';
+                // Wait for video to be ready
+                if (videoPreview.readyState !== videoPreview.HAVE_ENOUGH_DATA) {
+                    await new Promise(resolve => {
+                        videoPreview.addEventListener('loadeddata', resolve, { once: true });
+                    });
                 }
+
+                // Set canvas dimensions to match video
+                canvas.width = videoPreview.videoWidth || videoPreview.offsetWidth;
+                canvas.height = videoPreview.videoHeight || videoPreview.offsetHeight;
+
+                // Draw video frame to canvas
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
+
+                // Convert to base64 and save
+                const imageData = canvas.toDataURL('image/jpeg', 0.9); // Increased quality
+                const base64Image = imageData.split(',')[1];
+                
+                // Save image with timestamp
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                await saveImageToDevice(base64Image, `receipt_${timestamp}.jpg`);
+                
+                // Store for later use
+                lastCapturedImage = base64Image;
+
+                // Process the image
+                await processImage(base64Image);
+
+                // Show success feedback
+                showToast('Image captured successfully', 'success');
+
             } catch (error) {
-                console.error('Error:', error);
-                quickCheckStatus.textContent = 'Error processing image. Please try again.';
-                quickCheckStatus.className = 'error-status';
-            } finally {
-                isProcessing = false;
+                console.error('Camera capture error:', error);
+                showToast('Failed to capture image', 'error');
             }
+        }
+
+        // Update the camera initialization
+        async function initializeCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                });
+
+                const videoPreview = document.getElementById('camera-preview');
+                if (videoPreview) {
+                    videoPreview.srcObject = stream;
+                    await new Promise(resolve => {
+                        videoPreview.onloadedmetadata = resolve;
+                    });
+                    await videoPreview.play();
+                }
+
+                return stream;
+            } catch (error) {
+                console.error('Camera initialization error:', error);
+                showToast('Failed to access camera', 'error');
+                throw error;
+            }
+        }
+
+        // Add this to your camera modal HTML
+        function showCameraModal() {
+            const cameraModal = document.createElement('div');
+            cameraModal.className = 'camera-modal';
+            cameraModal.innerHTML = `
+                <div class="camera-content">
+                    <video id="camera-preview" autoplay playsinline></video>
+                    <div class="camera-controls">
+                        <button id="capture-button" class="camera-button">Capture</button>
+                        <button onclick="closeCameraModal()" class="camera-button">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(cameraModal);
+
+            // Initialize camera
+            initializeCamera().then(stream => {
+                // Add capture button listener
+                document.getElementById('capture-button').onclick = () => captureImage();
+            }).catch(error => {
+                closeCameraModal();
+                showToast('Camera access failed', 'error');
+            });
         }
 
         // Event listeners
@@ -1692,6 +1818,150 @@
                 modal.style.display = 'none';
                 modal.classList.remove('fade-out');
             }, 300);
+        }
+
+        // Add this function to handle image saving
+        async function saveImageToDevice(imageData, filename = 'receipt.jpg') {
+            try {
+                // Convert base64 to blob
+                const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
+                const blob = await base64Response.blob();
+
+                if (navigator.mediaDevices && window.location.protocol === 'https:') {
+                    // For modern browsers and mobile devices
+                    try {
+                        // Try using the File System Access API (modern browsers)
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: filename,
+                            types: [{
+                                description: 'JPEG Image',
+                                accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                            }]
+                        });
+                        const writable = await handle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                        showToast('Image saved successfully!', 'success');
+                    } catch (err) {
+                        // Fallback for browsers/devices that don't support File System Access API
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = filename;
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                        showToast('Image ready to download', 'success');
+                    }
+                } else {
+                    // Fallback for older browsers
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = filename;
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                    showToast('Image ready to download', 'success');
+                }
+            } catch (error) {
+                console.error('Error saving image:', error);
+                showToast('Failed to save image', 'error');
+            }
+        }
+
+        // Update the capture image function to include saving
+        async function captureImage() {
+            if (!stream || isProcessing) return;
+            
+            isProcessing = true;
+            quickCheckStatus.textContent = 'Processing...';
+            quickCheckStatus.className = '';
+
+            try {
+                canvas.width = videoPreview.videoWidth;
+                canvas.height = videoPreview.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoPreview, 0, 0);
+
+                const imageData = canvas.toDataURL('image/jpeg', 0.7); // Increased quality
+                const hasText = await detectText(imageData);
+
+                if (hasText) {
+                    quickCheckStatus.textContent = 'Text detected!';
+                    quickCheckStatus.className = 'success-status';
+                    testButton.style.display = 'inline-block';
+                    lastCapturedImage = imageData.split(',')[1];
+                    
+                    stopCamera();
+                    retryButton.style.display = 'inline-block';
+                    captureButton.style.display = 'none';
+
+                    try {
+                        const successSound = new Audio('data:audio/wav;base64,...');
+                        await successSound.play();
+                    } catch (audioError) {
+                        console.log('Audio playback failed:', audioError);
+                    }
+                } else {
+                    quickCheckStatus.textContent = 'No clear text detected. Please try again.';
+                    quickCheckStatus.className = 'error-status';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                quickCheckStatus.textContent = 'Error processing image. Please try again.';
+                quickCheckStatus.className = 'error-status';
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        // Update the file upload handler to include saving
+        fileUpload.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(event) {
+                    const base64Image = event.target.result.split(',')[1];
+                    
+                    // Save uploaded image with original filename
+                    const filename = `receipt_${file.name}`;
+                    await saveImageToDevice(base64Image, filename);
+                    
+                    lastCapturedImage = base64Image;
+                    // ... rest of your existing upload code ...
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error processing image', 'error');
+            }
+        });
+
+        // Add a save button to the success modal
+        function showSuccessModal(extractedText) {
+            const modal = document.getElementById('successModal');
+            const successContent = modal.querySelector('.success-content');
+            
+            successContent.innerHTML = `
+                <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                </svg>
+                
+                <h2>Success!</h2>
+                
+                <div class="receipt-text">
+                    <h4>Detected Text:</h4>
+                    <pre>${extractedText.replace(/\n/g, '<br>')}</pre>
+                </div>
+                
+                <div class="button-group">
+                    <button class="save-image-button" onclick="saveImageToDevice(lastCapturedImage)">Save Image</button>
+                    <button class="close-button">Done</button>
+                </div>
+            `;
+
+            modal.style.display = 'flex';
+            showConfetti();
         }
 
     </script>
