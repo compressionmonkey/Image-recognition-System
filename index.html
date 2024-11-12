@@ -1080,6 +1080,7 @@
                     }
 
                     const data = await response.json();
+                    console.log('data ajdsjkhdsakjh', data);
                     const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
                     uploadStatus.textContent = `Recognized Text: ${text}`;
                 } catch (error) {
