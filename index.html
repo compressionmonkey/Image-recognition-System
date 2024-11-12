@@ -1422,23 +1422,30 @@
                     return;
                 }
 
-                // Then check the data structure
-                if (!data || !data.responses || !data.responses[0] || !data.responses[0].fullTextAnnotation) {
+                // Then check the data structure for textAnnotations
+                if (!data || !data.responses || !data.responses[0] || !data.responses[0].textAnnotations || !data.responses[0].textAnnotations[0]) {
                     showToast('No receipt text detected. Please try again.', 'error');
                     return;
                 }
 
-                const extractedText = data.responses[0].fullTextAnnotation.text;
+                const extractedText = data.responses[0].textAnnotations[0].description;
                 if (!extractedText || extractedText.trim() === '') {
                     showToast('No receipt text detected. Please try again.', 'error');
                     return;
                 }
 
+                // Log successful text extraction
+                console.log('Text Extraction Success:', {
+                    timestamp: new Date().toISOString(),
+                    textLength: extractedText.length,
+                    preview: extractedText.substring(0, 100) + '...'
+                });
+
                 // If we get here, we have a successful response with text
                 const modal = document.getElementById('successModal');
                 const successContent = modal.querySelector('.success-content');
 
-                // Update success modal content
+                // Update success modal content with formatted text
                 successContent.innerHTML = `
                     <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
                         <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
@@ -1449,7 +1456,7 @@
                     
                     <div class="receipt-text">
                         <h4>Detected Text:</h4>
-                        <pre>${JSON.stringify(data)}</pre>
+                        <pre>${extractedText.replace(/\n/g, '<br>')}</pre>
                     </div>
                     
                     <button class="close-button">Done</button>
