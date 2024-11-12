@@ -1820,17 +1820,28 @@
             }, 300);
         }
 
-        // Add this function to handle image saving
+        // Update the saveImageToDevice function
         async function saveImageToDevice(imageData, filename = 'receipt.jpg') {
             try {
                 // Convert base64 to blob
                 const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
                 const blob = await base64Response.blob();
 
-                if (navigator.mediaDevices && window.location.protocol === 'https:') {
-                    // For modern browsers and mobile devices
+                // For iOS Safari and other mobile browsers
+                if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                    // Create temporary link and trigger download
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                    showToast('Image saved to downloads', 'success');
+                } else {
+                    // For desktop browsers, try using File System Access API first
                     try {
-                        // Try using the File System Access API (modern browsers)
                         const handle = await window.showSaveFilePicker({
                             suggestedName: filename,
                             types: [{
@@ -1843,22 +1854,14 @@
                         await writable.close();
                         showToast('Image saved successfully!', 'success');
                     } catch (err) {
-                        // Fallback for browsers/devices that don't support File System Access API
+                        // Fallback for browsers that don't support File System Access API
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(blob);
                         link.download = filename;
                         link.click();
                         URL.revokeObjectURL(link.href);
-                        showToast('Image ready to download', 'success');
+                        showToast('Image downloaded successfully', 'success');
                     }
-                } else {
-                    // Fallback for older browsers
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = filename;
-                    link.click();
-                    URL.revokeObjectURL(link.href);
-                    showToast('Image ready to download', 'success');
                 }
             } catch (error) {
                 console.error('Error saving image:', error);
@@ -1866,53 +1869,39 @@
             }
         }
 
-        // Update the capture image function to include saving
+        // Update the captureImage function to automatically save
         async function captureImage() {
             if (!stream || isProcessing) return;
             
             isProcessing = true;
-            quickCheckStatus.textContent = 'Processing...';
-            quickCheckStatus.className = '';
+            showToast('Processing image...', 'info');
 
             try {
+                const canvas = document.createElement('canvas');
                 canvas.width = videoPreview.videoWidth;
                 canvas.height = videoPreview.videoHeight;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(videoPreview, 0, 0);
 
-                const imageData = canvas.toDataURL('image/jpeg', 0.7); // Increased quality
-                const hasText = await detectText(imageData);
+                const imageData = canvas.toDataURL('image/jpeg', 0.9);
+                const base64Image = imageData.split(',')[1];
+                
+                // Save image with timestamp
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                await saveImageToDevice(base64Image, `receipt_${timestamp}.jpg`);
+                
+                lastCapturedImage = base64Image;
+                await processImage(base64Image);
 
-                if (hasText) {
-                    quickCheckStatus.textContent = 'Text detected!';
-                    quickCheckStatus.className = 'success-status';
-                    testButton.style.display = 'inline-block';
-                    lastCapturedImage = imageData.split(',')[1];
-                    
-                    stopCamera();
-                    retryButton.style.display = 'inline-block';
-                    captureButton.style.display = 'none';
-
-                    try {
-                        const successSound = new Audio('data:audio/wav;base64,...');
-                        await successSound.play();
-                    } catch (audioError) {
-                        console.log('Audio playback failed:', audioError);
-                    }
-                } else {
-                    quickCheckStatus.textContent = 'No clear text detected. Please try again.';
-                    quickCheckStatus.className = 'error-status';
-                }
             } catch (error) {
-                console.error('Error:', error);
-                quickCheckStatus.textContent = 'Error processing image. Please try again.';
-                quickCheckStatus.className = 'error-status';
+                console.error('Camera capture error:', error);
+                showToast('Failed to capture image', 'error');
             } finally {
                 isProcessing = false;
             }
         }
 
-        // Update the file upload handler to include saving
+        // Update the file upload handler to automatically save
         fileUpload.addEventListener('change', async function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -1922,12 +1911,13 @@
                 reader.onload = async function(event) {
                     const base64Image = event.target.result.split(',')[1];
                     
-                    // Save uploaded image with original filename
-                    const filename = `receipt_${file.name}`;
+                    // Save uploaded image with timestamp and original filename
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const filename = `receipt_${timestamp}_${file.name}`;
                     await saveImageToDevice(base64Image, filename);
                     
                     lastCapturedImage = base64Image;
-                    // ... rest of your existing upload code ...
+                    await processImage(base64Image);
                 };
                 reader.readAsDataURL(file);
             } catch (error) {
