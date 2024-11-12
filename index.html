@@ -953,6 +953,26 @@
         .camera-button:hover {
             background: #1976D2;
         }
+
+        .camera-button.capture {
+            background-color: #4CAF50; /* Green color for positive action */
+            color: white;
+            transition: background-color 0.3s;
+        }
+        
+        .camera-button.capture:hover {
+            background-color: #45a049; /* Darker green on hover */
+        }
+        
+        .camera-button.retry {
+            background-color: #f44336; /* Red color for negative action */
+            color: white;
+            transition: background-color 0.3s;
+        }
+        
+        .camera-button.retry:hover {
+            background-color: #da190b; /* Darker red on hover */
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
@@ -976,9 +996,9 @@
                 <video id="video-preview" autoplay playsinline></video>
                 <canvas id="canvas"></canvas>
                 <div class="camera-controls">
-                    <button id="start-camera" class="camera-button">Start Camera</button>
-                    <button id="capture-image" class="camera-button" style="display: none;">Capture</button>
-                    <button id="retry-camera" class="camera-button" style="display: none;">Retry</button>
+                    <button id="start-camera" class="camera-button"> Start Camera</button>
+                    <button id="capture-image" class="camera-button capture" style="display: none;">📸 Capture</button>
+                    <button id="retry-camera" class="camera-button retry" style="display: none;">🔄 Retry</button>
                 </div>
                 <div id="quick-check-status"></div>
             </div>
@@ -996,7 +1016,7 @@
             <div class="logo-circle">
                 LOGO
             </div>
-            <h2>Welcome to ReceiptScan</h2>
+            <h2>Welcome to Tshong AI</h2>
             <p class="subtitle">Simplify your financial tracking with our easy-to-use receipt scanning app. Capture, organize, and manage your expenses effortlessly.</p>
             
             <div class="features">
@@ -1030,9 +1050,9 @@
             <button id="addPhotoBtn" class="primary-button">
                 <span class="icon">📸</span> Add Photo
             </button>
-            <button id="addManualBtn" class="secondary-button">
+            <!-- <button id="addManualBtn" class="secondary-button">
                 <span class="icon">+</span> Add Reference Number Manually
-            </button>
+            </button> -->
         </div>
     </div>
 
@@ -1224,8 +1244,12 @@
                 <div class="camera-content">
                     <video id="camera-preview" autoplay playsinline></video>
                     <div class="camera-controls">
-                        <button id="capture-button" class="camera-button">Capture</button>
-                        <button onclick="closeCameraModal()" class="camera-button">Cancel</button>
+                        <button id="capture-photo" class="camera-button capture">
+                            📸 Capture
+                        </button>
+                        <button onclick="closeCameraModal()" class="camera-button retry">
+                            ❌ Cancel
+                        </button>
                     </div>
                 </div>
             `;
@@ -1234,7 +1258,7 @@
             // Initialize camera
             initializeCamera().then(stream => {
                 // Add capture button listener
-                document.getElementById('capture-button').onclick = () => captureImage();
+                document.getElementById('capture-photo').onclick = () => captureImage();
             }).catch(error => {
                 closeCameraModal();
                 showToast('Camera access failed', 'error');
@@ -1472,8 +1496,12 @@
                         <div class="camera-content">
                             <video id="camera-preview" autoplay playsinline></video>
                             <div class="camera-controls">
-                                <button id="capture-photo" class="camera-button">Capture</button>
-                                <button onclick="closeCameraModal()" class="camera-button">Cancel</button>
+                                <button id="capture-photo" class="camera-button capture">
+                                    📸 Capture
+                                </button>
+                                <button onclick="closeCameraModal()" class="camera-button retry">
+                                    ❌ Cancel
+                                </button>
                             </div>
                         </div>
                     `;
@@ -1645,7 +1673,7 @@
 
                 // First check if response is not ok
                 if (!response.ok) {
-                    showFailureModal('Server Error', 'Not found. Please retry');
+                    showFailureModal('Scan failed', 'Please retry');
                     return;
                 }
 
