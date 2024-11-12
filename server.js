@@ -299,7 +299,15 @@ app.post('/vision-api', async (req, res) => {
 
             res.json(data);
         } else {
-            res.status(400).send('Text confidence score is below threshold');
+            res.status(400).json({
+                error: 'Text confidence score is below threshold',
+                details: {
+                    confidence: confidence,
+                    threshold: 0.7,
+                    message: 'The text detection confidence is too low. Please try with a clearer image.'
+                }
+            });
+            return;
         }
     } catch (error) {
         const errorTime = Date.now();
