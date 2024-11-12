@@ -1575,6 +1575,42 @@
             }, 250);
         }
 
+        // Add this logging utility
+        const logger = {
+            info: async (message, data = null) => {
+                await sendLog('info', message, data);
+            },
+            warn: async (message, data = null) => {
+                await sendLog('warn', message, data);
+            },
+            error: async (message, data = null) => {
+                await sendLog('error', message, data);
+            },
+        };
+
+        async function sendLog(level, message, data) {
+            try {
+                const customerID = sessionStorage.getItem('customerID');
+                const timestamp = new Date().toISOString();
+                
+                await fetch('/api/logs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        level,
+                        message,
+                        data,
+                        timestamp,
+                        customerID
+                    })
+                });
+            } catch (error) {
+                console.error('Error sending log:', error);
+            }
+        }
+
     </script>
 
     <!-- Add this before </body> -->

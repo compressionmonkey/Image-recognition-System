@@ -316,6 +316,38 @@ app.post('/vision-api', async (req, res) => {
     }
 });
 
+// Add this new endpoint for logging
+app.post('/api/logs', async (req, res) => {
+    const { level, message, data, timestamp, customerID } = req.body;
+    
+    try {
+        // Log to console (will appear in Vercel logs)
+        console.log(JSON.stringify({
+            timestamp: timestamp || new Date().toISOString(),
+            level,
+            customerID,
+            message,
+            data
+        }));
+
+        // Optionally store in Airtable
+        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+        await base('Logs').create([{
+            fields: {
+                'Timestamp': timestamp || formatDate(new Date()),
+                'Level': level,
+                'CustomerID': customerID,
+                'Message': message,
+                'Data': JSON.stringify(data, null, 2)
+            }
+        }]);
+
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error logging:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
