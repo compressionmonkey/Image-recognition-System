@@ -1151,11 +1151,11 @@
         function routeToDashboard() {
             const customerID = sessionStorage.getItem('customerID');
             const dashboardUrls = {
-                'a8358': 'https://airtable.com/apptAcEDVua80Ab5c/shrfhyETl087DpYrR',
-                '0e702': 'https://airtable.com/apptAcEDVua80Ab5c/shrsORYszps6kro68',
-                '571b6': 'https://airtable.com/apptAcEDVua80Ab5c/shrBeHtVC6gAavgWM',
-                'be566': 'https://airtable.com/apptAcEDVua80Ab5c/shrC1T08P7aRTZUrC',
-                '72d72': 'https://airtable.com/apptAcEDVua80Ab5c/shrm3TT6h9ZiV8KSc'
+                'a8358': process.env.DASHBOARD_URL_a8358,
+                '0e702': process.env.DASHBOARD_URL_0e702,
+                '571b6': process.env.DASHBOARD_URL_571b6,
+                'be566': process.env.DASHBOARD_URL_be566,
+                '72d72': process.env.DASHBOARD_URL_72d72
             };
             
             if (dashboardUrls[customerID]) {
@@ -1397,7 +1397,13 @@
                 }
 
                 // Then check the data structure
-                if (!data || !data.text || data.text.trim() === '') {
+                if (!data || !data.responses || !data.responses[0] || !data.responses[0].fullTextAnnotation) {
+                    showToast('No receipt text detected. Please try again.', 'error');
+                    return;
+                }
+
+                const extractedText = data.responses[0].fullTextAnnotation.text;
+                if (!extractedText || extractedText.trim() === '') {
                     showToast('No receipt text detected. Please try again.', 'error');
                     return;
                 }
@@ -1417,7 +1423,7 @@
                     
                     <div class="receipt-text">
                         <h4>Detected Text:</h4>
-                        <pre>${data.text}</pre>
+                        <pre>${extractedText}</pre>
                     </div>
                     
                     <button class="close-button">Done</button>
