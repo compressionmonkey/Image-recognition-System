@@ -1080,8 +1080,7 @@
                     }
 
                     const data = await response.json();
-                    console.log('data ajdsjkhdsakjh', data);
-                    const text = data;
+                    const text = data.responses[0]?.fullTextAnnotation?.text || 'No text found';
                     uploadStatus.textContent = `Recognized Text: ${text}`;
                 } catch (error) {
                     console.error('Error:', error);
@@ -1450,7 +1449,7 @@
                     
                     <div class="receipt-text">
                         <h4>Detected Text:</h4>
-                        <pre>${extractedText}</pre>
+                        <pre>${data}</pre>
                     </div>
                     
                     <button class="close-button">Done</button>
@@ -1573,42 +1572,6 @@
                     origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
                 });
             }, 250);
-        }
-
-        // Add this logging utility
-        const logger = {
-            info: async (message, data = null) => {
-                await sendLog('info', message, data);
-            },
-            warn: async (message, data = null) => {
-                await sendLog('warn', message, data);
-            },
-            error: async (message, data = null) => {
-                await sendLog('error', message, data);
-            },
-        };
-
-        async function sendLog(level, message, data) {
-            try {
-                const customerID = sessionStorage.getItem('customerID');
-                const timestamp = new Date().toISOString();
-                
-                await fetch('/api/logs', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        level,
-                        message,
-                        data,
-                        timestamp,
-                        customerID
-                    })
-                });
-            } catch (error) {
-                console.error('Error sending log:', error);
-            }
         }
 
     </script>
