@@ -55,19 +55,27 @@ function categorizeBank(text) {
         referenceNo: null
     };
 
-    // Check for BOB (Bank of Bhutan)
-    const bobMatch = text.match(/Jrnl\.\s*No\s*[:.]\s*(\w+)/i);
-    if (bobMatch) {
-        result.bankType = 'BOB';
-        result.referenceNo = bobMatch[1];
-        return result;
-    }
-
-    // Check for BNB (Bhutan National Bank)
+    // First check for BNB (Bhutan National Bank) - most specific pattern
     const bnbMatch = text.match(/RRN\s*[:.]\s*(\w+)/i);
     if (bnbMatch) {
         result.bankType = 'BNB';
         result.referenceNo = bnbMatch[1];
+        return result;
+    }
+
+    // Then check for BOB (Bank of Bhutan) - first priority: 6-8 digit number
+    const digitMatch = text.match(/(\d{6,8})/);
+    if (digitMatch) {
+        result.bankType = 'BOB';
+        result.referenceNo = digitMatch[1];
+        return result;
+    }
+    
+    // BOB second priority: JXX No pattern
+    const jxxMatch = text.match(/J[A-Za-z]{2}\s*No/i);
+    if (jxxMatch) {
+        result.bankType = 'BOB';
+        result.referenceNo = jxxMatch[0];
         return result;
     }
 
