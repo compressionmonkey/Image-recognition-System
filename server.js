@@ -30,7 +30,7 @@ const baseId = 'apptAcEDVua80Ab5c'; // Replace with your Airtable base ID
 
 // Map customer IDs to their table names
 const customerTables = {
-    'a8358': 'Customer1',
+    'a8358': 'Ambient',
     '0e702': 'Customer2',
     '571b6': 'Customer3',
     'be566': 'Customer4',
