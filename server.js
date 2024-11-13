@@ -55,12 +55,22 @@ function categorizeBank(text) {
         referenceNo: null
     };
 
-    // First check for BNB (Bhutan National Bank) - most specific pattern
-    const bnbMatch = text.match(/RRN\s*[:.]\s*(\w+)/i);
-    if (bnbMatch) {
-        result.bankType = 'BNB';
-        result.referenceNo = bnbMatch[1];
-        return result;
+    // First check for BNB (Bhutan National Bank)
+    const twelveDigitMatch = text.match(/(?<![\dA-Za-z])(\d{12})(?![\dA-Za-z])/g);
+    const hasRRN = text.match(/RRN/i);
+    
+    if (twelveDigitMatch && hasRRN) {
+        // Filter out numbers that come after letters (like MFTR243031165)
+        const validNumbers = twelveDigitMatch.filter(num => {
+            const beforeNumber = text.substring(text.indexOf(num) - 5, text.indexOf(num));
+            return !beforeNumber.match(/[A-Za-z]+$/);
+        });
+        
+        if (validNumbers.length > 0) {
+            result.bankType = 'BNB';
+            result.referenceNo = validNumbers[0];  // Take the first valid 12-digit number
+            return result;
+        }
     }
 
     // Then check for BOB (Bank of Bhutan) - first priority: 6-8 digit number
