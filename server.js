@@ -108,8 +108,8 @@ function parseReceiptData(text) {
             const line = lines[i].trim();
             const nextLine = lines[i + 1]?.trim() || '';
 
-            // Amount (Look for 'Nu.' pattern)
-            const amountMatch = line.match(/Nu\.\s*([\d,]+\.?\d*)/i);
+            // Amount (Look for N/n followed by any single character and period)
+            const amountMatch = line.match(/[Nn][^.]\.\s*([\d,]+\.?\d*)/);
             if (amountMatch && !result.Amount) {
                 result.Amount = amountMatch[1].replace(/,/g, '');
             }
