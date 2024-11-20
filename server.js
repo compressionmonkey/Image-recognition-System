@@ -377,5 +377,46 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
+// Add this new endpoint for recording cash transactions
+app.post('/record-cash', async (req, res) => {
+    const { amount } = req.body;
+    const isCash = true;  // This is always true for cash transactions
+    
+    try {
+        // Basic validation
+        if (!amount || isNaN(amount) || amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Amount must be a positive number'
+            });
+        }
+
+        // Log the request for debugging
+        console.log('Cash record request:', {
+            isCash,
+            amount,
+            timestamp: formatDate(new Date())
+        });
+
+        // For now, just send back a success response
+        res.status(200).json({
+            success: true,
+            message: 'Cash record received',
+            data: {
+                isCash,
+                amount,
+                timestamp: formatDate(new Date())
+            }
+        });
+
+    } catch (error) {
+        console.error('Error recording cash:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

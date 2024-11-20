@@ -973,6 +973,59 @@
         .camera-button.retry:hover {
             background-color: #da190b; /* Darker red on hover */
         }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            box-sizing: border-box;
+        }
+
+        .form-group input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .button-group .camera-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .button-group .camera-button:hover {
+            background: var(--primary-dark);
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
@@ -1048,11 +1101,11 @@
     <div id="mainContent" style="display: none;">
         <div class="action-buttons">
             <button id="addPhotoBtn" class="primary-button">
-                <span class="icon">📸</span> Add Photo
+                <span class="icon">📸</span> Add ReceiptPhoto
             </button>
-            <!-- <button id="addManualBtn" class="secondary-button">
-                <span class="icon">+</span> Add Reference Number Manually
-            </button> -->
+            <button id="addManualBtn" class="secondary-button">
+                <span class="icon">✍</span> Add Cash Receipt Manually
+            </button>
         </div>
     </div>
 
@@ -2021,6 +2074,67 @@
             showConfetti();
         }
 
+        // Add manual entry button handler
+        document.getElementById('addManualBtn').addEventListener('click', showManualEntryModal);
+
+        function showManualEntryModal() {
+            document.getElementById('manualEntryModal').style.display = 'flex';
+        }
+
+        function closeManualEntryModal() {
+            const modal = document.getElementById('manualEntryModal');
+            modal.classList.add('fade-out');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.classList.remove('fade-out');
+                document.getElementById('manualReceiptForm').reset();
+            }, 300);
+        }
+
+        // Wrap the form submission handler in DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+            const manualReceiptForm = document.getElementById('manualReceiptForm');
+            if (manualReceiptForm) {
+                manualReceiptForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    // Get the amount value
+                    const amount = parseFloat(document.getElementById('amount').value);
+                    
+                    // Validate amount
+                    if (!amount || isNaN(amount) || amount <= 0) {
+                        showToast('Please enter a valid amount', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        // Send data to server
+                        const response = await fetch('/record-cash', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                amount: amount
+                            })
+                        });
+
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            closeManualEntryModal();
+                            showToast('Receipt added successfully', 'success');
+                        } else {
+                            showToast(data.error || 'Failed to add receipt', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        showToast('Failed to add receipt', 'error');
+                    }
+                });
+            }
+        });
+
     </script>
 
     <!-- Add this before </body> -->
@@ -2049,6 +2163,31 @@
     <div id="failureModal" class="failure-modal" style="display: none;">
         <div class="failure-content">
             <!-- Content will be dynamically updated -->
+        </div>
+    </div>
+
+    <!-- Manual Receipt Entry Modal -->
+    <div id="manualEntryModal" class="photo-options-modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Add Cash Receipt</h3>
+            <form id="manualReceiptForm">
+                <div class="form-group">
+                    <label for="amount">Amount (Nu.)</label>
+                    <input type="number" 
+                           id="amount" 
+                           name="amount" 
+                           step="1" 
+                           min="0" 
+                           required 
+                           placeholder="Enter amount">
+                </div>
+
+                <button type="submit" class="photo-option-btn" style="background: #000 !important; color: white !important;">
+                    <span class="icon" style="color: white !important;">💾</span>
+                    Submit
+                </button>
+                <button type="button" class="cancel-btn" onclick="closeManualEntryModal()">Cancel</button>
+            </form>
         </div>
     </div>
 
