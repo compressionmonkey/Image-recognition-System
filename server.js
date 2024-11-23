@@ -17,11 +17,12 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // Serve static files from the current directory
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Configure Airtable
