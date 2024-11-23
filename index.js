@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let isLoggedIn = false;
     let worker = null;
     let cocoModel = null;
+    let model = undefined;
+    let children = [];
+    const MIN_DETECTION_CONFIDENCE = 0.5;
 
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
@@ -67,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load COCO-SSD model when page loads
     cocoSsd.load().then(function(loadedModel) {
-        cocoModel = loadedModel;
+        model = loadedModel;
         console.log('COCO-SSD model loaded');
     });
 
@@ -435,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function handlePhotoOption(source) {
         if (source === 'camera') {
             try {
-                if (!cocoModel) {
+                if (!model) {
                     showToast('Please wait, AI model is loading...', 'info');
                     return;
                 }
@@ -449,40 +452,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 // Create and show camera modal
-                const cameraModal = document.createElement('div');
-                cameraModal.className = 'camera-modal';
-                cameraModal.innerHTML = `
-                    <div class="camera-content">
-                        <video id="camera-preview" autoplay playsinline></video>
-                        <div class="camera-controls">
-                            <button id="capture-photo" class="camera-button capture">
-                                📸 Capture
-                            </button>
-                            <button onclick="closeCameraModal()" class="camera-button retry">
-                                ❌ Cancel
-                            </button>
-                        </div>
-                    </div>
-                `;
+                const cameraModal = createCameraModal();
                 document.body.appendChild(cameraModal);
                 
                 // Close photo options modal
                 closePhotoOptions();
                 
-                // Show and setup camera modal
-                // const cameraModal = document.getElementById('cameraModal');
                 const video = document.getElementById('camera-preview');
-                const detectionStatus = document.querySelector('.detection-status');
+                const liveView = document.getElementById('liveView');
                 
                 if (cameraModal) cameraModal.style.display = 'flex';
                 if (video) {
                     video.srcObject = stream;
                     // Start detection once video is playing
                     video.addEventListener('loadeddata', function() {
-                        if (detectionStatus) detectionStatus.style.display = 'block';
-                        // detectPhones();
+                        predictWebcam(video, liveView);
                     });
                 }
+
                 // Handle capture button
                 document.getElementById('capture-photo').onclick = async () => {
                     const canvas = document.createElement('canvas');
@@ -570,5 +557,76 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeManualEntryModal = closeManualEntryModal;
     window.closeFailureModal  = closeFailureModal;
     window.handleManualSubmit  = handleManualSubmit;
+
+    // Add the prediction function
+    function predictWebcam(video, liveView) {
+        // Remove any highlighting from previous frame
+        for (let i = 0; i < children.length; i++) {
+            liveView.removeChild(children[i]);
+        }
+        children.splice(0);
+
+        model.detect(video).then(function(predictions) {
+            for (let n = 0; n < predictions.length; n++) {
+                if (predictions[n].score > MIN_DETECTION_CONFIDENCE) {
+                    const p = document.createElement('p');
+                    p.innerText = `${predictions[n].class} - ${Math.round(predictions[n].score * 100)}%`;
+                    p.style = `
+                        margin: 0;
+                        padding: 4px 8px;
+                        background: rgba(255, 0, 0, 0.85);
+                        color: white;
+                        border: 1px solid rgba(255, 0, 0, 0.7);
+                        z-index: 2;
+                        position: absolute;
+                        font-size: 16px;
+                        left: ${predictions[n].bbox[0]}px;
+                        top: ${predictions[n].bbox[1]}px;
+                    `;
+
+                    const highlighter = document.createElement('div');
+                    highlighter.setAttribute('class', 'highlighter');
+                    highlighter.style = `
+                        left: ${predictions[n].bbox[0]}px;
+                        top: ${predictions[n].bbox[1]}px;
+                        width: ${predictions[n].bbox[2]}px;
+                        height: ${predictions[n].bbox[3]}px;
+                    `;
+
+                    liveView.appendChild(highlighter);
+                    liveView.appendChild(p);
+                    children.push(highlighter);
+                    children.push(p);
+                }
+            }
+
+            // Keep predicting unless the camera is stopped
+            if (video.srcObject) {
+                window.requestAnimationFrame(() => predictWebcam(video, liveView));
+            }
+        });
+    }
+
+    // Modify your camera modal HTML to include the highlighter container
+    function createCameraModal() {
+        const cameraModal = document.createElement('div');
+        cameraModal.className = 'camera-modal';
+        cameraModal.innerHTML = `
+            <div class="camera-content">
+                <div id="liveView" class="videoView">
+                    <video id="camera-preview" autoplay playsinline></video>
+                </div>
+                <div class="camera-controls">
+                    <button id="capture-photo" class="camera-button capture">
+                        📸 Capture
+                    </button>
+                    <button onclick="closeCameraModal()" class="camera-button retry">
+                        ❌ Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+        return cameraModal;
+    }
 
 });

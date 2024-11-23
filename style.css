@@ -15,11 +15,7 @@ body {
     box-sizing: border-box;
     background-color: var(--background);
 }
-/* .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-} */
+
 header {
     background-color: var(--primary-color);
     color: white;
@@ -27,34 +23,14 @@ header {
     text-align: center;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-/* .nav-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 2rem;
-} */
+
 .logo {
     color: white;
     font-size: 1.5rem;
     font-weight: 600;
     text-decoration: none;
 }
-/* .hero-section {
-    padding: 4rem 2rem;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    border-radius: 0 0 20px 20px;
-    margin-bottom: 2rem;
-} */
-/* .hero-section h1 {
-    font-size: 2.5em;
-    margin-bottom: 20px;
-    color: #333;
-} */
-/* .hero-section p {
-    font-size: 1.2em;
-    margin-bottom: 30px;
-    color: #666;
-} */
+
 .cta-button {
     display: inline-block;
     padding: 12px 24px;
@@ -72,92 +48,17 @@ header {
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 @media (max-width: 768px) {
-    /* .hero-section h1 {
-        font-size: 2em;
-    }
-    .hero-section p {
-        font-size: 1em;
-    } */
+
     .cta-button {
         padding: 10px 20px;
         font-size: 0.9em;
     }
 }
-/* #quick-check-status {
-    margin-top: 10px;
-    font-weight: bold;
-    padding: 10px;
-    border-radius: 4px;
-    display: block;
-    width: 100%;
-    max-width: 300px;
-    margin-left: auto;
-    margin-right: auto;
-    text-align: center;
-} */
-/* .success-status {
-    background-color: #e8f5e9;
-    color: #4CAF50;
-} */
-/* .error-status {
-    background-color: #ffebee;
-    color: #f44336;
-} */
-/* @media (max-width: 768px) {
-    #quick-check-status {
-        font-size: 14px;
-        padding: 8px;
-    }
-} */
-/* #camera-container {
-    max-width: 640px;
-    margin: 20px auto;
-    position: relative;
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-} */
-/* #video-preview {
-    width: 100%;
-    max-width: 640px;
-    border-radius: 8px;
-    display: none;
-    background-color: #000;
-} */
+
 #canvas {
     display: none;
 }
-/* .camera-controls {
-    margin-top: 15px;
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-} */
-/* .camera-button {
-    background-color: #2196F3;
-    color: white;
-    padding: 12px 24px;
-    border-radius: 5px;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s;
-}
-.camera-button:hover {
-    background-color: #1976D2;
-}
-.camera-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-} */
-/* #quick-check-status {
-    margin-top: 15px;
-    padding: 12px;
-    border-radius: 6px;
-    font-weight: 500;
-    text-align: center;
-} */
+
 #loginOverlay {
     display: block;
     position: fixed;
@@ -417,31 +318,6 @@ header {
     gap: 10px;
 }
 
-/* .camera-controls {
-    display: flex;
-    gap: 10px;
-} */
-
-/* .camera-button {
-    background-color: #2196F3;
-    color: white;
-    padding: 12px 24px;
-    border-radius: 5px;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s;
-}
-
-.camera-button:hover {
-    background-color: #1976D2;
-}
-
-.camera-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-} */
-
 .toast {
     position: fixed;
     bottom: 20px;
@@ -499,22 +375,6 @@ header {
     background: #1976D2;
 }
 
-/* .cancel-btn {
-    width: 100%;
-    padding: 12px;
-    margin: 5px 0;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: white;
-    color: #666;
-    cursor: pointer;
-    transition: background-color 0.3s;
-} */
-
-/* .cancel-btn:hover {
-    background: #f5f5f5;
-} */
-
 /* Success Modal Styles */
 .success-modal {
     position: fixed;
@@ -538,65 +398,6 @@ header {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
-/* .success-icon {
-    width: 100px;
-    height: 100px;
-    margin: 0 auto 20px;
-} */
-
-/* Checkmark Animation */
-/* .checkmark {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    display: block;
-    stroke-width: 2;
-    stroke: #4CAF50;
-    stroke-miterlimit: 10;
-    box-shadow: inset 0px 0px 0px #4CAF50;
-    animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
-} */
-
-/* .checkmark__circle {
-    stroke-dasharray: 166;
-    stroke-dashoffset: 166;
-    stroke-width: 2;
-    stroke-miterlimit: 10;
-    stroke: #4CAF50;
-    fill: none;
-    animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-} */
-
-/* .checkmark__check {
-    transform-origin: 50% 50%;
-    stroke-dasharray: 48;
-    stroke-dashoffset: 48;
-    animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
-} */
-
-/* .receipt-details {
-    margin: 20px 0;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    text-align: left;
-} */
-
-/* .close-button {
-    background: #4CAF50;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 25px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-} */
-
-/* .close-button:hover {
-    background: #45a049;
-    transform: translateY(-2px);
-} */
 
 @keyframes stroke {
     100% {
@@ -618,14 +419,6 @@ header {
         box-shadow: inset 0px 0px 0px 30px #4CAF50;
     }
 }
-
-/* Update success modal styles */
-/* .receipt-summary {
-    background: #e8f5e9;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-} */
 
 .receipt-text {
     background: #f5f5f5;
@@ -740,18 +533,6 @@ header {
     z-index: 1000;
 }
 
-/* .camera-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #000;
-    z-index: 1001;
-    display: flex;
-    flex-direction: column;
-} */
-
 .camera-content {
     flex: 1;
     display: flex;
@@ -762,23 +543,6 @@ header {
     flex: 1;
     object-fit: cover;
 }
-
-/* .camera-controls {
-    padding: 20px;
-    display: flex;
-    justify-content: space-around;
-    background: rgba(0, 0, 0, 0.7);
-} */
-
-/* .camera-button {
-    padding: 10px 20px;
-    border-radius: 5px;
-    border: none;
-    background: #2196F3;
-    color: white;
-    font-size: 16px;
-    cursor: pointer;
-} */
 
 .failure-modal {
     display: none;
@@ -993,4 +757,29 @@ header {
 
 .button-group .camera-button:hover {
     background: var(--primary-dark);
+}
+
+.videoView {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.highlighter {
+    background: transparent;
+    border: 3px solid #ff0000;
+    z-index: 1;
+    position: absolute;
+    pointer-events: none;
+}
+
+#liveView p {
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+#camera-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
