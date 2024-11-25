@@ -416,24 +416,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 img.onload = async function() {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    let { width, height } = img;
                     
-                    // Maintain minimum dimensions for better text detection
-                    const minDim = 800;
-                    if (width < minDim && height < minDim) {
-                        const scale = minDim / Math.min(width, height);
+                    // Dynamic resolution adjustment
+                    let { width, height } = img;
+                    const maxDim = Math.min(1920, Math.max(width, height));
+                    if (Math.max(width, height) > maxDim) {
+                        const scale = maxDim / Math.max(width, height);
                         width *= scale;
                         height *= scale;
                     }
                     
                     canvas.width = width;
                     canvas.height = height;
+                    
+                    // Apply pre-processing
+                    ctx.filter = 'contrast(1.2) brightness(1.1)';
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    const imageData = canvas.toDataURL('image/jpeg', 0.7);
-                    const base64Image = imageData.split(',')[1];
+                    // Compress dynamic range
+                    const imageData = ctx.getImageData(0, 0, width, height);
+                    compressDynamicRange(imageData);
+                    ctx.putImageData(imageData, 0, 0);
                     
-                    // Upload to server
+                    const finalImage = canvas.toDataURL('image/jpeg', 0.7);
+                    const base64Image = finalImage.split(',')[1];
+                    
                     await uploadToServer(base64Image);
                 };
                 img.src = event.target.result;
@@ -441,7 +448,18 @@ document.addEventListener('DOMContentLoaded', function() {
             reader.readAsDataURL(file);
         } catch (error) {
             console.error('Error:', error);
-            showToast('No Receipt detected. Please try again.', 'error');
+            showToast('Processing failed. Please try again.', 'error');
+        }
+    }
+
+    // Add dynamic range compression helper
+    function compressDynamicRange(imageData) {
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            // Apply logarithmic transformation to compress dynamic range
+            data[i] = Math.log(1 + data[i]) * 255 / Math.log(256);
+            data[i+1] = Math.log(1 + data[i+1]) * 255 / Math.log(256);
+            data[i+2] = Math.log(1 + data[i+2]) * 255 / Math.log(256);
         }
     }
 
@@ -561,85 +579,127 @@ document.addEventListener('DOMContentLoaded', function() {
 
      // Add the prediction function
      async function predictWebcam(video, liveView) {
-        // If not predicting anymore, exit the function
         if (!isPredicting) return;
 
-        // Remove any highlighting from previous frame
-        for (let i = 0; i < children.length; i++) {
-            liveView.removeChild(children[i]);
-        }
-        children.splice(0);
+        // Clear previous highlights
+        children.forEach(child => liveView.removeChild(child));
+        children = [];
 
-        model.detect(video).then(function(predictions) {
-            // If not predicting anymore, don't process predictions
+        // Pre-process frame
+        const processedCanvas = lightPreProcess(video);
+        
+        try {
+            const predictions = await model.detect(processedCanvas);
+            
             if (!isPredicting) return;
             
-            for (let n = 0; n < predictions.length; n++) {
-                const prediction = predictions[n];
-                
-                // Check for cell phone with good confidence
-                if (prediction.class === 'cell phone' && prediction.score > 0.7) {  // Using 0.7 as threshold
-                    console.log('Cell phone detected with high confidence:', prediction.score);
-                    // Capture the current frame
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    
-                    // Convert to blob and trigger the capture flow
-                    canvas.toBlob((blob) => {
-                        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-                        document.getElementById('capture-photo').click();
-                    }, 'image/jpeg', 0.8);
-                    
-                    return; // Exit the loop once we've found a good cell phone detection
+            for (let prediction of predictions) {
+                if (prediction.class === 'cell phone' && prediction.score > 0.7) {
+                    // Enhanced receipt detection
+                    const receiptFound = await checkForReceipt(processedCanvas);
+                    if (receiptFound) {
+                        console.log('Receipt detected in phone screen');
+                        await captureAndProcess(video);
+                        return;
+                    }
                 }
-
-                // Log each prediction's class and score
-                console.log(`Detected: ${prediction.class} with score ${prediction.score}`);
-
-                // if (prediction.score > MIN_DETECTION_CONFIDENCE) {
-                //     // Create visual elements for ALL detected objects
-                //     const p = document.createElement('p');
-                //     p.innerText = `${prediction.class} - ${Math.round(prediction.score * 100)}%`;
-                //     p.style = `
-                //         margin: 0;
-                //         padding: 4px 8px;
-                //         background: ${prediction.class === 'cell phone' ? 'rgba(255, 0, 0, 0.85)' : 'rgba(0, 255, 0, 0.85)'};
-                //         color: white;
-                //         border: 1px solid rgba(255, 0, 0, 0.7);
-                //         z-index: 2;
-                //         position: absolute;
-                //         font-size: 16px;
-                //         left: ${prediction.bbox[0]}px;
-                //         top: ${prediction.bbox[1]}px;
-                //     `;
-
-                //     const highlighter = document.createElement('div');
-                //     highlighter.setAttribute('class', 'highlighter');
-                //     highlighter.style = `
-                //         left: ${prediction.bbox[0]}px;
-                //         top: ${prediction.bbox[1]}px;
-                //         width: ${prediction.bbox[2]}px;
-                //         height: ${prediction.bbox[3]}px;
-                //         border: 2px solid ${prediction.class === 'cell phone' ? 'red' : 'green'};
-                //         position: absolute;
-                //         background: transparent;
-                //         z-index: 1;
-                //     `;
-
-                //     liveView.appendChild(highlighter);
-                //     liveView.appendChild(p);
-                //     children.push(highlighter);
-                //     children.push(p);
-                // }
             }
 
-            // Only request next frame if still predicting
+            // Continue prediction if no receipt found
             if (video.srcObject && isPredicting) {
                 window.requestAnimationFrame(() => predictWebcam(video, liveView));
             }
+        } catch (error) {
+            console.error('Prediction error:', error);
+            if (isPredicting) {
+                window.requestAnimationFrame(() => predictWebcam(video, liveView));
+            }
+        }
+    }
+
+    // Add receipt detection helper
+    async function checkForReceipt(canvas) {
+        // Extract text from the frame using Tesseract.js
+        const result = await Tesseract.recognize(
+            canvas,
+            'eng',
+            { 
+                logger: m => console.debug(m),
+                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/:.' 
+            }
+        );
+        
+        const text = result.data.text;
+        
+        // Check for common BNB and BOB receipt markers
+        const isBNBReceipt = (
+            text.match(/RRN/i) || // RRN number
+            text.match(/(?<![\dA-Za-z])(\d{12})(?![\dA-Za-z])/g) || // 12-digit reference
+            text.match(/BNB/i) || // Bank name
+            text.match(/Bhutan National Bank/i)
+        );
+        
+        const isBOBReceipt = (
+            text.match(/(\d{6,8})/) || // 6-8 digit reference
+            text.match(/J[A-Za-z]{2}\s*No/i) || // JXX No pattern
+            text.match(/BOB/i) || // Bank name
+            text.match(/Bank of Bhutan/i)
+        );
+        
+        // Additional receipt markers
+        const hasCommonReceiptText = (
+            text.match(/Date/i) ||
+            text.match(/Amount/i) ||
+            text.match(/Nu\./i) ||
+            text.match(/From A\/c/i) ||
+            text.match(/To A\/c/i)
+        );
+        
+        // Log detection results
+        console.log('Receipt Detection:', {
+            isBNB: !!isBNBReceipt,
+            isBOB: !!isBOBReceipt,
+            hasCommonText: !!hasCommonReceiptText,
+            extractedText: text
         });
+
+        // Return true if we detect either bank's receipt format
+        return !!(isBNBReceipt || isBOBReceipt) && hasCommonReceiptText;
+    }
+
+    // Add capture and process helper
+    async function captureAndProcess(video) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Apply perspective correction if needed
+        const corners = await detectCorners(video);
+        if (corners && corners.length === 4) {
+            ctx.drawImage(await correctPerspective(video, corners), 0, 0);
+        } else {
+            ctx.drawImage(video, 0, 0);
+        }
+        
+        // Convert to file and process
+        canvas.toBlob(async (blob) => {
+            const file = new File([blob], 'receipt-photo.jpg', { type: 'image/jpeg' });
+            await processImage(file);
+        }, 'image/jpeg', 0.8);
+    }
+
+    // Add corner detection helper
+    async function detectCorners(video) {
+        const canvas = lightPreProcess(video);
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Simple corner detection using contrast differences
+        // Returns array of corner coordinates or null if not found
+        // This is a simplified version - you might want to use a more robust algorithm
+        
+        return null; // Placeholder - implement actual corner detection if needed
     }
 
     // Modify your camera modal HTML to include the highlighter container
@@ -662,6 +722,24 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         return cameraModal;
+    }
+
+    // Add this after your existing utility functions
+    function lightPreProcess(video) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Reduce resolution for processing while maintaining aspect ratio
+        const MAX_DIMENSION = 1024;
+        const scale = MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        
+        // Basic image enhancement
+        ctx.filter = 'contrast(1.2) brightness(1.1)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        return canvas;
     }
 
     // Make functions available globally
