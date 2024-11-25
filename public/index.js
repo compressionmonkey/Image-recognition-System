@@ -1,11 +1,12 @@
 document.addEventListener('DOMContentLoaded', function() {
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
-    let worker = null;
-    let cocoModel = null;
     let model = undefined;
     let children = [];
     const MIN_DETECTION_CONFIDENCE = 0.5;
+
+    // Add a flag to control prediction loop
+    let isPredicting = false;
 
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
@@ -124,6 +125,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function closeCameraModal() {
+        isPredicting = false;  // Stop prediction loop
+        
+        // Clear all highlighters first
+        const liveView = document.getElementById('liveView');
+        if (liveView) {
+            children.forEach(child => liveView.removeChild(child));
+            children = [];
+        }
+
+        // Existing camera modal close logic
         const cameraModal = document.querySelector('.camera-modal');
         if (cameraModal) {
             const video = document.getElementById('camera-preview');
@@ -465,8 +476,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (video) {
                     video.srcObject = stream;
                     // Start detection once video is playing
-                    video.addEventListener('loadeddata', function() {
-                        predictWebcam(video, liveView);
+                    video.addEventListener('loadeddata', async function() {
+                        isPredicting = true;
+                        await predictWebcam(video, liveView);
                     });
                 }
 
@@ -547,19 +559,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Make functions available globally
-    window.handlePhotoOption = handlePhotoOption;
-    window.showPhotoOptions = showPhotoOptions;
-    window.closePhotoOptions = closePhotoOptions;
-    window.closeCameraModal = closeCameraModal;
-    window.validateLogin = validateLogin;
-    window.showManualEntryModal = showManualEntryModal;
-    window.closeManualEntryModal = closeManualEntryModal;
-    window.closeFailureModal  = closeFailureModal;
-    window.handleManualSubmit  = handleManualSubmit;
+     // Add the prediction function
+     async function predictWebcam(video, liveView) {
+        // If not predicting anymore, exit the function
+        if (!isPredicting) return;
 
-    // Add the prediction function
-    function predictWebcam(video, liveView) {
         // Remove any highlighting from previous frame
         for (let i = 0; i < children.length; i++) {
             liveView.removeChild(children[i]);
@@ -567,41 +571,72 @@ document.addEventListener('DOMContentLoaded', function() {
         children.splice(0);
 
         model.detect(video).then(function(predictions) {
+            // If not predicting anymore, don't process predictions
+            if (!isPredicting) return;
+            
             for (let n = 0; n < predictions.length; n++) {
-                if (predictions[n].score > MIN_DETECTION_CONFIDENCE) {
-                    const p = document.createElement('p');
-                    p.innerText = `${predictions[n].class} - ${Math.round(predictions[n].score * 100)}%`;
-                    p.style = `
-                        margin: 0;
-                        padding: 4px 8px;
-                        background: rgba(255, 0, 0, 0.85);
-                        color: white;
-                        border: 1px solid rgba(255, 0, 0, 0.7);
-                        z-index: 2;
-                        position: absolute;
-                        font-size: 16px;
-                        left: ${predictions[n].bbox[0]}px;
-                        top: ${predictions[n].bbox[1]}px;
-                    `;
-
-                    const highlighter = document.createElement('div');
-                    highlighter.setAttribute('class', 'highlighter');
-                    highlighter.style = `
-                        left: ${predictions[n].bbox[0]}px;
-                        top: ${predictions[n].bbox[1]}px;
-                        width: ${predictions[n].bbox[2]}px;
-                        height: ${predictions[n].bbox[3]}px;
-                    `;
-
-                    liveView.appendChild(highlighter);
-                    liveView.appendChild(p);
-                    children.push(highlighter);
-                    children.push(p);
+                const prediction = predictions[n];
+                
+                // Check for cell phone with good confidence
+                if (prediction.class === 'cell phone' && prediction.score > 0.7) {  // Using 0.7 as threshold
+                    console.log('Cell phone detected with high confidence:', prediction.score);
+                    // Capture the current frame
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    
+                    // Convert to blob and trigger the capture flow
+                    canvas.toBlob((blob) => {
+                        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+                        document.getElementById('capture-photo').click();
+                    }, 'image/jpeg', 0.8);
+                    
+                    return; // Exit the loop once we've found a good cell phone detection
                 }
+
+                // Log each prediction's class and score
+                console.log(`Detected: ${prediction.class} with score ${prediction.score}`);
+
+                // if (prediction.score > MIN_DETECTION_CONFIDENCE) {
+                //     // Create visual elements for ALL detected objects
+                //     const p = document.createElement('p');
+                //     p.innerText = `${prediction.class} - ${Math.round(prediction.score * 100)}%`;
+                //     p.style = `
+                //         margin: 0;
+                //         padding: 4px 8px;
+                //         background: ${prediction.class === 'cell phone' ? 'rgba(255, 0, 0, 0.85)' : 'rgba(0, 255, 0, 0.85)'};
+                //         color: white;
+                //         border: 1px solid rgba(255, 0, 0, 0.7);
+                //         z-index: 2;
+                //         position: absolute;
+                //         font-size: 16px;
+                //         left: ${prediction.bbox[0]}px;
+                //         top: ${prediction.bbox[1]}px;
+                //     `;
+
+                //     const highlighter = document.createElement('div');
+                //     highlighter.setAttribute('class', 'highlighter');
+                //     highlighter.style = `
+                //         left: ${prediction.bbox[0]}px;
+                //         top: ${prediction.bbox[1]}px;
+                //         width: ${prediction.bbox[2]}px;
+                //         height: ${prediction.bbox[3]}px;
+                //         border: 2px solid ${prediction.class === 'cell phone' ? 'red' : 'green'};
+                //         position: absolute;
+                //         background: transparent;
+                //         z-index: 1;
+                //     `;
+
+                //     liveView.appendChild(highlighter);
+                //     liveView.appendChild(p);
+                //     children.push(highlighter);
+                //     children.push(p);
+                // }
             }
 
-            // Keep predicting unless the camera is stopped
-            if (video.srcObject) {
+            // Only request next frame if still predicting
+            if (video.srcObject && isPredicting) {
                 window.requestAnimationFrame(() => predictWebcam(video, liveView));
             }
         });
@@ -628,5 +663,16 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         return cameraModal;
     }
+
+    // Make functions available globally
+    window.handlePhotoOption = handlePhotoOption;
+    window.showPhotoOptions = showPhotoOptions;
+    window.closePhotoOptions = closePhotoOptions;
+    window.closeCameraModal = closeCameraModal;
+    window.validateLogin = validateLogin;
+    window.showManualEntryModal = showManualEntryModal;
+    window.closeManualEntryModal = closeManualEntryModal;
+    window.closeFailureModal  = closeFailureModal;
+    window.handleManualSubmit  = handleManualSubmit;
 
 });
