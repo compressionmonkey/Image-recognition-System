@@ -593,15 +593,44 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!isPredicting) return;
             
+            // Update area ratio text
+            const areaRatioText = document.getElementById('areaRatioText');
+            const guidanceText = document.getElementById('guidanceText');
+            
             for (let prediction of predictions) {
                 if (prediction.class === 'cell phone' && prediction.score > 0.7) {
-                    // Enhanced receipt detection
-                    const receiptFound = await checkForReceipt(processedCanvas);
-                    if (receiptFound) {
-                        console.log('Receipt detected in phone screen');
-                        await captureAndProcess(video);
-                        return;
+                    // Calculate areas
+                    const totalArea = video.videoWidth * video.videoHeight;
+                    const predictionArea = prediction.bbox[2] * prediction.bbox[3];
+                    // Adjust the ratio by a factor to compensate for partial detection
+                    const areaRatio = (predictionArea / totalArea) * 2.5; // Multiply by 2.5 to compensate
+
+                    // Create highlight box
+                    // const highlighter = document.createElement('div');
+                    // highlighter.classList.add('highlighter');
+                    // highlighter.style.left = prediction.bbox[0] + 'px';
+                    // highlighter.style.top = prediction.bbox[1] + 'px';
+                    // highlighter.style.width = prediction.bbox[2] + 'px';
+                    // highlighter.style.height = prediction.bbox[3] + 'px';
+                    
+                    // // Adjust threshold to match visual expectations
+                    // highlighter.style.borderColor = areaRatio > 0.4 ? '#4CAF50' : '#ff0000';
+                    
+                    // Update guidance text
+                    if (guidanceText) {
+                        areaRatioText.textContent = areaRatio;
+                        areaRatioText.style.color = '#4CAF50';
+                        if (areaRatio > 0.4) {
+                            guidanceText.textContent = 'Perfect! Hold steady...';
+                            guidanceText.style.color = '#4CAF50';
+                        } else {
+                            guidanceText.textContent = 'Bring phone closer to scan';
+                            guidanceText.style.color = '#FFF';
+                        }
                     }
+
+                    liveView.appendChild(highlighter);
+                    children.push(highlighter);
                 }
             }
 
@@ -710,6 +739,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="camera-content">
                 <div id="liveView" class="videoView">
                     <video id="camera-preview" autoplay playsinline></video>
+                </div>
+                <div class="camera-guidance">
+                    <p>Area Ratio: <span id="areaRatioText">0.00</span></p>
+                    <p id="guidanceText">Bring phone closer to scan</p>
                 </div>
                 <div class="camera-controls">
                     <button id="capture-photo" class="camera-button capture">
