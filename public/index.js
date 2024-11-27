@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const processedCanvas = lightPreProcess(video);
         
         try {
-            const predictions = await model.detect(processedCanvas);
+            const predictions = await model.detect(processedCanvas, 1, 0.7);
             
             if (!isPredicting) return;
             
@@ -599,34 +599,61 @@ document.addEventListener('DOMContentLoaded', function() {
             
             for (let prediction of predictions) {
                 if (prediction.class === 'cell phone' && prediction.score > 0.7) {
-                    // Calculate areas
-                    const totalArea = video.videoWidth * video.videoHeight;
-                    const predictionArea = prediction.bbox[2] * prediction.bbox[3];
-                    // Adjust the ratio by a factor to compensate for partial detection
-                    const areaRatio = (predictionArea / totalArea) * 2.5; // Multiply by 2.5 to compensate
-
+                    const bbox = prediction.bbox;
+                    const frameWidth = video.videoWidth;
+                    const frameHeight = video.videoHeight;
+                    
                     // Create highlight box
-                    // const highlighter = document.createElement('div');
-                    // highlighter.classList.add('highlighter');
-                    // highlighter.style.left = prediction.bbox[0] + 'px';
-                    // highlighter.style.top = prediction.bbox[1] + 'px';
-                    // highlighter.style.width = prediction.bbox[2] + 'px';
-                    // highlighter.style.height = prediction.bbox[3] + 'px';
+                    const highlighter = document.createElement('div');
+                    highlighter.classList.add('highlighter');
+                    highlighter.style.left = bbox[0] + 'px';
+                    highlighter.style.top = bbox[1] + 'px';
+                    highlighter.style.width = bbox[2] + 'px';
+                    highlighter.style.height = bbox[3] + 'px';
+
+                    // Calculate metrics
+                    const margin = 20; // pixels margin from edge
+                    const isFullyVisible = (
+                        bbox[0] > margin && 
+                        bbox[1] > margin && 
+                        (bbox[0] + bbox[2]) < (frameWidth - margin) && 
+                        (bbox[1] + bbox[3]) < (frameHeight - margin)
+                    );
                     
-                    // // Adjust threshold to match visual expectations
-                    // highlighter.style.borderColor = areaRatio > 0.4 ? '#4CAF50' : '#ff0000';
+                    const phoneAspectRatio = bbox[2] / bbox[3];
+                    const isValidAspectRatio = phoneAspectRatio > 0.4 && phoneAspectRatio < 0.6;
                     
-                    // Update guidance text
-                    if (guidanceText) {
-                        areaRatioText.textContent = areaRatio;
-                        areaRatioText.style.color = '#4CAF50';
-                        if (areaRatio > 0.4) {
-                            guidanceText.textContent = 'Perfect! Hold steady...';
-                            guidanceText.style.color = '#4CAF50';
-                        } else {
-                            guidanceText.textContent = 'Bring phone closer to scan';
-                            guidanceText.style.color = '#FFF';
-                        }
+                    const totalArea = frameWidth * frameHeight;
+                    const phoneArea = bbox[2] * bbox[3];
+                    const areaRatio = phoneArea / totalArea;
+                    
+                    // Update UI based on conditions
+                    if (!isFullyVisible) {
+                        highlighter.style.borderColor = '#ff0000';
+                        guidanceText.textContent = 'Move phone away from edges';
+                        guidanceText.style.color = '#ff0000';
+                    } else if (!isValidAspectRatio) {
+                        highlighter.style.borderColor = '#FFA500';
+                        guidanceText.textContent = 'Hold phone straight';
+                        guidanceText.style.color = '#FFA500';
+                    } else if (areaRatio < 0.15) {
+                        highlighter.style.borderColor = '#FFA500';
+                        guidanceText.textContent = 'Move phone closer';
+                        guidanceText.style.color = '#FFA500';
+                    } else if (areaRatio > 0.4) {
+                        highlighter.style.borderColor = '#FFA500';
+                        guidanceText.textContent = 'Move phone further away';
+                        guidanceText.style.color = '#FFA500';
+                    } else {
+                        highlighter.style.borderColor = '#4CAF50';
+                        guidanceText.textContent = 'Perfect! Hold steady...';
+                        guidanceText.style.color = '#4CAF50';
+                    }
+                    
+                    // Update area ratio display
+                    if (areaRatioText) {
+                        areaRatioText.textContent = areaRatio.toFixed(3);
+                        areaRatioText.style.color = highlighter.style.borderColor;
                     }
 
                     liveView.appendChild(highlighter);
