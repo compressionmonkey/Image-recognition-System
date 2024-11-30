@@ -501,55 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Handle capture button
-                document.getElementById('capture-photo').onclick = async () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    
-                    // Stop camera stream
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    // Convert to file and process
-                    canvas.toBlob(async (blob) => {
-                        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-                        
-                        // Save image with timestamp
-                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                        const filename = `receipt_${timestamp}.jpg`;
-                        
-                        try {
-                            // Convert blob to base64 for saving
-                            const reader = new FileReader();
-                            reader.onload = async function(event) {
-                                const base64Image = event.target.result.split(',')[1];
-                                await saveImageToDevice(base64Image, filename);
-                                
-                                // Continue with normal flow
-                                closeCameraModal();
-                                closePhotoOptions();
-                                if (isLoggedIn) {
-                                    await processImage(file);
-                                } else {
-                                    document.getElementById('loginOverlay').style.display = 'block';
-                                }
-                            };
-                            reader.readAsDataURL(blob);
-                        } catch (error) {
-                            console.error('Error saving image:', error);
-                            showToast('Failed to save image', 'error');
-                            
-                            // Continue with normal flow even if save fails
-                            closeCameraModal();
-                            closePhotoOptions();
-                            if (isLoggedIn) {
-                                await processImage(file);
-                            } else {
-                                document.getElementById('loginOverlay').style.display = 'block';
-                            }
-                        }
-                    }, 'image/jpeg', 0.8);
-                };
+                document.getElementById('capture-photo').onclick = () => handlePhotoCapture(video, stream);
 
             } catch (error) {
                 console.error('Error accessing camera:', error);
@@ -585,7 +537,6 @@ document.addEventListener('DOMContentLoaded', function() {
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
-        // Pre-process frame
         const processedCanvas = lightPreProcess(video);
         
         try {
@@ -593,7 +544,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!isPredicting) return;
             
-            // Update area ratio text
             const areaRatioText = document.getElementById('areaRatioText');
             const guidanceText = document.getElementById('guidanceText');
             
@@ -612,7 +562,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     highlighter.style.height = bbox[3] + 'px';
 
                     // Calculate metrics
-                    const margin = 20; // pixels margin from edge
+                    const margin = 20;
                     const isFullyVisible = (
                         bbox[0] > margin && 
                         bbox[1] > margin && 
@@ -648,6 +598,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         highlighter.style.borderColor = '#4CAF50';
                         guidanceText.textContent = 'Perfect! Hold steady...';
                         guidanceText.style.color = '#4CAF50';
+                        
+                        // Stop prediction loop
+                        isPredicting = false;
+                        
+                        // Call handlePhotoCapture
+                        await handlePhotoCapture(video, video.srcObject);
+                        return; // Exit the prediction loop
                     }
                     
                     // Update area ratio display
@@ -661,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // Continue prediction if no receipt found
+            // Continue prediction if no perfect position achieved yet
             if (video.srcObject && isPredicting) {
                 window.requestAnimationFrame(() => predictWebcam(video, liveView));
             }
@@ -812,5 +769,59 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeManualEntryModal = closeManualEntryModal;
     window.closeFailureModal  = closeFailureModal;
     window.handleManualSubmit  = handleManualSubmit;
+
+    async function handlePhotoCapture(video, stream) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        // Stop camera stream
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Convert to file and process
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(async (blob) => {
+                const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+                
+                // Save image with timestamp
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `receipt_${timestamp}.jpg`;
+                
+                try {
+                    // Convert blob to base64 for saving
+                    const reader = new FileReader();
+                    reader.onload = async function(event) {
+                        const base64Image = event.target.result.split(',')[1];
+                        await saveImageToDevice(base64Image, filename);
+                        
+                        // Continue with normal flow
+                        closeCameraModal();
+                        closePhotoOptions();
+                        if (isLoggedIn) {
+                            await processImage(file);
+                        } else {
+                            document.getElementById('loginOverlay').style.display = 'block';
+                        }
+                        resolve();
+                    };
+                    reader.readAsDataURL(blob);
+                } catch (error) {
+                    console.error('Error saving image:', error);
+                    showToast('Failed to save image', 'error');
+                    
+                    // Continue with normal flow even if save fails
+                    closeCameraModal();
+                    closePhotoOptions();
+                    if (isLoggedIn) {
+                        await processImage(file);
+                    } else {
+                        document.getElementById('loginOverlay').style.display = 'block';
+                    }
+                    resolve();
+                }
+            }, 'image/jpeg', 0.8);
+        });
+    }
 
 });
