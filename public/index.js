@@ -533,92 +533,117 @@ document.addEventListener('DOMContentLoaded', function() {
      async function predictWebcam(video, liveView) {
         if (!isPredicting) return;
 
-        // Clear previous highlights
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
         const processedCanvas = lightPreProcess(video);
+        const guidanceText = document.getElementById('guidanceText');
         
         try {
             const predictions = await model.detect(processedCanvas, 1, 0.7);
             
             if (!isPredicting) return;
             
-            const areaRatioText = document.getElementById('areaRatioText');
-            const guidanceText = document.getElementById('guidanceText');
+            // STEP 1: Check for phone
+            const phoneDetection = predictions.find(p => p.class === 'cell phone' && p.score > 0.7);
             
-            for (let prediction of predictions) {
-                if (prediction.class === 'cell phone' && prediction.score > 0.7) {
-                    const bbox = prediction.bbox;
-                    const frameWidth = video.videoWidth;
-                    const frameHeight = video.videoHeight;
-                    
-                    // Create highlight box
-                    const highlighter = document.createElement('div');
-                    highlighter.classList.add('highlighter');
-                    highlighter.style.left = bbox[0] + 'px';
-                    highlighter.style.top = bbox[1] + 'px';
-                    highlighter.style.width = bbox[2] + 'px';
-                    highlighter.style.height = bbox[3] + 'px';
+            if (!phoneDetection) {
+                guidanceText.textContent = 'Show phone with receipt';
+                guidanceText.style.color = '#ff0000';
+                return window.requestAnimationFrame(() => predictWebcam(video, liveView));
+            }
 
-                    // Calculate metrics
-                    const margin = 20;
-                    const isFullyVisible = (
-                        bbox[0] > margin && 
-                        bbox[1] > margin && 
-                        (bbox[0] + bbox[2]) < (frameWidth - margin) && 
-                        (bbox[1] + bbox[3]) < (frameHeight - margin)
-                    );
-                    
-                    const phoneAspectRatio = bbox[2] / bbox[3];
-                    const isValidAspectRatio = phoneAspectRatio > 0.4 && phoneAspectRatio < 0.6;
-                    
-                    const totalArea = frameWidth * frameHeight;
-                    const phoneArea = bbox[2] * bbox[3];
-                    const areaRatio = phoneArea / totalArea;
-                    
-                    // Update UI based on conditions
-                    if (!isFullyVisible) {
-                        highlighter.style.borderColor = '#ff0000';
-                        guidanceText.textContent = 'Move phone away from edges';
-                        guidanceText.style.color = '#ff0000';
-                    } else if (!isValidAspectRatio) {
-                        highlighter.style.borderColor = '#FFA500';
-                        guidanceText.textContent = 'Hold phone straight';
-                        guidanceText.style.color = '#FFA500';
-                    } else if (areaRatio < 0.15) {
-                        highlighter.style.borderColor = '#FFA500';
-                        guidanceText.textContent = 'Move phone closer';
-                        guidanceText.style.color = '#FFA500';
-                    } else if (areaRatio > 0.4) {
-                        highlighter.style.borderColor = '#FFA500';
-                        guidanceText.textContent = 'Move phone further away';
-                        guidanceText.style.color = '#FFA500';
-                    } else {
-                        highlighter.style.borderColor = '#4CAF50';
-                        guidanceText.textContent = 'Perfect! Hold steady...';
-                        guidanceText.style.color = '#4CAF50';
-                        
-                        // Stop prediction loop
-                        isPredicting = false;
-                        
-                        // Call handlePhotoCapture
-                        await handlePhotoCapture(video, video.srcObject);
-                        return; // Exit the prediction loop
-                    }
-                    
-                    // Update area ratio display
-                    if (areaRatioText) {
-                        areaRatioText.textContent = areaRatio.toFixed(3);
-                        areaRatioText.style.color = highlighter.style.borderColor;
-                    }
+            // STEP 2: Check for receipt on phone
+            const receiptVisible = await checkForReceipt(processedCanvas);
+            if (!receiptVisible) {
+                guidanceText.textContent = 'Show receipt on phone screen';
+                guidanceText.style.color = '#ff0000';
+                return window.requestAnimationFrame(() => predictWebcam(video, liveView));
+            }
 
-                    liveView.appendChild(highlighter);
-                    children.push(highlighter);
+            // Create highlighter for phone
+            const bbox = phoneDetection.bbox;
+            const highlighter = document.createElement('div');
+            highlighter.classList.add('highlighter');
+            highlighter.style.left = bbox[0] + 'px';
+            highlighter.style.top = bbox[1] + 'px';
+            highlighter.style.width = bbox[2] + 'px';
+            highlighter.style.height = bbox[3] + 'px';
+
+            // STEP 3: Check phone position and size
+            const frameWidth = video.videoWidth;
+            const frameHeight = video.videoHeight;
+            const margin = 20;
+            const isFullyVisible = (
+                bbox[0] > margin && 
+                bbox[1] > margin && 
+                (bbox[0] + bbox[2]) < (frameWidth - margin) && 
+                (bbox[1] + bbox[3]) < (frameHeight - margin)
+            );
+            
+            const phoneAspectRatio = bbox[2] / bbox[3];
+            // Relaxed aspect ratio constraints to allow for angled views
+            const isValidAspectRatio = phoneAspectRatio > 0.3 && phoneAspectRatio < 0.8;  // Changed from 0.4-0.6
+            
+            const totalArea = frameWidth * frameHeight;
+            const phoneArea = bbox[2] * bbox[3];
+            const areaRatio = phoneArea / totalArea;
+
+            // Position checks
+            if (!isFullyVisible) {
+                highlighter.style.borderColor = '#ff0000';
+                guidanceText.textContent = 'Move phone away from edges';
+                guidanceText.style.color = '#ff0000';
+            } else if (!isValidAspectRatio) {
+                highlighter.style.borderColor = '#FFA500';
+                guidanceText.textContent = 'Hold phone straight';
+                guidanceText.style.color = '#FFA500';
+            } else if (areaRatio < 0.15) {
+                highlighter.style.borderColor = '#FFA500';
+                guidanceText.textContent = 'Move phone closer';
+                guidanceText.style.color = '#FFA500';
+            } else if (areaRatio > 0.5) {  // Increased from 0.4 to allow closer shots
+                highlighter.style.borderColor = '#FFA500';
+                guidanceText.textContent = 'Move phone further away';
+                guidanceText.style.color = '#FFA500';
+            } else {
+                // STEP 4: Final quality checks
+                const imageQuality = checkImageQuality(processedCanvas);
+                
+                if (imageQuality.isDarkScreen) {
+                    highlighter.style.borderColor = '#FFA500';
+                    guidanceText.textContent = 'Show receipt on phone screen';
+                    guidanceText.style.color = '#FFA500';
+                } else if (imageQuality.isBlurry) {
+                    highlighter.style.borderColor = '#FFA500';
+                    guidanceText.textContent = 'Image too blurry';
+                    guidanceText.style.color = '#FFA500';
+                } else if (!imageQuality.hasGoodLighting) {
+                    highlighter.style.borderColor = '#FFA500';
+                    guidanceText.textContent = imageQuality.isTooLight ? 'Too bright' : 'More light needed';
+                    guidanceText.style.color = '#FFA500';
+                } else {
+                    highlighter.style.borderColor = '#4CAF50';
+                    guidanceText.textContent = 'Perfect! Hold steady...';
+                    guidanceText.style.color = '#4CAF50';
+                    
+                    isPredicting = false;
+                    await handlePhotoCapture(video, video.srcObject);
+                    return;
                 }
             }
 
-            // Continue prediction if no perfect position achieved yet
+            // Update area ratio display if element exists
+            const areaRatioText = document.getElementById('areaRatioText');
+            if (areaRatioText) {
+                areaRatioText.textContent = areaRatio.toFixed(3);
+                areaRatioText.style.color = highlighter.style.borderColor;
+            }
+
+            // Add highlighter to view
+            liveView.appendChild(highlighter);
+            children.push(highlighter);
+
             if (video.srcObject && isPredicting) {
                 window.requestAnimationFrame(() => predictWebcam(video, liveView));
             }
@@ -630,9 +655,101 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Helper function to check image quality
+    function checkImageQuality(canvas) {
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        let totalBrightness = 0;
+        let blurScore = 0;
+        let darkPixels = 0;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            // Calculate brightness
+            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            totalBrightness += brightness;
+            
+            // Count dark pixels
+            if (brightness < 50) {
+                darkPixels++;
+            }
+            
+            // Calculate local contrast for blur detection
+            if (i > 0 && i < data.length - 4) {
+                const diff = Math.abs(data[i] - data[i + 4]);
+                blurScore += diff;
+            }
+        }
+        
+        const avgBrightness = totalBrightness / (data.length / 4);
+        const normalizedBlurScore = blurScore / (data.length / 4);
+        const darkPixelRatio = darkPixels / (data.length / 4);
+        
+        // If most pixels are dark, it's likely a blank/dark screen rather than blur
+        const isDarkScreen = darkPixelRatio > 0.7;
+        
+        return {
+            isBlurry: !isDarkScreen && normalizedBlurScore < 5, // Only check blur if not a dark screen
+            hasGoodLighting: avgBrightness >= 50 && avgBrightness <= 200,
+            isTooLight: avgBrightness > 200,
+            isDarkScreen: isDarkScreen
+        };
+    }
+
     // Add receipt detection helper
     async function checkForReceipt(canvas) {
-        // Extract text from the frame using Tesseract.js
+        // First check for visual markers of a receipt screen
+        const hasReceiptVisualMarkers = await model.detect(canvas, 1, 0.5)
+            .then(predictions => {
+                // Look for phone screen content that indicates a receipt
+                const screenContent = predictions.find(p => 
+                    p.class === 'cell phone' && 
+                    p.score > 0.7
+                );
+                
+                if (!screenContent) return false;
+                
+                // Extract the screen region for text detection
+                const bbox = screenContent.bbox;
+                const ctx = canvas.getContext('2d');
+                const screenImage = ctx.getImageData(bbox[0], bbox[1], bbox[2], bbox[3]);
+                
+                // Check for common receipt visual elements (blue/white contrast, app headers)
+                // This is a simplified check - you might want to enhance this
+                let bluePixels = 0;
+                let whitePixels = 0;
+                const data = screenImage.data;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    // Check for blue-ish pixels (BOB app color)
+                    if (data[i] < 100 && data[i+1] < 100 && data[i+2] > 150) {
+                        bluePixels++;
+                    }
+                    // Check for white-ish pixels (receipt background)
+                    if (data[i] > 200 && data[i+1] > 200 && data[i+2] > 200) {
+                        whitePixels++;
+                    }
+                }
+                
+                const totalPixels = (data.length / 4);
+                const blueRatio = bluePixels / totalPixels;
+                const whiteRatio = whitePixels / totalPixels;
+                
+                // If we see significant blue elements and white space, likely a receipt
+                return (blueRatio > 0.1 && whiteRatio > 0.3);
+            })
+            .catch(error => {
+                console.error('Error in visual receipt detection:', error);
+                return false;
+            });
+
+        // If we detect visual markers, we can be confident it's a receipt
+        if (hasReceiptVisualMarkers) {
+            return true;
+        }
+
+        // Fallback to text detection if visual markers aren't conclusive
         const result = await Tesseract.recognize(
             canvas,
             'eng',
@@ -642,77 +759,26 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         );
         
-        const text = result.data.text;
+        const text = result.data.text.toLowerCase();
         
-        // Check for common BNB and BOB receipt markers
-        const isBNBReceipt = (
-            text.match(/RRN/i) || // RRN number
-            text.match(/(?<![\dA-Za-z])(\d{12})(?![\dA-Za-z])/g) || // 12-digit reference
-            text.match(/BNB/i) || // Bank name
-            text.match(/Bhutan National Bank/i)
-        );
-        
-        const isBOBReceipt = (
-            text.match(/(\d{6,8})/) || // 6-8 digit reference
-            text.match(/J[A-Za-z]{2}\s*No/i) || // JXX No pattern
-            text.match(/BOB/i) || // Bank name
-            text.match(/Bank of Bhutan/i)
-        );
-        
-        // Additional receipt markers
-        const hasCommonReceiptText = (
-            text.match(/Date/i) ||
-            text.match(/Amount/i) ||
-            text.match(/Nu\./i) ||
-            text.match(/From A\/c/i) ||
-            text.match(/To A\/c/i)
-        );
-        
-        // Log detection results
+        // Check for common receipt/banking app indicators
+        const hasReceiptIndicators = 
+            text.includes('transfer') ||
+            text.includes('successful') ||
+            text.includes('amount') ||
+            text.includes('account') ||
+            text.includes('bob') ||
+            text.includes('bnb') ||
+            text.includes('receipt') ||
+            text.includes('transaction');
+
         console.log('Receipt Detection:', {
-            isBNB: !!isBNBReceipt,
-            isBOB: !!isBOBReceipt,
-            hasCommonText: !!hasCommonReceiptText,
+            visualMarkersDetected: hasReceiptVisualMarkers,
+            textIndicatorsFound: hasReceiptIndicators,
             extractedText: text
         });
 
-        // Return true if we detect either bank's receipt format
-        return !!(isBNBReceipt || isBOBReceipt) && hasCommonReceiptText;
-    }
-
-    // Add capture and process helper
-    async function captureAndProcess(video) {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        
-        // Apply perspective correction if needed
-        const corners = await detectCorners(video);
-        if (corners && corners.length === 4) {
-            ctx.drawImage(await correctPerspective(video, corners), 0, 0);
-        } else {
-            ctx.drawImage(video, 0, 0);
-        }
-        
-        // Convert to file and process
-        canvas.toBlob(async (blob) => {
-            const file = new File([blob], 'receipt-photo.jpg', { type: 'image/jpeg' });
-            await processImage(file);
-        }, 'image/jpeg', 0.8);
-    }
-
-    // Add corner detection helper
-    async function detectCorners(video) {
-        const canvas = lightPreProcess(video);
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Simple corner detection using contrast differences
-        // Returns array of corner coordinates or null if not found
-        // This is a simplified version - you might want to use a more robust algorithm
-        
-        return null; // Placeholder - implement actual corner detection if needed
+        return hasReceiptIndicators;
     }
 
     // Modify your camera modal HTML to include the highlighter container
@@ -740,35 +806,6 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         return cameraModal;
     }
-
-    // Add this after your existing utility functions
-    function lightPreProcess(video) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Reduce resolution for processing while maintaining aspect ratio
-        const MAX_DIMENSION = 1024;
-        const scale = MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight);
-        canvas.width = video.videoWidth * scale;
-        canvas.height = video.videoHeight * scale;
-        
-        // Basic image enhancement
-        ctx.filter = 'contrast(1.2) brightness(1.1)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        return canvas;
-    }
-
-    // Make functions available globally
-    window.handlePhotoOption = handlePhotoOption;
-    window.showPhotoOptions = showPhotoOptions;
-    window.closePhotoOptions = closePhotoOptions;
-    window.closeCameraModal = closeCameraModal;
-    window.validateLogin = validateLogin;
-    window.showManualEntryModal = showManualEntryModal;
-    window.closeManualEntryModal = closeManualEntryModal;
-    window.closeFailureModal  = closeFailureModal;
-    window.handleManualSubmit  = handleManualSubmit;
 
     async function handlePhotoCapture(video, stream) {
         const canvas = document.createElement('canvas');
@@ -823,5 +860,77 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 'image/jpeg', 0.8);
         });
     }
+
+    // Add this after your existing utility functions
+    function lightPreProcess(video) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const MAX_DIMENSION = 1024;
+        const scale = MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        
+        // Draw original image
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Get image data for analysis
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Calculate image quality metrics
+        let totalBrightness = 0;
+        let blurScore = 0;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            // Calculate brightness
+            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            totalBrightness += brightness;
+            
+            // Calculate local contrast for blur detection
+            if (i > 0 && i < data.length - 4) {
+                const diff = Math.abs(data[i] - data[i + 4]);
+                blurScore += diff;
+            }
+        }
+        
+        const avgBrightness = totalBrightness / (data.length / 4);
+        const normalizedBlurScore = blurScore / (data.length / 4);
+        
+        // Update guidance text based on image quality
+        const guidanceText = document.getElementById('guidanceText');
+        if (avgBrightness < 50) {
+            guidanceText.textContent = 'More light needed';
+            guidanceText.style.color = '#FFA500';
+            return canvas;
+        }
+        if (avgBrightness > 200) {
+            guidanceText.textContent = 'Too bright, reduce light';
+            guidanceText.style.color = '#FFA500';
+            return canvas;
+        }
+        if (normalizedBlurScore < 10) {
+            guidanceText.textContent = 'Image too blurry';
+            guidanceText.style.color = '#FFA500';
+            return canvas;
+        }
+        
+        // Apply enhancements
+        ctx.filter = 'contrast(1.2) brightness(1.1)';
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        return canvas;
+    }
+
+    // Make functions available globally
+    window.handlePhotoOption = handlePhotoOption;
+    window.showPhotoOptions = showPhotoOptions;
+    window.closePhotoOptions = closePhotoOptions;
+    window.closeCameraModal = closeCameraModal;
+    window.validateLogin = validateLogin;
+    window.showManualEntryModal = showManualEntryModal;
+    window.closeManualEntryModal = closeManualEntryModal;
+    window.closeFailureModal  = closeFailureModal;
+    window.handleManualSubmit  = handleManualSubmit;
 
 });
