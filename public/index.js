@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto refresh for mobile devices
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         setInterval(() => {
-            alert();
+            logEvent('User logged in');
             if (document.visibilityState === 'visible') {
                 // Only reload if the page is visible
                 window.location.reload();
@@ -967,5 +967,28 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeManualEntryModal = closeManualEntryModal;
     window.closeFailureModal  = closeFailureModal;
     window.handleManualSubmit  = handleManualSubmit;
+
+    // Example function to log an event
+    async function logEvent(message) {
+        try {
+            const response = await fetch('/api/logEvent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message,
+                    timestamp: new Date().toISOString(),
+                    customerID: sessionStorage.getItem('customerID')
+                })
+            });
+
+            if (!response.ok) {
+                console.error('Failed to log event:', response.statusText);
+            }
+        } catch (error) {
+            console.error('Error logging event:', error);
+        }
+    }
 
 });

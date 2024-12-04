@@ -8,6 +8,10 @@
     {
       "src": "public/**",
       "use": "@vercel/static"
+    },
+    {
+      "src": "api/logEvent.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -20,6 +24,10 @@
       "src": "/index\\.js",
       "headers": { "Content-Type": "application/javascript" },
       "dest": "/public/index.js"
+    },
+    {
+      "src": "/api/logEvent",
+      "dest": "/api/logEvent.js"
     },
     {
       "src": "/(.*)",
