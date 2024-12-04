@@ -1,4 +1,16 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+
+    // Auto refresh for mobile devices
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                // Only reload if the page is visible
+                window.location.reload();
+            }
+        }, AUTO_REFRESH_INTERVAL);
+    }
+
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
     let model = undefined;
@@ -814,7 +826,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="camera-guidance">
                     <p>Area Ratio: <span id="areaRatioText">0.00</span></p>
-                    <p id="guidanceText">Bring phone closer to scan</p>
+                    <p id="guidanceText"></p>
                 </div>
                 <div class="camera-controls">
                     <button id="capture-photo" class="camera-button capture">
@@ -884,65 +896,65 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Add this after your existing utility functions
-    function lightPreProcess(video) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+    // function lightPreProcess(video) {
+    //     const canvas = document.createElement('canvas');
+    //     const ctx = canvas.getContext('2d');
         
-        const MAX_DIMENSION = 1024;
-        const scale = MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight);
-        canvas.width = video.videoWidth * scale;
-        canvas.height = video.videoHeight * scale;
+    //     const MAX_DIMENSION = 1024;
+    //     const scale = MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight);
+    //     canvas.width = video.videoWidth * scale;
+    //     canvas.height = video.videoHeight * scale;
         
-        // Draw original image
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    //     // Draw original image
+    //     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // Get image data for analysis
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
+    //     // Get image data for analysis
+    //     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    //     const data = imageData.data;
         
-        // Calculate image quality metrics
-        let totalBrightness = 0;
-        let blurScore = 0;
+    //     // Calculate image quality metrics
+    //     let totalBrightness = 0;
+    //     let blurScore = 0;
         
-        for (let i = 0; i < data.length; i += 4) {
-            // Calculate brightness
-            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            totalBrightness += brightness;
+    //     for (let i = 0; i < data.length; i += 4) {
+    //         // Calculate brightness
+    //         const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    //         totalBrightness += brightness;
             
-            // Calculate local contrast for blur detection
-            if (i > 0 && i < data.length - 4) {
-                const diff = Math.abs(data[i] - data[i + 4]);
-                blurScore += diff;
-            }
-        }
+    //         // Calculate local contrast for blur detection
+    //         if (i > 0 && i < data.length - 4) {
+    //             const diff = Math.abs(data[i] - data[i + 4]);
+    //             blurScore += diff;
+    //         }
+    //     }
         
-        const avgBrightness = totalBrightness / (data.length / 4);
-        const normalizedBlurScore = blurScore / (data.length / 4);
+    //     const avgBrightness = totalBrightness / (data.length / 4);
+    //     const normalizedBlurScore = blurScore / (data.length / 4);
         
-        // Update guidance text based on image quality
-        const guidanceText = document.getElementById('guidanceText');
-        if (avgBrightness < 50) {
-            guidanceText.textContent = 'More light needed';
-            guidanceText.style.color = '#FFA500';
-            return canvas;
-        }
-        if (avgBrightness > 200) {
-            guidanceText.textContent = 'Too bright, reduce light';
-            guidanceText.style.color = '#FFA500';
-            return canvas;
-        }
-        if (normalizedBlurScore < 10) {
-            guidanceText.textContent = 'Image too blurry';
-            guidanceText.style.color = '#FFA500';
-            return canvas;
-        }
+    //     // Update guidance text based on image quality
+    //     const guidanceText = document.getElementById('guidanceText');
+    //     if (avgBrightness < 50) {
+    //         guidanceText.textContent = 'More light needed';
+    //         guidanceText.style.color = '#FFA500';
+    //         return canvas;
+    //     }
+    //     if (avgBrightness > 200) {
+    //         guidanceText.textContent = 'Too bright, reduce light';
+    //         guidanceText.style.color = '#FFA500';
+    //         return canvas;
+    //     }
+    //     if (normalizedBlurScore < 10) {
+    //         guidanceText.textContent = 'Image too blurry';
+    //         guidanceText.style.color = '#FFA500';
+    //         return canvas;
+    //     }
         
-        // Apply enhancements
-        ctx.filter = 'contrast(1.2) brightness(1.1)';
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    //     // Apply enhancements
+    //     ctx.filter = 'contrast(1.2) brightness(1.1)';
+    //     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        return canvas;
-    }
+    //     return canvas;
+    // }
 
     // Make functions available globally
     window.handlePhotoOption = handlePhotoOption;
