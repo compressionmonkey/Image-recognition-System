@@ -624,12 +624,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (video.srcObject && isPredicting) {
-                requestAnimationFrame(() => predictWebcam(video, liveView));
+                setTimeout(() => {
+                    requestAnimationFrame(() => predictWebcam(video, liveView));
+                    logEvent('areaRatio 1 ' + areaRatio);
+                }, 200);
             }
         } catch (error) {
             console.error('Prediction error:', error);
             if (isPredicting) {
-                requestAnimationFrame(() => predictWebcam(video, liveView));
+                setTimeout(() => {
+                    requestAnimationFrame(() => predictWebcam(video, liveView));
+                    logEvent('areaRatio 2 ' + areaRatio);
+                }, 200);
             }
         }
     }
