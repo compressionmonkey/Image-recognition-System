@@ -580,12 +580,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 logEvent(`area Ratio ${areaRatio}`);
 
-                if(areaRatio < 1 && areaRatio > 0.1) {
-                    // console.log('areaRatio:', areaRatio);
-                    await handlePhotoCapture(video, video.srcObject);
-                    isPredicting = false;
-                    return;
-                }
+                // if(areaRatio < 1 && areaRatio > 0.1) {
+                //     // console.log('areaRatio:', areaRatio);
+                //     await handlePhotoCapture(video, video.srcObject);
+                //     isPredicting = false;
+                //     return;
+                // }
                 // const frameWidth = video.videoWidth;
                 // const frameHeight = video.videoHeight;
                 // const margin = 20;
