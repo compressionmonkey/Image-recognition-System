@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+    const AUTO_REFRESH_INTERVAL = 1000; // 1 second
 
     // Auto refresh for mobile devices
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         setInterval(() => {
+            alert();
             if (document.visibilityState === 'visible') {
                 // Only reload if the page is visible
                 window.location.reload();
