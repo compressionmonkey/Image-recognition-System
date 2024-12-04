@@ -977,9 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    message,
-                    timestamp: new Date().toISOString(),
-                    customerID: sessionStorage.getItem('customerID')
+                    message
                 })
             });
 

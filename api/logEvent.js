@@ -1,13 +1,9 @@
 export default async function handler(req, res) {
     if (req.method === 'POST') {
-        const { level, message, timestamp, customerID } = req.body;
+        const { message } = req.body;
 
         // Log to Vercel's console (visible in Vercel logs)
-        console.log(JSON.stringify({
-            timestamp: timestamp || new Date().toISOString(),
-            customerID,
-            message
-        }));
+        console.log(message);
 
         res.status(200).json({ success: true });
     } else {
