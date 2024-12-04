@@ -1,16 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const AUTO_REFRESH_INTERVAL = 1000; // 1 second
-
-    // Auto refresh for mobile devices
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        setInterval(() => {
-            logEvent('User logged in');
-            if (document.visibilityState === 'visible') {
-                // Only reload if the page is visible
-                window.location.reload();
-            }
-        }, AUTO_REFRESH_INTERVAL);
-    }
 
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
@@ -581,20 +569,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 highlighter.style.height = `${bbox[3] * scaleY * 1.5}px`;
 
                 const areaRatio = (bbox[2] / videoWidth) * (bbox[3] / videoHeight);
+                
+                // Update the display with formatted values
+                guidanceText.innerHTML = `
+                    <div class="detection-stats">
+                        <p>Status: <span style="color: #4CAF50">Active</span></p>
+                        <p>Area Ratio: <span class="ratio-value">${areaRatio.toFixed(3)}</span></p>
+                    </div>
+                `;
 
-                 // Log highlighter details
-                //  console.log('Highlighter Details:', {
-                //     originalBBox: bbox,
-                //     scales: { scaleX, scaleY },
-                //     scaledPosition: { left: bbox[0], top: bbox[1] },
-                //     videoSize: { width: video.videoWidth, height: video.videoHeight },
-                //     liveViewSize: { width: liveView.offsetWidth, height: liveView.offsetHeight },
-                //     highlighterElement: highlighter
-                // });
+                logEvent(`area Ratio ${areaRatio}`);
 
-                // STEP 3: Check phone position and size
-                // console.log('ratio scale:', areaRatio);
-                guidanceText.textContent = `areaRatio: ${areaRatio}`;
                 if(areaRatio < 1 && areaRatio > 0.1) {
                     // console.log('areaRatio:', areaRatio);
                     await handlePhotoCapture(video, video.srcObject);
@@ -826,8 +811,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <video id="camera-preview" autoplay playsinline></video>
                 </div>
                 <div class="camera-guidance">
-                    <p>Area Ratio: <span id="areaRatioText">0.00</span></p>
-                    <p id="guidanceText"></p>
+                    <div class="detection-stats">
+                        <p id="guidanceText"></p>
+                        <p id="areaRatioDisplay"></p>
+                    </div>
                 </div>
                 <div class="camera-controls">
                     <button id="capture-photo" class="camera-button capture">

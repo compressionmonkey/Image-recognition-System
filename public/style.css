@@ -764,3 +764,40 @@ header {
     margin: 0;
     font-size: 14px;
 }
+
+.camera-guidance {
+    position: absolute;
+    bottom: 80px;
+    left: 0;
+    right: 0;
+    padding: 10px;
+    z-index: 2;
+}
+
+.detection-stats {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 12px;
+    border-radius: 8px;
+    margin: 0 auto;
+    width: fit-content;
+    text-align: center;
+}
+
+.detection-stats p {
+    margin: 5px 0;
+    color: white;
+    font-size: 14px;
+}
+
+#areaRatioDisplay {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+.ratio-value {
+    color: #4CAF50;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 5px;
+}
