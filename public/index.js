@@ -570,22 +570,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const areaRatio = (bbox[2] / videoWidth) * (bbox[3] / videoHeight);
                 
-                // Update the display with formatted values
+                // Detect device type
+                const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                const minRatio = isMobileOrTablet ? 0.6 : 0.1;
+                const maxRatio = 1;
+                const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
+                
+                // Update the display with formatted values and device-specific guidance
                 guidanceText.innerHTML = `
                     <div class="detection-stats">
-                        <p>Status: <span style="color: #4CAF50">Active</span></p>
+                        <p>Status: <span style="color: ${isGoodRatio ? '#4CAF50' : '#FFA500'}">Active</span></p>
                         <p>Area Ratio: <span class="ratio-value">${areaRatio.toFixed(3)}</span></p>
+                        <p>Device: ${isMobileOrTablet ? 'Mobile/Tablet' : 'Desktop'}</p>
+                        ${!isGoodRatio ? `<p style="color: #FFA500">${areaRatio < minRatio ? 'Move closer' : 'Move further'}</p>` : ''}
                     </div>
                 `;
 
-                logEvent(`area Ratio ${areaRatio}`);
+                logEvent(`area Ratio ${areaRatio} on ${isMobileOrTablet ? 'mobile' : 'desktop'}`);
 
-                // if(areaRatio < 1 && areaRatio > 0.1) {
-                //     // console.log('areaRatio:', areaRatio);
-                //     await handlePhotoCapture(video, video.srcObject);
-                //     isPredicting = false;
-                //     return;
-                // }
+                if (isGoodRatio) {
+                    await handlePhotoCapture(video, video.srcObject);
+                    isPredicting = false;
+                    return;
+                }
                 // const frameWidth = video.videoWidth;
                 // const frameHeight = video.videoHeight;
                 // const margin = 20;
