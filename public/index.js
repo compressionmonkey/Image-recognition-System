@@ -607,11 +607,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
 
                 // Only capture if all conditions are met
-                // if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
-                    // await handlePhotoCapture(video, video.srcObject);
-                    // isPredicting = false;
-                //     return;
-                // }
+                if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
+                    await handlePhotoCapture(video, video.srcObject);
+                    logEvent();
+                    isPredicting = false;
+                    return;
+                }
 
                 // Update state for next frame
                 previousPhoneBox = currentPhoneBox;
