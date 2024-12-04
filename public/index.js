@@ -546,111 +546,132 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // STEP 1: Check for phone
             const phoneDetection = predictions.find(p => p.class === 'cell phone' && p.score > 0.7);
+            // console.log('phoneDetection:', phoneDetection);
             
-            if (!phoneDetection) {
-                guidanceText.textContent = 'Show phone with receipt';
-                guidanceText.style.color = '#ff0000';
-                return window.requestAnimationFrame(() => predictWebcam(video, liveView));
-            }
-
-            // STEP 2: Check for receipt on phone
-            const receiptVisible = await checkForReceipt(processedCanvas);
-            if (!receiptVisible) {
-                guidanceText.textContent = 'Show receipt on phone screen';
-                guidanceText.style.color = '#ff0000';
-                return window.requestAnimationFrame(() => predictWebcam(video, liveView));
-            }
-
-            // Create highlighter for phone
-            const bbox = phoneDetection.bbox;
-            const highlighter = document.createElement('div');
-            highlighter.classList.add('highlighter');
-            highlighter.style.left = bbox[0] + 'px';
-            highlighter.style.top = bbox[1] + 'px';
-            highlighter.style.width = bbox[2] + 'px';
-            highlighter.style.height = bbox[3] + 'px';
-
-            // STEP 3: Check phone position and size
-            const frameWidth = video.videoWidth;
-            const frameHeight = video.videoHeight;
-            const margin = 20;
-            const isFullyVisible = (
-                bbox[0] > margin && 
-                bbox[1] > margin && 
-                (bbox[0] + bbox[2]) < (frameWidth - margin) && 
-                (bbox[1] + bbox[3]) < (frameHeight - margin)
-            );
-            
-            const phoneAspectRatio = bbox[2] / bbox[3];
-            // Relaxed aspect ratio constraints to allow for angled views
-            const isValidAspectRatio = phoneAspectRatio > 0.3 && phoneAspectRatio < 0.8;  // Changed from 0.4-0.6
-            
-            const totalArea = frameWidth * frameHeight;
-            const phoneArea = bbox[2] * bbox[3];
-            const areaRatio = phoneArea / totalArea;
-
-            // Position checks
-            if (!isFullyVisible) {
-                highlighter.style.borderColor = '#ff0000';
-                guidanceText.textContent = 'Move phone away from edges';
-                guidanceText.style.color = '#ff0000';
-            } else if (!isValidAspectRatio) {
-                highlighter.style.borderColor = '#FFA500';
-                guidanceText.textContent = 'Hold phone straight';
-                guidanceText.style.color = '#FFA500';
-            } else if (areaRatio < 0.15) {
-                highlighter.style.borderColor = '#FFA500';
-                guidanceText.textContent = 'Move phone closer';
-                guidanceText.style.color = '#FFA500';
-            } else if (areaRatio > 0.5) {  // Increased from 0.4 to allow closer shots
-                highlighter.style.borderColor = '#FFA500';
-                guidanceText.textContent = 'Move phone further away';
-                guidanceText.style.color = '#FFA500';
-            } else {
-                // STEP 4: Final quality checks
-                const imageQuality = checkImageQuality(processedCanvas);
+            if (phoneDetection) {
+                // Calculate scale factors for the highlighter
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                const liveViewWidth = liveView.offsetWidth;
+                const liveViewHeight = liveView.offsetHeight;
                 
-                if (imageQuality.isDarkScreen) {
-                    highlighter.style.borderColor = '#FFA500';
-                    guidanceText.textContent = 'Show receipt on phone screen';
-                    guidanceText.style.color = '#FFA500';
-                } else if (imageQuality.isBlurry) {
-                    highlighter.style.borderColor = '#FFA500';
-                    guidanceText.textContent = 'Image too blurry';
-                    guidanceText.style.color = '#FFA500';
-                } else if (!imageQuality.hasGoodLighting) {
-                    highlighter.style.borderColor = '#FFA500';
-                    guidanceText.textContent = imageQuality.isTooLight ? 'Too bright' : 'More light needed';
-                    guidanceText.style.color = '#FFA500';
-                } else {
-                    highlighter.style.borderColor = '#4CAF50';
-                    guidanceText.textContent = 'Perfect! Hold steady...';
-                    guidanceText.style.color = '#4CAF50';
-                    
-                    isPredicting = false;
+                const scaleX = liveViewWidth / videoWidth;
+                const scaleY = liveViewHeight / videoHeight;
+
+                // Create highlighter with scaled coordinates
+                const bbox = phoneDetection.bbox;
+                const highlighter = document.createElement('div');
+                highlighter.classList.add('highlighter');
+                highlighter.style.left = `${bbox[0] * scaleX}px`;
+                highlighter.style.top = `${bbox[1] * scaleY}px`;
+                highlighter.style.width = `${bbox[2] * scaleX * 2}px`;
+                highlighter.style.height = `${bbox[3] * scaleY * 1.5}px`;
+
+                const areaRatio = (bbox[2] / videoWidth) * (bbox[3] / videoHeight);
+
+                 // Log highlighter details
+                //  console.log('Highlighter Details:', {
+                //     originalBBox: bbox,
+                //     scales: { scaleX, scaleY },
+                //     scaledPosition: { left: bbox[0], top: bbox[1] },
+                //     videoSize: { width: video.videoWidth, height: video.videoHeight },
+                //     liveViewSize: { width: liveView.offsetWidth, height: liveView.offsetHeight },
+                //     highlighterElement: highlighter
+                // });
+
+                // STEP 3: Check phone position and size
+                console.log('ratio scale:', areaRatio);
+                if(areaRatio < 1 && areaRatio > 0.1) {
+                    console.log('areaRatio:', areaRatio);
                     await handlePhotoCapture(video, video.srcObject);
+                    isPredicting = false;
                     return;
+                }
+                // const frameWidth = video.videoWidth;
+                // const frameHeight = video.videoHeight;
+                // const margin = 20;
+                // const isFullyVisible = (
+                //     bbox[0] > margin && 
+                //     bbox[1] > margin && 
+                //     (bbox[0] + bbox[2]) < (frameWidth - margin) && 
+                //     (bbox[1] + bbox[3]) < (frameHeight - margin)
+                // );
+                
+                // const phoneAspectRatio = bbox[2] / bbox[3];
+                // // Relaxed aspect ratio constraints to allow for angled views
+                // const isValidAspectRatio = phoneAspectRatio > 0.3 && phoneAspectRatio < 0.8;  // Changed from 0.4-0.6
+                
+                // const totalArea = frameWidth * frameHeight;
+                // const phoneArea = bbox[2] * bbox[3];
+                // const areaRatio = phoneArea / totalArea;
+
+                // // Position checks
+                // if (!isFullyVisible) {
+                //     highlighter.style.borderColor = '#ff0000';
+                //     guidanceText.textContent = 'Move phone away from edges';
+                //     guidanceText.style.color = '#ff0000';
+                // } else if (!isValidAspectRatio) {
+                //     highlighter.style.borderColor = '#FFA500';
+                //     guidanceText.textContent = 'Hold phone straight';
+                //     guidanceText.style.color = '#FFA500';
+                // } else if (areaRatio < 0.15) {
+                //     highlighter.style.borderColor = '#FFA500';
+                //     guidanceText.textContent = 'Move phone closer';
+                //     guidanceText.style.color = '#FFA500';
+                // } else if (areaRatio > 0.5) {  // Increased from 0.4 to allow closer shots
+                //     highlighter.style.borderColor = '#FFA500';
+                //     guidanceText.textContent = 'Move phone further away';
+                //     guidanceText.style.color = '#FFA500';
+                // } else {
+                //     // STEP 4: Final quality checks
+                //     const imageQuality = checkImageQuality(processedCanvas);
+                    
+                //     if (imageQuality.isDarkScreen) {
+                //         highlighter.style.borderColor = '#FFA500';
+                //         guidanceText.textContent = 'Show receipt on phone screen';
+                //         guidanceText.style.color = '#FFA500';
+                //     } else if (imageQuality.isBlurry) {
+                //         highlighter.style.borderColor = '#FFA500';
+                //         guidanceText.textContent = 'Image too blurry';
+                //         guidanceText.style.color = '#FFA500';
+                //     } else if (!imageQuality.hasGoodLighting) {
+                //         highlighter.style.borderColor = '#FFA500';
+                //         guidanceText.textContent = imageQuality.isTooLight ? 'Too bright' : 'More light needed';
+                //         guidanceText.style.color = '#FFA500';
+                //     } else {
+                //         highlighter.style.borderColor = '#4CAF50';
+                //         guidanceText.textContent = 'Perfect! Hold steady...';
+                //         guidanceText.style.color = '#4CAF50';
+                        
+                //         isPredicting = false;
+                //         await handlePhotoCapture(video, video.srcObject);
+                //         return;
+                //     }
+                // }
+
+                // Update area ratio display if element exists
+                // const areaRatioText = document.getElementById('areaRatioText');
+                // if (areaRatioText) {
+                //     areaRatioText.textContent = areaRatio.toFixed(3);
+                //     areaRatioText.style.color = highlighter.style.borderColor;
+                // }
+
+                // Add highlighter to view
+                liveView.appendChild(highlighter);
+                children.push(highlighter);
+
+                if (video.srcObject && isPredicting) {
+                    setTimeout(() => predictWebcam(video, liveView), 500);  // 500ms delay
                 }
             }
 
-            // Update area ratio display if element exists
-            const areaRatioText = document.getElementById('areaRatioText');
-            if (areaRatioText) {
-                areaRatioText.textContent = areaRatio.toFixed(3);
-                areaRatioText.style.color = highlighter.style.borderColor;
-            }
-
-            // Add highlighter to view
-            liveView.appendChild(highlighter);
-            children.push(highlighter);
-
             if (video.srcObject && isPredicting) {
-                window.requestAnimationFrame(() => predictWebcam(video, liveView));
+                setTimeout(() => predictWebcam(video, liveView), 500);  // 500ms delay
             }
         } catch (error) {
             console.error('Prediction error:', error);
             if (isPredicting) {
-                window.requestAnimationFrame(() => predictWebcam(video, liveView));
+                setTimeout(() => predictWebcam(video, liveView), 500);  // 500ms delay
             }
         }
     }
