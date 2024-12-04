@@ -536,11 +536,11 @@ document.addEventListener('DOMContentLoaded', function() {
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
-        const processedCanvas = lightPreProcess(video);
+        // const processedCanvas = lightPreProcess(video);
         const guidanceText = document.getElementById('guidanceText');
         
         try {
-            const predictions = await model.detect(processedCanvas, 1, 0.7);
+            const predictions = await model.detect(video, 1, 0.7);
             
             if (!isPredicting) return;
             
@@ -580,9 +580,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // });
 
                 // STEP 3: Check phone position and size
-                console.log('ratio scale:', areaRatio);
+                // console.log('ratio scale:', areaRatio);
+                guidanceText.textContent = `areaRatio: ${areaRatio}`;
                 if(areaRatio < 1 && areaRatio > 0.1) {
-                    console.log('areaRatio:', areaRatio);
+                    // console.log('areaRatio:', areaRatio);
                     await handlePhotoCapture(video, video.srcObject);
                     isPredicting = false;
                     return;
