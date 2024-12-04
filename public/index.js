@@ -530,27 +530,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-     // Add the prediction function
+     // Add these variables at the top level
+     let previousPhoneBox = null;
+     let lastFrameTime = null;
+     const SPEED_THRESHOLD = 50; // Adjust based on testing
+     const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
+     const MOTION_MEMORY = 5; // Number of recent motion measurements to track
+     const recentMotions = [];
+
+     // Update the predictWebcam function
      async function predictWebcam(video, liveView) {
         if (!isPredicting) return;
 
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
-        // const processedCanvas = lightPreProcess(video);
         const guidanceText = document.getElementById('guidanceText');
+        const currentTime = performance.now();
         
         try {
             const predictions = await model.detect(video, 1, 0.7);
             
             if (!isPredicting) return;
             
-            // STEP 1: Check for phone
             const phoneDetection = predictions.find(p => p.class === 'cell phone' && p.score > 0.7);
-            // console.log('phoneDetection:', phoneDetection);
             
             if (phoneDetection) {
-                // Calculate scale factors for the highlighter
+                // Calculate scale factors and create current phone box
                 const videoWidth = video.videoWidth;
                 const videoHeight = video.videoHeight;
                 const liveViewWidth = liveView.offsetWidth;
@@ -559,127 +565,136 @@ document.addEventListener('DOMContentLoaded', function() {
                 const scaleX = liveViewWidth / videoWidth;
                 const scaleY = liveViewHeight / videoHeight;
 
-                // Create highlighter with scaled coordinates
-                const bbox = phoneDetection.bbox;
+                const currentPhoneBox = {
+                    x: phoneDetection.bbox[0] * scaleX,
+                    y: phoneDetection.bbox[1] * scaleY,
+                    width: phoneDetection.bbox[2] * scaleX * 2,
+                    height: phoneDetection.bbox[3] * scaleY * 1.5
+                };
+
+                // Calculate motion and quality metrics
+                const qualityMetrics = analyzeFrameQuality(
+                    currentPhoneBox, 
+                    previousPhoneBox, 
+                    lastFrameTime ? (currentTime - lastFrameTime) : 16.67 // Default to 60fps if no previous frame
+                );
+
+                // Create and style highlighter
                 const highlighter = document.createElement('div');
                 highlighter.classList.add('highlighter');
-                highlighter.style.left = `${bbox[0] * scaleX}px`;
-                highlighter.style.top = `${bbox[1] * scaleY}px`;
-                highlighter.style.width = `${bbox[2] * scaleX * 2}px`;
-                highlighter.style.height = `${bbox[3] * scaleY * 1.5}px`;
+                highlighter.style.left = `${currentPhoneBox.x}px`;
+                highlighter.style.top = `${currentPhoneBox.y}px`;
+                highlighter.style.width = `${currentPhoneBox.width}px`;
+                highlighter.style.height = `${currentPhoneBox.height}px`;
 
-                const areaRatio = (bbox[2] / videoWidth) * (bbox[3] / videoHeight);
-                
-                // Detect device type
+                // Calculate area ratio
+                const areaRatio = (currentPhoneBox.width / liveViewWidth) * (currentPhoneBox.height / liveViewHeight);
                 const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                 const minRatio = isMobileOrTablet ? 0.6 : 0.1;
                 const maxRatio = 1;
                 const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
                 
-                // Update the display with formatted values and device-specific guidance
+                // Update UI with all metrics
                 guidanceText.innerHTML = `
                     <div class="detection-stats">
-                        <p>Status: <span style="color: ${isGoodRatio ? '#4CAF50' : '#FFA500'}">Active</span></p>
+                        <p>Status: <span style="color: ${isGoodRatio && !qualityMetrics.isBlurred ? '#4CAF50' : '#FFA500'}">Active</span></p>
                         <p>Area Ratio: <span class="ratio-value">${areaRatio.toFixed(3)}</span></p>
                         <p>Device: ${isMobileOrTablet ? 'Mobile/Tablet' : 'Desktop'}</p>
-                        ${!isGoodRatio ? `<p style="color: #FFA500">${areaRatio < minRatio ? 'Move closer' : 'Move further'}</p>` : ''}
+                        <p>Movement: <span style="color: ${qualityMetrics.isStable ? '#4CAF50' : '#FFA500'}">${qualityMetrics.movement.toFixed(1)}</span></p>
+                        <p>Sharpness: <span style="color: ${qualityMetrics.isSharp ? '#4CAF50' : '#FFA500'}">${qualityMetrics.sharpness.toFixed(1)}</span></p>
+                        ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
                     </div>
                 `;
 
-                logEvent(`area Ratio ${areaRatio} on ${isMobileOrTablet ? 'mobile' : 'desktop'}`);
-
-                if (isGoodRatio) {
-                    await handlePhotoCapture(video, video.srcObject);
-                    isPredicting = false;
-                    return;
-                }
-                // const frameWidth = video.videoWidth;
-                // const frameHeight = video.videoHeight;
-                // const margin = 20;
-                // const isFullyVisible = (
-                //     bbox[0] > margin && 
-                //     bbox[1] > margin && 
-                //     (bbox[0] + bbox[2]) < (frameWidth - margin) && 
-                //     (bbox[1] + bbox[3]) < (frameHeight - margin)
-                // );
-                
-                // const phoneAspectRatio = bbox[2] / bbox[3];
-                // // Relaxed aspect ratio constraints to allow for angled views
-                // const isValidAspectRatio = phoneAspectRatio > 0.3 && phoneAspectRatio < 0.8;  // Changed from 0.4-0.6
-                
-                // const totalArea = frameWidth * frameHeight;
-                // const phoneArea = bbox[2] * bbox[3];
-                // const areaRatio = phoneArea / totalArea;
-
-                // // Position checks
-                // if (!isFullyVisible) {
-                //     highlighter.style.borderColor = '#ff0000';
-                //     guidanceText.textContent = 'Move phone away from edges';
-                //     guidanceText.style.color = '#ff0000';
-                // } else if (!isValidAspectRatio) {
-                //     highlighter.style.borderColor = '#FFA500';
-                //     guidanceText.textContent = 'Hold phone straight';
-                //     guidanceText.style.color = '#FFA500';
-                // } else if (areaRatio < 0.15) {
-                //     highlighter.style.borderColor = '#FFA500';
-                //     guidanceText.textContent = 'Move phone closer';
-                //     guidanceText.style.color = '#FFA500';
-                // } else if (areaRatio > 0.5) {  // Increased from 0.4 to allow closer shots
-                //     highlighter.style.borderColor = '#FFA500';
-                //     guidanceText.textContent = 'Move phone further away';
-                //     guidanceText.style.color = '#FFA500';
-                // } else {
-                //     // STEP 4: Final quality checks
-                //     const imageQuality = checkImageQuality(processedCanvas);
-                    
-                //     if (imageQuality.isDarkScreen) {
-                //         highlighter.style.borderColor = '#FFA500';
-                //         guidanceText.textContent = 'Show receipt on phone screen';
-                //         guidanceText.style.color = '#FFA500';
-                //     } else if (imageQuality.isBlurry) {
-                //         highlighter.style.borderColor = '#FFA500';
-                //         guidanceText.textContent = 'Image too blurry';
-                //         guidanceText.style.color = '#FFA500';
-                //     } else if (!imageQuality.hasGoodLighting) {
-                //         highlighter.style.borderColor = '#FFA500';
-                //         guidanceText.textContent = imageQuality.isTooLight ? 'Too bright' : 'More light needed';
-                //         guidanceText.style.color = '#FFA500';
-                //     } else {
-                //         highlighter.style.borderColor = '#4CAF50';
-                //         guidanceText.textContent = 'Perfect! Hold steady...';
-                //         guidanceText.style.color = '#4CAF50';
-                        
-                //         isPredicting = false;
-                //         await handlePhotoCapture(video, video.srcObject);
-                //         return;
-                //     }
+                // Only capture if all conditions are met
+                // if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
+                    // await handlePhotoCapture(video, video.srcObject);
+                    // isPredicting = false;
+                //     return;
                 // }
 
-                // Update area ratio display if element exists
-                // const areaRatioText = document.getElementById('areaRatioText');
-                // if (areaRatioText) {
-                //     areaRatioText.textContent = areaRatio.toFixed(3);
-                //     areaRatioText.style.color = highlighter.style.borderColor;
-                // }
+                // Update state for next frame
+                previousPhoneBox = currentPhoneBox;
+                lastFrameTime = currentTime;
 
                 // Add highlighter to view
                 liveView.appendChild(highlighter);
                 children.push(highlighter);
-
-                if (video.srcObject && isPredicting) {
-                    setTimeout(() => predictWebcam(video, liveView), 500);  // 500ms delay
-                }
             }
 
             if (video.srcObject && isPredicting) {
-                setTimeout(() => predictWebcam(video, liveView), 500);  // 500ms delay
+                requestAnimationFrame(() => predictWebcam(video, liveView));
             }
         } catch (error) {
             console.error('Prediction error:', error);
             if (isPredicting) {
-                setTimeout(() => predictWebcam(video, liveView), 500);  // 500ms delay
+                requestAnimationFrame(() => predictWebcam(video, liveView));
             }
         }
+    }
+
+    function analyzeFrameQuality(currentBox, previousBox, timeDelta) {
+        const metrics = {
+            movement: 0,
+            sharpness: 100, // Default to perfect sharpness
+            isBlurred: false,
+            isStable: true,
+            isSharp: true
+        };
+
+        // Calculate movement if we have previous frame data
+        if (previousBox) {
+            const prevCenter = {
+                x: previousBox.x + (previousBox.width / 2),
+                y: previousBox.y + (previousBox.height / 2)
+            };
+            
+            const currentCenter = {
+                x: currentBox.x + (currentBox.width / 2),
+                y: currentBox.y + (currentBox.height / 2)
+            };
+            
+            // Calculate movement speed (pixels per second)
+            const distance = Math.sqrt(
+                Math.pow(currentCenter.x - prevCenter.x, 2) + 
+                Math.pow(currentCenter.y - prevCenter.y, 2)
+            );
+            
+            const speed = distance / (timeDelta / 1000); // Convert to pixels per second
+            
+            // Add to recent motions array
+            recentMotions.push(speed);
+            if (recentMotions.length > MOTION_MEMORY) {
+                recentMotions.shift();
+            }
+            
+            // Calculate average recent motion
+            metrics.movement = recentMotions.reduce((a, b) => a + b, 0) / recentMotions.length;
+            metrics.isStable = metrics.movement < SPEED_THRESHOLD;
+        }
+
+        // Estimate sharpness based on movement
+        // This is a simple approximation - could be enhanced with actual image analysis
+        metrics.sharpness = Math.max(0, 100 - (metrics.movement / 2));
+        metrics.isSharp = metrics.sharpness > SHARPNESS_THRESHOLD;
+        
+        // Determine if image is too blurred
+        metrics.isBlurred = !metrics.isSharp || !metrics.isStable;
+
+        return metrics;
+    }
+
+    function getGuidanceMessage(metrics, isGoodRatio, areaRatio, minRatio) {
+        if (!isGoodRatio) {
+            return `<p style="color: #FFA500">${areaRatio < minRatio ? 'Move closer' : 'Move further'}</p>`;
+        }
+        if (!metrics.isStable) {
+            return '<p style="color: #FFA500">Hold phone more steady</p>';
+        }
+        if (!metrics.isSharp) {
+            return '<p style="color: #FFA500">Image too blurry</p>';
+        }
+        return '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
     }
 
     // Helper function to check image quality
