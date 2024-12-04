@@ -590,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Calculate area ratio
                 const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
                 const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                const minRatio = isMobileOrTablet ? 0.6 : 0.1;
+                const minRatio = isMobileOrTablet ? 0.4 : 0.1;
                 const maxRatio = 1;
                 const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
                 
