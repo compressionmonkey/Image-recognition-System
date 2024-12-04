@@ -588,7 +588,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 highlighter.style.height = `${currentPhoneBox.height}px`;
 
                 // Calculate area ratio
-                const areaRatio = (currentPhoneBox.width / liveViewWidth) * (currentPhoneBox.height / liveViewHeight);
+                const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
                 const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                 const minRatio = isMobileOrTablet ? 0.6 : 0.1;
                 const maxRatio = 1;
@@ -609,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Only capture if all conditions are met
                 if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
                     await handlePhotoCapture(video, video.srcObject);
-                    logEvent();
+                    logEvent(`areaRatio ` + areaRatio);
                     isPredicting = false;
                     return;
                 }
