@@ -1,3 +1,39 @@
+// Move validateLogin outside DOMContentLoaded
+async function validateLogin() {
+    const customerID = document.getElementById('customerID').value;
+    const loginButton = document.getElementById('login-button');
+    const spinner = document.getElementById('loginSpinner');
+    const loginMessage = document.getElementById('loginMessage');
+    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
+
+    // Show spinner, disable button
+    spinner.style.display = 'inline-block';
+    loginButton.disabled = true;
+
+    try {
+        if (validCustomerIDs.includes(customerID)) {
+            sessionStorage.setItem('isLoggedIn', 'true');
+            sessionStorage.setItem('customerID', customerID);
+            
+            // Hide login overlay and show main content
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            // document.getElementById('userNav').style.display = 'block';
+        } else {
+            loginMessage.textContent = 'Invalid Customer ID';
+            loginMessage.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        loginMessage.textContent = 'An error occurred during login';
+        loginMessage.style.display = 'block';
+    } finally {
+        // Hide spinner, enable button
+        spinner.style.display = 'none';
+        loginButton.disabled = false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
 
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
@@ -88,41 +124,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showManualEntryModal() {
         document.getElementById('manualEntryModal').style.display = 'flex';
-    }
-
-    function validateLogin() {
-        const loginButton = document.getElementById('login-button');
-        const spinner = document.getElementById('loginSpinner');
-        const loginMessage = document.getElementById('loginMessage');
-        const mainContent = document.getElementById('mainContent');
-
-        loginButton.disabled = true;
-        spinner.style.display = 'inline-block';
-        loginMessage.textContent = '';
-
-        setTimeout(() => {
-            const customerID = document.getElementById('customerID').value.trim();
-            
-            if (validCustomerIDs.includes(customerID)) {
-                isLoggedIn = true;
-                sessionStorage.setItem('isLoggedIn', 'true');
-                sessionStorage.setItem('customerID', customerID);
-                
-                // Fade out login overlay and show main content
-                const loginOverlay = document.getElementById('loginOverlay');
-                loginOverlay.style.opacity = '0';
-                loginOverlay.style.transition = 'opacity 0.3s ease';
-                setTimeout(() => {
-                    loginOverlay.style.display = 'none';
-                    mainContent.style.display = 'block';
-                    document.getElementById('userNav').style.display = 'block';
-                }, 300);
-            } else {
-                loginMessage.textContent = 'Invalid Customer ID. Please try again.';
-                loginButton.disabled = false;
-                spinner.style.display = 'none';
-            }
-        }, 1000);
     }
 
     function closeCameraModal() {

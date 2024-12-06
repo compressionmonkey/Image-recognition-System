@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
+  "repository": "git@github.com:compressionmonkey/Image-recognition-System.git",
+  "author": "Kelden Dradul Dorji <keldendraduldorji@gmail.com>",
+  "license": "MIT",
   "engines": {
     "node": "18.x"
   },
