@@ -5,8 +5,6 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
-import sharp from 'sharp';
-import nlp from 'compromise';
 
 dotenv.config();
 
