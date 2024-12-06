@@ -5,7 +5,6 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
-import { log } from '@vercel/node';
 
 dotenv.config();
 
@@ -97,7 +96,7 @@ function categorizeBank(text) {
 function parseReceiptData(text) {
     try {
         const bankInfo = categorizeBank(text);
-        log.info('Bank categorization:', bankInfo);
+        console.log('[Vision API] Bank categorization:', bankInfo);
 
         // Initialize result object with bank type
         const result = {
@@ -169,7 +168,7 @@ function parseReceiptData(text) {
             result.Timestamp = formatDate(new Date());
         }
 
-        log.info('Parsed Receipt Data:', result);
+        console.log('Parsed Receipt Data:', result);
         return result;
     } catch (error) {
         console.error('Error parsing receipt:', error);
@@ -256,11 +255,11 @@ async function updateReceiptData(customerID, receiptData) {
             }
         };
 
-        log.info(`Updating receipt data for ${tableName}:`, JSON.stringify(record, null, 2));
+        console.log(`Updating receipt data for ${tableName}:`, JSON.stringify(record, null, 2));
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
         await base(tableName).create([record]);
-        log.info('Receipt data updated successfully');
+        console.log('Receipt data updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating receipt data:', error);
@@ -287,11 +286,11 @@ async function updateAnalytics(customerID, analyticsData) {
             }
         };
 
-        log.info(`Updating analytics for ${tableName}:`, JSON.stringify(record, null, 2));
+        console.log(`Updating analytics for ${tableName}:`, JSON.stringify(record, null, 2));
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
         await base(tableName).create([record]);
-        log.info('Analytics updated successfully');
+        console.log('Analytics updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating analytics:', error);
@@ -306,7 +305,7 @@ app.post('/vision-api', async (req, res) => {
     const customerID = req.body.customerID;
 
     try {
-        log.info('Received request for Vision API');
+        console.log('Received request for Vision API');
         
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
@@ -333,18 +332,18 @@ app.post('/vision-api', async (req, res) => {
 
         const data = await response.json();
 
-        log.info('herertjhajksfdhhjk', JSON.stringify(data))
+        console.log('herertjhajksfdhhjk', JSON.stringify(data))
         
         // Try to get processing time from Vision API response first
         let totalProcessingTime;
         if (data.responses[0]?.latencyInfo?.totalLatencyMillis) {
             totalProcessingTime = data.responses[0].latencyInfo.totalLatencyMillis / 1000;
-            log.info('Using Vision API latency:', totalProcessingTime);
+            console.log('Using Vision API latency:', totalProcessingTime);
         } else {
             // Fallback to manual calculation
             const endTime = Date.now();
             totalProcessingTime = (endTime - startTime) / 1000;
-            log.info('Using manual latency calculation:', totalProcessingTime);
+            console.log('Using manual latency calculation:', totalProcessingTime);
         }
 
         const textResult = data.responses[0]?.fullTextAnnotation;
@@ -353,11 +352,11 @@ app.post('/vision-api', async (req, res) => {
             acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
 
         if (confidence > 0.7) {
-            log.info('determineBankKey ', determineBankKey(recognizedText));
+            console.log('determineBankKey ', determineBankKey(recognizedText));
             const receiptData = parseReceiptData(recognizedText);
             await updateReceiptData(customerID, receiptData);
 
-            log.info('Processing time details:', {
+            console.log('Processing time details:', {
                 apiProvidedLatency: data.responses[0]?.latencyInfo?.totalLatencyMillis ? 'yes' : 'no',
                 totalProcessingTimeSeconds: totalProcessingTime
             });
@@ -405,7 +404,7 @@ app.post('/api/logs', async (req, res) => {
     
     try {
         // Log to console (will appear in Vercel logs)
-        log.info(JSON.stringify({
+        console.log(JSON.stringify({
             timestamp: timestamp || new Date().toISOString(),
             level,
             customerID,
@@ -447,7 +446,7 @@ app.post('/record-cash', async (req, res) => {
         }
 
         // Log the request for debugging
-        log.info('Cash record request:', {
+        console.log('Cash record request:', {
             isCash,
             amount,
             timestamp: formatDate(new Date())
@@ -474,4 +473,4 @@ app.post('/record-cash', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => log.info(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
