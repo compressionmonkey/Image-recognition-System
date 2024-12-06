@@ -4,20 +4,29 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["public/**"]
-      }
+      "use": "@vercel/node"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/style\\.css",
-      "dest": "/public/style.css"
+      "src": "/style.css",
+      "dest": "/public/style.css",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": "text/css"
+      }
     },
     {
-      "src": "/index\\.js",
-      "dest": "/public/index.js"
+      "src": "/index.js",
+      "dest": "/public/index.js",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": "application/javascript"
+      }
     },
     {
       "src": "/(.*)",
