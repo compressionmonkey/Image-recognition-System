@@ -1,37 +1,30 @@
 {
   "version": 2,
+  "buildCommand": "npm install",
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/logEvent.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["public/**"]
+      }
     }
   ],
   "routes": [
     {
       "src": "/style\\.css",
-      "headers": { "Content-Type": "text/css" },
       "dest": "/public/style.css"
     },
     {
       "src": "/index\\.js",
-      "headers": { "Content-Type": "application/javascript" },
       "dest": "/public/index.js"
-    },
-    {
-      "src": "/api/logEvent",
-      "dest": "/api/logEvent.js"
     },
     {
       "src": "/(.*)",
       "dest": "/server.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

@@ -3,12 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "repository": "git@github.com:compressionmonkey/Image-recognition-System.git",
-  "author": "Kelden Dradul Dorji <keldendraduldorji@gmail.com>",
-  "license": "MIT",
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
-    "@vercel/node": "^3.2.28",
     "airtable": "^0.12.2",
     "chart.js": "^4.4.4",
     "compromise": "^14.14.2",
@@ -18,7 +17,6 @@
     "googleapis": "^144.0.0",
     "node-fetch": "^3.3.2",
     "sharp": "^0.33.5",
-    "typescript": "^5.0.0",
     "ua-parser-js": "^1.0.39"
   },
   "scripts": {
