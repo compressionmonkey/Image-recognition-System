@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Send data to server
-            const response = await fetch('/record-cash', {
+            const response = await fetch('/api/record-cash', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Make API call
             const customerID = sessionStorage.getItem('customerID');
-            const response = await fetch('/vision-api', {
+            const response = await fetch('/api/vision-api', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

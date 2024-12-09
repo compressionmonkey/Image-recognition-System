@@ -6,6 +6,9 @@
   "repository": "git@github.com:compressionmonkey/Image-recognition-System.git",
   "author": "Kelden Dradul Dorji <keldendraduldorji@gmail.com>",
   "license": "MIT",
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
     "airtable": "^0.12.2",

@@ -15,8 +15,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Serve static files from the current directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from the public directory first
 app.use(express.static('public'));
 
 // Serve index.html for the root route
@@ -298,7 +297,7 @@ async function updateAnalytics(customerID, analyticsData) {
     }
 }
 
-app.post('/vision-api', async (req, res) => {
+app.post('api/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
     const startTime = req.body.startTime;
@@ -398,7 +397,6 @@ app.post('/vision-api', async (req, res) => {
     }
 });
 
-// Add this new endpoint for logging
 app.post('/api/logs', async (req, res) => {
     const { level, message, data, timestamp, customerID } = req.body;
     
@@ -431,8 +429,7 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
-// Add this new endpoint for recording cash transactions
-app.post('/record-cash', async (req, res) => {
+app.post('/api/record-cash', async (req, res) => {
     const { amount } = req.body;
     const isCash = true;  // This is always true for cash transactions
     
@@ -470,6 +467,11 @@ app.post('/record-cash', async (req, res) => {
             error: 'Internal server error'
         });
     }
+});
+
+// Finally, serve index.html for all other routes
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
