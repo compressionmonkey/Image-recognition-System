@@ -475,7 +475,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     video: { 
                         facingMode: 'environment',
                         width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        height: { ideal: 720 },
+                        // Add focus capabilities
+                        focusMode: ['continuous', 'auto'],
+                        focusDistance: { ideal: 0.33 },
+                        // Add additional camera controls for better image quality
+                        whiteBalanceMode: ['continuous'],
+                        exposureMode: ['continuous']
                     }
                 });
 
@@ -538,13 +544,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add this function to create and animate the countdown timer
 
     function showCountdownTimer() {
-
         return new Promise((resolve) => {
             const liveView = document.getElementById('liveView');
+            const video = document.getElementById('camera-preview');
             const timer = document.createElement('div');
             timer.className = 'countdown-timer';
             liveView.appendChild(timer);
             let count = 3;
+
+            // Try to focus camera if available
+            if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
+                const track = video.srcObject.getVideoTracks()[0];
+                logEvent(`track getCapabilities' ${track.getCapabilities()}`);
+                logEvent(`track focusMode' ${track.getCapabilities().focusMode}`);
+                // Check if camera supports focus mode
+                if (track.getCapabilities && track.getCapabilities().focusMode) {
+                    // Apply focus settings
+                    track.applyConstraints({
+                        advanced: [
+                            { focusMode: "continuous" },  // Continuous auto-focus
+                            { focusDistance: 0.33 }      // Focus at about 30cm distance
+                        ]
+                    }).catch(err => console.log('Focus error:', err));
+                }
+            }
 
             function updateTimer() {
                 timer.textContent = count;
@@ -645,7 +668,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         // Take the photo after countdown
                         await handlePhotoCapture(video, video.srcObject);
-                        logEvent(`areaRatio: ${areaRatio}`);
                         return;
                     } catch (error) {
                         console.error('Error during countdown/capture:', error);
