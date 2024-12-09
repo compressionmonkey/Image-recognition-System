@@ -407,7 +407,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     async function processImage(file) {
-        const startTime = performance.now();
         showToast('Processing image...', 'info');
 
         try {
@@ -537,8 +536,39 @@ document.addEventListener('DOMContentLoaded', function() {
      const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
      const MOTION_MEMORY = 5; // Number of recent motion measurements to track
      const recentMotions = [];
+    // Add this function to create and animate the countdown timer
 
-     // Update the predictWebcam function
+    function showCountdownTimer() {
+
+        return new Promise((resolve) => {
+            const liveView = document.getElementById('liveView');
+            const timer = document.createElement('div');
+            timer.className = 'countdown-timer';
+            liveView.appendChild(timer);
+            let count = 3;
+
+            function updateTimer() {
+                timer.textContent = count;
+                timer.classList.remove('countdown-animation');
+                void timer.offsetWidth; // Trigger reflow
+                timer.classList.add('countdown-animation');           
+
+                if (count > 1) {
+                    count--;
+                    setTimeout(updateTimer, 1000);
+                } else {
+                    setTimeout(() => {
+                        timer.remove();
+                        resolve();
+                    }, 1000);
+                }
+            }
+
+            updateTimer();
+        });
+    }
+
+    // Update the predictWebcam function to include the countdown
      async function predictWebcam(video, liveView) {
         if (!isPredicting) return;
 
@@ -588,9 +618,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 highlighter.style.height = `${currentPhoneBox.height}px`;
 
                 // Calculate area ratio
-                const areaRatio = (currentPhoneBox.width / liveViewWidth) * (currentPhoneBox.height / liveViewHeight);
+                const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
                 const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                const minRatio = isMobileOrTablet ? 0.6 : 0.1;
+                const minRatio = isMobileOrTablet ? 0.4 : 0.1;
                 const maxRatio = 1;
                 const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
                 
@@ -608,10 +638,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Only capture if all conditions are met
                 if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
-                    await handlePhotoCapture(video, video.srcObject);
-                    logEvent();
-                    isPredicting = false;
-                    return;
+                    isPredicting = false; // Stop predictions during countdown    
+
+                    try {
+                        // Show countdown timer
+                        await showCountdownTimer();
+
+                        // Take the photo after countdown
+                        await handlePhotoCapture(video, video.srcObject);
+                        logEvent(`areaRatio: ${areaRatio}`);
+                        return;
+                    } catch (error) {
+                        console.error('Error during countdown/capture:', error);
+                        isPredicting = true; // Resume predictions if there's an error
+                    }
                 }
 
                 // Update state for next frame
@@ -624,12 +664,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (video.srcObject && isPredicting) {
-                requestAnimationFrame(() => predictWebcam(video, liveView));
+                setTimeout(() => {
+                    requestAnimationFrame(() => predictWebcam(video, liveView));
+                }, 200);
             }
         } catch (error) {
             console.error('Prediction error:', error);
             if (isPredicting) {
-                requestAnimationFrame(() => predictWebcam(video, liveView));
+                setTimeout(() => {
+                    requestAnimationFrame(() => predictWebcam(video, liveView));
+                }, 200);
             }
         }
     }
@@ -698,131 +742,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
     }
 
-    // Helper function to check image quality
-    function checkImageQuality(canvas) {
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        let totalBrightness = 0;
-        let blurScore = 0;
-        let darkPixels = 0;
-        
-        for (let i = 0; i < data.length; i += 4) {
-            // Calculate brightness
-            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            totalBrightness += brightness;
-            
-            // Count dark pixels
-            if (brightness < 50) {
-                darkPixels++;
-            }
-            
-            // Calculate local contrast for blur detection
-            if (i > 0 && i < data.length - 4) {
-                const diff = Math.abs(data[i] - data[i + 4]);
-                blurScore += diff;
-            }
-        }
-        
-        const avgBrightness = totalBrightness / (data.length / 4);
-        const normalizedBlurScore = blurScore / (data.length / 4);
-        const darkPixelRatio = darkPixels / (data.length / 4);
-        
-        // If most pixels are dark, it's likely a blank/dark screen rather than blur
-        const isDarkScreen = darkPixelRatio > 0.7;
-        
-        return {
-            isBlurry: !isDarkScreen && normalizedBlurScore < 5, // Only check blur if not a dark screen
-            hasGoodLighting: avgBrightness >= 50 && avgBrightness <= 200,
-            isTooLight: avgBrightness > 200,
-            isDarkScreen: isDarkScreen
-        };
-    }
-
-    // Add receipt detection helper
-    async function checkForReceipt(canvas) {
-        // First check for visual markers of a receipt screen
-        const hasReceiptVisualMarkers = await model.detect(canvas, 1, 0.5)
-            .then(predictions => {
-                // Look for phone screen content that indicates a receipt
-                const screenContent = predictions.find(p => 
-                    p.class === 'cell phone' && 
-                    p.score > 0.7
-                );
-                
-                if (!screenContent) return false;
-                
-                // Extract the screen region for text detection
-                const bbox = screenContent.bbox;
-                const ctx = canvas.getContext('2d');
-                const screenImage = ctx.getImageData(bbox[0], bbox[1], bbox[2], bbox[3]);
-                
-                // Check for common receipt visual elements (blue/white contrast, app headers)
-                // This is a simplified check - you might want to enhance this
-                let bluePixels = 0;
-                let whitePixels = 0;
-                const data = screenImage.data;
-                
-                for (let i = 0; i < data.length; i += 4) {
-                    // Check for blue-ish pixels (BOB app color)
-                    if (data[i] < 100 && data[i+1] < 100 && data[i+2] > 150) {
-                        bluePixels++;
-                    }
-                    // Check for white-ish pixels (receipt background)
-                    if (data[i] > 200 && data[i+1] > 200 && data[i+2] > 200) {
-                        whitePixels++;
-                    }
-                }
-                
-                const totalPixels = (data.length / 4);
-                const blueRatio = bluePixels / totalPixels;
-                const whiteRatio = whitePixels / totalPixels;
-                
-                // If we see significant blue elements and white space, likely a receipt
-                return (blueRatio > 0.1 && whiteRatio > 0.3);
-            })
-            .catch(error => {
-                console.error('Error in visual receipt detection:', error);
-                return false;
-            });
-
-        // If we detect visual markers, we can be confident it's a receipt
-        if (hasReceiptVisualMarkers) {
-            return true;
-        }
-
-        // Fallback to text detection if visual markers aren't conclusive
-        const result = await Tesseract.recognize(
-            canvas,
-            'eng',
-            { 
-                logger: m => console.debug(m),
-                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/:.' 
-            }
-        );
-        
-        const text = result.data.text.toLowerCase();
-        
-        // Check for common receipt/banking app indicators
-        const hasReceiptIndicators = 
-            text.includes('transfer') ||
-            text.includes('successful') ||
-            text.includes('amount') ||
-            text.includes('account') ||
-            text.includes('bob') ||
-            text.includes('bnb') ||
-            text.includes('receipt') ||
-            text.includes('transaction');
-
-        console.log('Receipt Detection:', {
-            visualMarkersDetected: hasReceiptVisualMarkers,
-            textIndicatorsFound: hasReceiptIndicators,
-            extractedText: text
-        });
-
-        return hasReceiptIndicators;
-    }
 
     // Modify your camera modal HTML to include the highlighter container
     function createCameraModal() {

@@ -801,3 +801,46 @@ header {
     border-radius: 4px;
     margin-left: 5px;
 }
+
+/* Add these new styles for the countdown timer */
+
+.countdown-timer {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 120px;
+    color: white;
+    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    opacity: 0;
+    z-index: 10;
+}
+
+
+.countdown-animation {
+    animation: countdownPulse 1s ease-in-out;
+}
+
+@keyframes countdownPulse {
+
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+}
+
