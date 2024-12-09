@@ -555,7 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Try to focus camera if available
             if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
                 const track = video.srcObject.getVideoTracks()[0];
-                logEvent(`track getCapabilities' ${track.getCapabilities()}`);
+                logEvent(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
                 logEvent(`track focusMode' ${track.getCapabilities().focusMode}`);
                 // Check if camera supports focus mode
                 if (track.getCapabilities && track.getCapabilities().focusMode) {
