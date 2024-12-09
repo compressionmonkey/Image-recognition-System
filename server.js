@@ -5,7 +5,6 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
-import sharp from 'sharp';
 
 dotenv.config();
 
@@ -186,11 +185,77 @@ function parseReceiptData(text) {
         };
     }
 }
+const Banks = ['BOB', 'BNB', 'BDBL', 'PNBL', 'DK Bank', 'Eteeru'];
+
+function getBank(BankSelected){
+    return Banks.find((bank) => bank == BankSelected);
+}
+
+// Define the bank keys
+
+const BANK_KEYS = {
+    BNB_Key: ['Reference No', 'RRN', 'From', 'To', 'Time', 'Remark'],
+    BOB_Key: ['Jrnl No', 'Jrnl. No', 'From A/C', 'Purpose', 'Date', 'Amt', 'To'],
+    Eteeru_Key: ['Processed By', 'Sender Name', 'Merchant Name', 'Merchant Bank', 'Amount', 'Transaction ID', 'Date & Time'],
+    unKnown_Key: ['Wallet Number', 'PAN Number', 'Merchant Name', 'Merchant Bank', 'Amount', 'Purpose'],
+    PNB_Key: ['Amount', 'From', 'To', 'Bank Name', 'Remarks', 'Ref. No.', 'Ref No', 'Date and Time', 'Transaction Type']
+
+  };
+
+  /**
+
+   * Function to determine the matching bank key
+
+   * @param {string} paragraph - The input text to analyze
+
+   * @returns {string} - The matching bank key or 'Unknown'
+
+   */
+
+  function determineBankKey(paragraph) {
+    // Normalize the input text
+    const inputText = paragraph.toLowerCase();
+    // Track the highest match count and corresponding key
+    
+    let maxMatches = 0;
+    let matchingBankKey = 'Unknown';
+  
+    // Iterate over each bank key set
+
+    for (const [bankKey, keywords] of Object.entries(BANK_KEYS)) {
+
+      let matchCount = 0;
+
+      // Count matches for each keyword in the input text
+      keywords.forEach(keyword => {
+        if (inputText.includes(keyword.toLowerCase())) {
+          matchCount++;
+        }
+
+      });
+
+      // Update the matching key if a higher match count is found
+      if (matchCount > maxMatches && inputText.length > 30) {
+        maxMatches = matchCount;
+        matchingBankKey = bankKey;
+      }
+    }
+    return matchingBankKey;
+  }
+
+// Function to check and get current user's table name
+function checkCurrentUser(customerID) {
+    const tableName = customerTables[customerID];
+    if (!tableName) {
+        throw new Error('Invalid customer ID or table name not found');
+    }
+    return tableName;
+}
 
 // Function to update receipt data in customer's table
 async function updateReceiptData(customerID, receiptData) {
     try {
-        const tableName = customerTables[customerID];
+        const tableName = checkCurrentUser(customerID);
         if (!tableName) {
             throw new Error('Invalid customer ID or table name not found');
         }
@@ -300,6 +365,7 @@ app.post('/vision-api', async (req, res) => {
             acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
 
         if (confidence > 0.7) {
+            console.log('determineBankKey ', determineBankKey(recognizedText));
             const receiptData = parseReceiptData(recognizedText);
             await updateReceiptData(customerID, receiptData);
 

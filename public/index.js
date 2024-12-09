@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let isLoggedIn = false;
     let model = undefined;
     let children = [];
-    const MIN_DETECTION_CONFIDENCE = 0.5;
 
     // Add a flag to control prediction loop
     let isPredicting = false;
