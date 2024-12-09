@@ -93,7 +93,7 @@ function categorizeBank(text) {
 }
 
 // Update the parseReceiptData function
-function parseReceiptData(text) {
+function parseReceiptData(text, bankKey) {
     try {
         // First determine the bank type
         const bankInfo = categorizeBank(text);
@@ -195,7 +195,7 @@ function getBank(BankSelected){
 
 const BANK_KEYS = {
     BNB_Key: ['Reference No', 'RRN', 'From', 'To', 'Time', 'Remark'],
-    BOB_Key: ['Jrnl No', 'Jrnl. No', 'From A/C', 'Purpose', 'Date', 'Amt', 'To'],
+    BOB_Key: ['Jrnl No', 'Jrnl. No', 'From A/C', 'Purpose', 'Date', 'Amt', 'To', 'Transaction Successful'],
     Eteeru_Key: ['Processed By', 'Sender Name', 'Merchant Name', 'Merchant Bank', 'Amount', 'Transaction ID', 'Date & Time'],
     unKnown_Key: ['Wallet Number', 'PAN Number', 'Merchant Name', 'Merchant Bank', 'Amount', 'Purpose'],
     PNB_Key: ['Amount', 'From', 'To', 'Bank Name', 'Remarks', 'Ref. No.', 'Ref No', 'Date and Time', 'Transaction Type']
@@ -253,7 +253,7 @@ function checkCurrentUser(customerID) {
 }
 
 // Function to update receipt data in customer's table
-async function updateReceiptData(customerID, receiptData) {
+async function updateReceiptData(customerID, receiptData, recognizedText) {
     try {
         const tableName = checkCurrentUser(customerID);
         if (!tableName) {
@@ -264,7 +264,8 @@ async function updateReceiptData(customerID, receiptData) {
             fields: {
                 'Timestamp': receiptData.Timestamp,
                 'Reference Number': receiptData.ReferenceNo,
-                'Amount': receiptData.Amount
+                'Amount': receiptData.Amount,
+                'Recognized Text': recognizedText
             }
         };
 
@@ -366,8 +367,9 @@ app.post('/vision-api', async (req, res) => {
 
         if (confidence > 0.7) {
             console.log('determineBankKey ', determineBankKey(recognizedText));
-            const receiptData = parseReceiptData(recognizedText);
-            await updateReceiptData(customerID, receiptData);
+            const bankKey = determineBankKey(recognizedText);
+            const receiptData = parseReceiptData(recognizedText, bankKey);
+            await updateReceiptData(customerID, receiptData, recognizedText);
 
             console.log('Processing time details:', {
                 apiProvidedLatency: data.responses[0]?.latencyInfo?.totalLatencyMillis ? 'yes' : 'no',
