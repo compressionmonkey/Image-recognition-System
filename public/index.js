@@ -578,6 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const guidanceText = document.getElementById('guidanceText');
         const currentTime = performance.now();
+        let areaRatio = 0; // Define areaRatio at the function scope level
         
         try {
             const predictions = await model.detect(video, 1, 0.7);
@@ -619,7 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 highlighter.style.height = `${currentPhoneBox.height}px`;
 
                 // Calculate area ratio
-                const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
+                areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
                 const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                 const minRatio = isMobileOrTablet ? 0.4 : 0.1;
                 const maxRatio = 1;
@@ -647,7 +648,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // Take the photo after countdown
                         await handlePhotoCapture(video, video.srcObject);
-                        logEvent(`areaRatio ` + areaRatio);
+                        logEvent(`areaRatio: ${areaRatio}`);
                         return;
                     } catch (error) {
                         console.error('Error during countdown/capture:', error);
@@ -667,7 +668,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (video.srcObject && isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
-                    logEvent('areaRatio 1 ' + areaRatio);
+                    logEvent(`areaRatio: ${areaRatio}`);
                 }, 200);
             }
         } catch (error) {
@@ -675,7 +676,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
-                    logEvent('areaRatio 2 ' + areaRatio);
+                    logEvent(`areaRatio: ${areaRatio}`);
                 }, 200);
             }
         }
