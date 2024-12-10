@@ -311,8 +311,8 @@ function determineBankKey(paragraph) {
     allScores: scores
   });
   
-  // Return result if confidence threshold met
-  return bestMatch.score >= 3 && normalizedText.length > 30 ? 
+  // Return result if confidence threshold met (lowered from 3 to 2)
+  return bestMatch.score >= 2 && normalizedText.length > 30 ? 
     bestMatch.bankKey : 
     'Unknown';
 }
