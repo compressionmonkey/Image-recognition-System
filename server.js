@@ -60,7 +60,7 @@ function parseBankSpecificData(text, bankKey) {
 
     console.log('text', text);
     // Common amount pattern matching for all banks
-    const amountMatch = text.match(/Nu\.\s*([\d,]+\.?\d*)/i);
+    const amountMatch = text.match(/(?:\d+\s+)?Nu\.\s*([\d,]+\.?\d*)/i);
     console.log('amountMatch', amountMatch);
     if (amountMatch) {
         result.amount = amountMatch[1];
