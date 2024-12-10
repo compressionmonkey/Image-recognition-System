@@ -5,6 +5,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
+import nlp from 'compromise';
 
 dotenv.config();
 
@@ -191,57 +192,117 @@ function getBank(BankSelected){
     return Banks.find((bank) => bank == BankSelected);
 }
 
-// Define the bank keys
-
+// Define the bank keys with primary and fuzzy matches
 const BANK_KEYS = {
-    BNB_Key: ['Reference No', 'RRN', 'From', 'To', 'Time', 'Remark'],
-    BOB_Key: ['Jrnl No', 'Jrnl. No', 'From A/C', 'Purpose', 'Date', 'Amt', 'To', 'Transaction Successful'],
-    Eteeru_Key: ['Processed By', 'Sender Name', 'Merchant Name', 'Merchant Bank', 'Amount', 'Transaction ID', 'Date & Time'],
-    unKnown_Key: ['Wallet Number', 'PAN Number', 'Merchant Name', 'Merchant Bank', 'Amount', 'Purpose'],
-    PNB_Key: ['Amount', 'From', 'To', 'Bank Name', 'Remarks', 'Ref. No.', 'Ref No', 'Date and Time', 'Transaction Type']
-
-  };
-
-  /**
-
-   * Function to determine the matching bank key
-
-   * @param {string} paragraph - The input text to analyze
-
-   * @returns {string} - The matching bank key or 'Unknown'
-
-   */
-
-  function determineBankKey(paragraph) {
-    // Normalize the input text
-    const inputText = paragraph.toLowerCase();
-    // Track the highest match count and corresponding key
-    
-    let maxMatches = 0;
-    let matchingBankKey = 'Unknown';
-  
-    // Iterate over each bank key set
-
-    for (const [bankKey, keywords] of Object.entries(BANK_KEYS)) {
-
-      let matchCount = 0;
-
-      // Count matches for each keyword in the input text
-      keywords.forEach(keyword => {
-        if (inputText.includes(keyword.toLowerCase())) {
-          matchCount++;
-        }
-
-      });
-
-      // Update the matching key if a higher match count is found
-      if (matchCount > maxMatches && inputText.length > 30) {
-        maxMatches = matchCount;
-        matchingBankKey = bankKey;
-      }
+  BNB_Key: {
+    primary: ['RRN', 'TRANSACTION SUCCESSFUL', 'Amount'],
+    fuzzy: {
+      'reference': ['RRN', 'reference no', 'ref no', 'ref.no'],
+      'amount': ['amt', 'amount', 'total amount'],
+      'success': ['transaction successful', 'transaction success', 'successful transaction']
     }
-    return matchingBankKey;
+  },
+  PNB_Key: {
+    primary: ['TRANSACTION SUCCESSFUL', 'Ref. No', 'Bank Name', 'Transaction Type', 'Druk Pay'],
+    fuzzy: {
+      'reference': ['ref. no', 'reference no', 'ref no'],
+      'bank': ['bank name', 'bank details'],
+      'transaction': ['txn type', 'transaction type']
+    }
+  },
+  Eteeru_Key: {
+    primary: ['Processed By', 'Merchant Name', 'Amount', 'Purpose', 'Transaction ID'],
+    fuzzy: {
+      'amount': ['amt', 'total amount'],
+      'purpose': ['reason', 'description'],
+      'transaction': ['txn id', 'transaction id', 'tid']
+    }
+  },
+  BOB_Key: {
+    primary: ['MOBILE BANKING', 'mBOB', 'Purpose/Bill QR', 'Amt', 'Jrnl. No'],
+    fuzzy: {
+      'mobile': ['mobile banking', 'm-banking', 'mbob'],
+      'purpose': ['purpose', 'bill qr', 'qr payment'],
+      'amount': ['amt', 'amount', 'total'],
+      'journal': ['jrnl. no', 'journal no', 'jrnl no']
+    }
+  },
+  goBOB_Key: {
+    primary: ['Wallet Number', 'Amount', 'Merchant Bank', 'PAN Number', 'Purpose'],
+    fuzzy: {
+      'wallet': ['wallet number', 'wallet no'],
+      'amount': ['amt', 'total amount'],
+      'pan': ['pan number', 'pan no']
+    }
   }
+};
+
+function determineBankKey(paragraph) {
+  // Normalize and prepare text
+  const doc = nlp(paragraph);
+  doc.normalize({
+    whitespace: true,
+    case: true,
+    punctuation: true,
+    unicode: true,
+    contractions: true,
+    acronyms: true,
+    parentheses: true,
+    quotations: true,
+    emoji: true
+  });
+  
+  const normalizedText = doc.text().toLowerCase();
+  let scores = {};
+  
+  // Initialize scores
+  for (const bankKey of Object.keys(BANK_KEYS)) {
+    scores[bankKey] = {
+      primaryMatches: 0,
+      fuzzyMatches: 0,
+      totalScore: 0
+    };
+  }
+  
+  // Process each bank's patterns
+  for (const [bankKey, patterns] of Object.entries(BANK_KEYS)) {
+    // Check primary keywords (exact matches - 2 points)
+    patterns.primary.forEach(keyword => {
+      if (normalizedText.includes(keyword.toLowerCase())) {
+        scores[bankKey].primaryMatches++;
+        scores[bankKey].totalScore += 2;
+      }
+    });
+    
+    // Check fuzzy matches using compromise (1 point)
+    Object.entries(patterns.fuzzy).forEach(([category, variations]) => {
+      const terms = doc.match(variations.join('|'));
+      if (terms.found) {
+        scores[bankKey].fuzzyMatches++;
+        scores[bankKey].totalScore += 1;
+      }
+    });
+  }
+  
+  // Find best match
+  const bestMatch = Object.entries(scores)
+    .reduce((best, [bankKey, score]) => {
+      return score.totalScore > best.score ? 
+        { bankKey, score: score.totalScore } : 
+        best;
+    }, { bankKey: 'Unknown', score: 0 });
+    
+  // Log for debugging
+  console.log('Bank detection scores:', {
+    bestMatch,
+    allScores: scores
+  });
+  
+  // Return result if confidence threshold met
+  return bestMatch.score >= 3 && normalizedText.length > 30 ? 
+    bestMatch.bankKey : 
+    'Unknown';
+}
 
 // Function to check and get current user's table name
 function checkCurrentUser(customerID) {
