@@ -49,135 +49,153 @@ function formatDate(date) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-// Add this function to determine bank type and get reference number
-function categorizeBank(text) {
-    const result = {
-        bankType: null,
-        referenceNo: null
+function parseBankSpecificData(text, bankKey) {
+    const doc = nlp(text);
+    let result = {
+        amount: null,
+        reference: null,
+        date: null,
+        time: null
     };
 
-    // First check for BNB (Bhutan National Bank)
-    const twelveDigitMatch = text.match(/(?<![\dA-Za-z])(\d{12})(?![\dA-Za-z])/g);
-    const hasRRN = text.match(/RRN/i);
-    
-    if (twelveDigitMatch && hasRRN) {
-        // Filter out numbers that come after letters (like MFTR243031165)
-        const validNumbers = twelveDigitMatch.filter(num => {
-            const beforeNumber = text.substring(text.indexOf(num) - 5, text.indexOf(num));
-            return !beforeNumber.match(/[A-Za-z]+$/);
-        });
-        
-        if (validNumbers.length > 0) {
-            result.bankType = 'BNB';
-            result.referenceNo = validNumbers[0];  // Take the first valid 12-digit number
-            return result;
-        }
+    // Common amount pattern matching for all banks
+    const amountPatterns = doc.match('(nu|nu.|number|no|no.) #Value');
+    if (amountPatterns.found) {
+        result.amount = amountPatterns.text().match(/\d+\.?\d*/)[0];
     }
 
-    // Then check for BOB (Bank of Bhutan) - first priority: 6-8 digit number
-    const digitMatch = text.match(/(\d{6,8})/);
-    if (digitMatch) {
-        result.bankType = 'BOB';
-        result.referenceNo = digitMatch[1];
-        return result;
-    }
-    
-    // BOB second priority: JXX No pattern
-    const jxxMatch = text.match(/J[A-Za-z]{2}\s*No/i);
-    if (jxxMatch) {
-        result.bankType = 'BOB';
-        result.referenceNo = jxxMatch[0];
-        return result;
+    switch (bankKey) {
+        case 'BNB_Key':
+            // Reference number (RRN)
+            const rrnMatch = text.match(/\b43\d{10}\b/);
+            if (rrnMatch) {
+                result.reference = rrnMatch[0];
+            }
+
+            // Date and Time
+            const bnbDateMatch = text.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+            const bnbTimeMatch = text.match(/(\d{2}:\d{2}:\d{2}\s*(?:AM|PM)?)/i);
+            
+            if (bnbDateMatch) {
+                const [_, day, month, year] = bnbDateMatch;
+                result.date = `${day}/${getMonthNumber(month)}/${year}`;
+            }
+            if (bnbTimeMatch) {
+                result.time = bnbTimeMatch[1];
+            }
+            break;
+
+        case 'PNB_Key':
+            // Reference number
+            const pnbRefMatch = text.match(/\b43\d{10}\b/);
+            if (pnbRefMatch) {
+                result.reference = pnbRefMatch[0];
+            }
+
+            // Date and Time
+            const pnbDateMatch = text.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+            const pnbTimeMatch = text.match(/(\d{2}:\d{2}\s*(?:AM|PM))/i);
+            
+            if (pnbDateMatch) {
+                const [_, day, month, year] = pnbDateMatch;
+                result.date = `${day}/${getMonthNumber(month)}/${year}`;
+            }
+            if (pnbTimeMatch) {
+                result.time = pnbTimeMatch[0];
+            }
+            break;
+
+        case 'Eteeru_Key':
+            // Transaction ID (combining split numbers)
+            const txnIdMatches = text.match(/\b\d+\b/g);
+            if (txnIdMatches && txnIdMatches.length >= 2) {
+                result.reference = txnIdMatches.join('');
+            }
+
+            // Date and Time
+            const eteeruDateMatch = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i);
+            const eteeruTimeMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
+            
+            if (eteeruDateMatch) {
+                const [_, day, month, year] = eteeruDateMatch;
+                result.date = `${day}/${getMonthNumber(month)}/${year}`;
+            }
+            if (eteeruTimeMatch) {
+                result.time = eteeruTimeMatch[0];
+            }
+            break;
+
+        case 'goBOB_Key':
+            // PAN Number
+            const panMatch = text.match(/\b\d{16}\b/);
+            if (panMatch) {
+                result.reference = panMatch[0];
+            }
+
+            // Use current timestamp
+            const now = new Date();
+            result.date = formatDate(now).split(' ')[0];
+            result.time = formatDate(now).split(' ')[1];
+            break;
+
+        case 'BOB_Key':
+            // Journal Number
+            const jrnlMatch = text.match(/(?:Jrnl\.?\s*No\.?:?\s*)(\d+)/i);
+            if (jrnlMatch) {
+                result.reference = jrnlMatch[1];
+            }
+
+            // Date and Time
+            const bobDateMatch = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i);
+            const bobTimeMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
+            
+            if (bobDateMatch) {
+                const [_, day, month, year] = bobDateMatch;
+                result.date = `${day}/${getMonthNumber(month)}/${year}`;
+            }
+            if (bobTimeMatch) {
+                result.time = bobTimeMatch[0];
+            }
+            break;
     }
 
     return result;
 }
 
-// Update the parseReceiptData function
+function getMonthNumber(month) {
+    const months = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+        'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+        'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+        'january': '01', 'february': '02', 'march': '03',
+        'april': '04', 'june': '06', 'july': '07',
+        'august': '08', 'september': '09', 'october': '10',
+        'november': '11', 'december': '12'
+    };
+    return months[month.toLowerCase()] || '01';
+}
+
+// Update parseReceiptData to use the new function
 function parseReceiptData(text, bankKey) {
     try {
-        // First determine the bank type
-        const bankInfo = categorizeBank(text);
-        console.log('Bank categorization:', bankInfo);
-
-        // Initialize result object with bank type
-        const result = {
-            Timestamp: null,
-            ReferenceNo: bankInfo.referenceNo, // Use the reference number from bank categorization
-            BankType: bankInfo.bankType,       // Add bank type to the result
-            Amount: null,
-            FromAccount: null,
-            ToAccount: null,
-            Purpose: null,
-            Remarks: null
+        const bankData = parseBankSpecificData(text, bankKey);
+        console.log('bankData', bankData);
+        return {
+            Timestamp: `${bankData.date} ${bankData.time}`,
+            ReferenceNo: bankData.reference,
+            BankType: bankKey.replace('_Key', ''),
+            Amount: bankData.amount,
+            FromAccount: null, // Keep existing account parsing if needed
+            ToAccount: null,   // Keep existing account parsing if needed
+            Purpose: null,     // Keep existing purpose parsing if needed
+            Remarks: null      // Keep existing remarks parsing if needed
         };
-
-        // Split text into lines for easier processing
-        const lines = text.split('\n');
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            const nextLine = lines[i + 1]?.trim() || '';
-
-            // Amount (Look for N/n followed by any single character and period)
-            const amountMatch = line.match(/[Nn][^.]\.\s*([\d,]+\.?\d*)/);
-            if (amountMatch && !result.Amount) {
-                result.Amount = amountMatch[1].replace(/,/g, '');
-            }
-
-            // Timestamp
-            const dateMatch = line.match(/Date\s*[:.]\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/i);
-            const timeMatch = line.match(/(\d{1,2}:\d{2}(?:\s*(?:AM|PM)?)?)/i);
-            
-            if (dateMatch && timeMatch && !result.Timestamp) {
-                result.Timestamp = `${dateMatch[1]} ${timeMatch[1]}`;
-            }
-
-            // Account Numbers
-            const fromAccMatch = line.match(/From\s*A\/c\s*[:.]\s*(\d+[X\d]*\d+)/i);
-            if (fromAccMatch && !result.FromAccount) {
-                result.FromAccount = fromAccMatch[1];
-            }
-
-            const toAccMatch = line.match(/To\s*A\/c\s*[:.]\s*(\d+[X\d]*\d+)/i);
-            if (toAccMatch && !result.ToAccount) {
-                result.ToAccount = toAccMatch[1];
-            }
-
-            // Purpose
-            const purposeMatch = line.match(/Purpose\s*[:.]\s*(.*)/i);
-            if (purposeMatch && !result.Purpose) {
-                result.Purpose = purposeMatch[1].trim();
-                if (nextLine && !nextLine.includes(':')) {
-                    result.Purpose += ' ' + nextLine;
-                }
-            }
-
-            // Remarks (BNB specific)
-            if (result.BankType === 'BNB') {
-                const remarksMatch = line.match(/Remarks\s*[:.]\s*(.*)/i);
-                if (remarksMatch && !result.Remarks) {
-                    result.Remarks = remarksMatch[1].trim();
-                    if (nextLine && !nextLine.includes(':')) {
-                        result.Remarks += ' ' + nextLine;
-                    }
-                }
-            }
-        }
-
-        // Use current timestamp if none found
-        if (!result.Timestamp) {
-            result.Timestamp = formatDate(new Date());
-        }
-
-        console.log('Parsed Receipt Data:', result);
-        return result;
     } catch (error) {
-        console.error('Error parsing receipt:', error);
+        console.error('Error in parseReceiptData:', error);
         return {
             Timestamp: formatDate(new Date()),
             ReferenceNo: 'ERROR',
-            BankType: null,
+            BankType: bankKey.replace('_Key', ''),
             Amount: '0.00',
             FromAccount: null,
             ToAccount: null,
@@ -185,11 +203,6 @@ function parseReceiptData(text, bankKey) {
             Remarks: null
         };
     }
-}
-const Banks = ['BOB', 'BNB', 'BDBL', 'PNBL', 'DK Bank', 'Eteeru'];
-
-function getBank(BankSelected){
-    return Banks.find((bank) => bank == BankSelected);
 }
 
 // Define the bank keys with primary and fuzzy matches
