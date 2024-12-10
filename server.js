@@ -58,6 +58,7 @@ function parseBankSpecificData(text, bankKey) {
         time: null
     };
 
+    console.log('text', text);
     // Common amount pattern matching for all banks
     const amountMatch = text.match(/Nu\.\s*([\d,]+\.?\d*)/i);
     console.log('amountMatch', amountMatch);
@@ -308,10 +309,10 @@ function determineBankKey(paragraph) {
     }, { bankKey: 'Unknown', score: 0 });
     
   // Log for debugging
-  console.log('Bank detection scores:', {
-    bestMatch,
-    allScores: scores
-  });
+//   console.log('Bank detection scores:', {
+//     bestMatch,
+//     allScores: scores
+//   });
   
   // Return result if confidence threshold met (lowered from 3 to 2)
   return bestMatch.score >= 2 && normalizedText.length > 30 ? 
@@ -380,7 +381,7 @@ async function updateAnalytics(customerID, analyticsData) {
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
         await base(tableName).create([record]);
-        console.log('Analytics updated successfully');
+        // console.log('Analytics updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating analytics:', error);
@@ -395,7 +396,7 @@ app.post('/vision-api', async (req, res) => {
     const customerID = req.body.customerID;
 
     try {
-        console.log('Received request for Vision API');
+        // console.log('Received request for Vision API');
         
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
@@ -422,18 +423,18 @@ app.post('/vision-api', async (req, res) => {
 
         const data = await response.json();
 
-        console.log('herertjhajksfdhhjk', JSON.stringify(data))
+        // console.log('herertjhajksfdhhjk', JSON.stringify(data))
         
         // Try to get processing time from Vision API response first
         let totalProcessingTime;
         if (data.responses[0]?.latencyInfo?.totalLatencyMillis) {
             totalProcessingTime = data.responses[0].latencyInfo.totalLatencyMillis / 1000;
-            console.log('Using Vision API latency:', totalProcessingTime);
+            // console.log('Using Vision API latency:', totalProcessingTime);
         } else {
             // Fallback to manual calculation
             const endTime = Date.now();
             totalProcessingTime = (endTime - startTime) / 1000;
-            console.log('Using manual latency calculation:', totalProcessingTime);
+            // console.log('Using manual latency calculation:', totalProcessingTime);
         }
 
         const textResult = data.responses[0]?.fullTextAnnotation;
