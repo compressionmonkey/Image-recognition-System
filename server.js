@@ -60,8 +60,10 @@ function parseBankSpecificData(text, bankKey) {
 
     // Common amount pattern matching for all banks
     const amountPatterns = doc.match('(nu|nu.|number|no|no.) #Value');
+    console.log('amountPatterns', amountPatterns);
     if (amountPatterns.found) {
         result.amount = amountPatterns.text().match(/\d+\.?\d*/)[0];
+        console.log('result.amount', result.amount);
     }
 
     switch (bankKey) {
