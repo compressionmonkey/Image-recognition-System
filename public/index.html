@@ -55,6 +55,9 @@
     </div>
 
     <div id="mainContent" style="display: none;">
+        <div id="userNav" style="position: absolute; top: 20px; right: 20px;">
+            <button id="dashboardButton" class="cta-button" onclick="routeUser()">View Dashboard</button>
+        </div>
         <div class="action-buttons">
             <button id="addPhotoBtn" class="primary-button">
                 <span class="icon">📸</span> Add ReceiptPhoto
@@ -65,9 +68,6 @@
         </div>
     </div>
 
-    <div id="userNav" style="display: none; position: absolute; top: 20px; right: 20px;">
-        <button id="dashboardButton" class="cta-button">View Dashboard</button>
-    </div>
 
     <!-- Add this before </body> -->
     <div id="confirmationModal" class="modal">

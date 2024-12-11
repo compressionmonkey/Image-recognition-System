@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             // First check if response is not ok
-            logEvent(`check ${data} ${response}`);
+            logEvent(`check ${JSON.stringify(data)} ${JSON.stringify(response)}`);
             if (!response.ok) {
                 showFailureModal('Scan failed', 'Please retry');
                 return;
@@ -429,11 +429,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             modal.style.display = 'none';
             modal.classList.remove('fade-out');
-            
-            // Reset form and make fields readonly again
-            document.getElementById('confirmAmount').setAttribute('readonly', true);
-            document.getElementById('confirmReference').setAttribute('readonly', true);
-            document.getElementById('confirmDate').setAttribute('readonly', true);
             
             // Reset form values
             document.getElementById('confirmationForm').reset();
@@ -942,20 +937,7 @@ document.addEventListener('DOMContentLoaded', function() {
     //     return canvas;
     // }
 
-    // Make functions available globally
-    window.handlePhotoOption = handlePhotoOption;
-    window.showPhotoOptions = showPhotoOptions;
-    window.closePhotoOptions = closePhotoOptions;
-    window.closeCameraModal = closeCameraModal;
-    window.validateLogin = validateLogin;
-    window.showManualEntryModal = showManualEntryModal;
-    window.closeManualEntryModal = closeManualEntryModal;
-    window.closeFailureModal  = closeFailureModal;
-    window.handleManualSubmit  = handleManualSubmit;
-    window.handleConfirmDetails = handleConfirmDetails;
-    // window.handleEditDetails = handleEditDetails;
-    window.closeConfirmationModal = closeConfirmationModal;
-
+    
     // Example function to log an event
     async function logEvent(message) {
         try {
@@ -976,5 +958,40 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error logging event:', error);
         }
     }
+
+    async function routeUser() {
+        const customerID = sessionStorage.getItem('customerID');
+        
+        try {
+            const response = await fetch(`/api/dashboard-url?customerID=${customerID}`);
+            const data = await response.json();
+            
+            if (data.url) {
+                // Open the URL in a new tab
+                window.open(data.url, '_blank');
+            } else {
+                console.error('Dashboard URL not found');
+                showToast('Dashboard URL not found', 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard URL:', error);
+            showToast('Error accessing dashboard', 'error');
+        }
+    }
+
+    // Make functions available globally
+    window.handlePhotoOption = handlePhotoOption;
+    window.showPhotoOptions = showPhotoOptions;
+    window.closePhotoOptions = closePhotoOptions;
+    window.closeCameraModal = closeCameraModal;
+    window.validateLogin = validateLogin;
+    window.showManualEntryModal = showManualEntryModal;
+    window.closeManualEntryModal = closeManualEntryModal;
+    window.closeFailureModal  = closeFailureModal;
+    window.handleManualSubmit  = handleManualSubmit;
+    window.handleConfirmDetails = handleConfirmDetails;
+    // window.handleEditDetails = handleEditDetails;
+    window.closeConfirmationModal = closeConfirmationModal;
+    window.routeUser = routeUser;
 
 });

@@ -574,5 +574,17 @@ app.post('/confirm-receipt', async (req, res) => {
     }
 });
 
+// Add this endpoint to server.js
+app.get('/api/dashboard-url', (req, res) => {
+    const customerID = req.query.customerID;
+    const dashboardUrl = process.env[`DASHBOARD_URL_${customerID}`];
+    
+    if (dashboardUrl) {
+        res.json({ url: dashboardUrl });
+    } else {
+        res.status(404).json({ error: 'Dashboard URL not found' });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
