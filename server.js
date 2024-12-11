@@ -186,12 +186,7 @@ function parseReceiptData(text, bankKey) {
         return {
             Timestamp: `${bankData.date} ${bankData.time}`,
             ReferenceNo: bankData.reference,
-            BankType: bankKey.replace('_Key', ''),
             Amount: bankData.amount,
-            FromAccount: null, // Keep existing account parsing if needed
-            ToAccount: null,   // Keep existing account parsing if needed
-            Purpose: null,     // Keep existing purpose parsing if needed
-            Remarks: null      // Keep existing remarks parsing if needed
         };
     } catch (error) {
         console.error('Error in parseReceiptData:', error);
@@ -330,19 +325,19 @@ function checkCurrentUser(customerID) {
 }
 
 // Function to update receipt data in customer's table
-async function updateReceiptData(customerID, receiptData, recognizedText) {
+async function updateReceiptData(receiptData) {
     try {
-        const tableName = checkCurrentUser(customerID);
+        const tableName = checkCurrentUser(receiptData.customerID);
         if (!tableName) {
             throw new Error('Invalid customer ID or table name not found');
         }
 
         const record = {
             fields: {
-                'Timestamp': receiptData.Timestamp,
-                'Reference Number': receiptData.ReferenceNo,
-                'Amount': receiptData.Amount,
-                'Recognized Text': recognizedText
+                'Timestamp': receiptData.timestamp,
+                'Reference Number': receiptData.referenceNo,
+                'Amount': receiptData.amount,
+                'Recognized Text': receiptData.recognizedText
             }
         };
 
@@ -443,25 +438,17 @@ app.post('/vision-api', async (req, res) => {
             acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
 
         if (confidence > 0.7) {
-            console.log('determineBankKey ', determineBankKey(recognizedText));
             const bankKey = determineBankKey(recognizedText);
             const receiptData = parseReceiptData(recognizedText, bankKey);
-            await updateReceiptData(customerID, receiptData, recognizedText);
-
-            console.log('Processing time details:', {
-                apiProvidedLatency: data.responses[0]?.latencyInfo?.totalLatencyMillis ? 'yes' : 'no',
-                totalProcessingTimeSeconds: totalProcessingTime
+            
+            // Send only the essential data
+            res.json({
+                amount: receiptData.Amount,
+                referenceNo: receiptData.ReferenceNo,
+                timestamp: receiptData.Timestamp,
+                recognizedText
             });
-
-            await updateAnalytics(customerID, {
-                ProcessingTimeSeconds: totalProcessingTime,
-                DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-                ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-                Success: 'true',
-                ErrorMessage: ''
-            });
-
-            res.json(data);
+            return;
         } else {
             res.status(400).json({
                 error: 'Text confidence score is below threshold',
@@ -560,6 +547,29 @@ app.post('/record-cash', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Internal server error'
+        });
+    }
+});
+
+app.post('/confirm-receipt', async (req, res) => {
+    const confirmedDetails = req.body;
+    
+    try {
+        // Log the confirmed details
+        console.log('Confirmed receipt details:', confirmedDetails);
+        await updateReceiptData(confirmedDetails);
+        // Send back the confirmed details
+        res.json({
+            success: true,
+            data: confirmedDetails,
+            message: 'Receipt details confirmed successfully'
+        });
+        
+    } catch (error) {
+        console.error('Error confirming receipt:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to confirm receipt'
         });
     }
 });

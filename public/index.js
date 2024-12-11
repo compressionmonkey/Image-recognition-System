@@ -341,70 +341,104 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Then check the data structure for textAnnotations
-            if (!data || !data.responses || !data.responses[0] || !data.responses[0].textAnnotations || !data.responses[0].textAnnotations[0]) {
-                showFailureModal('No Text Detected', 'We couldn\'t detect any clear text in the image. Please try again with a clearer image.');
-                return;
-            }
-
-            const extractedText = data.responses[0].textAnnotations[0].description;
-            if (!extractedText || extractedText.trim() === '') {
-                showFailureModal('No Text Detected', 'We couldn\'t detect any clear text in the image. Please try again with a clearer image.');
-                return;
-            }
-
-            // Log successful text extraction
-            console.log('Text Extraction Success:', {
-                timestamp: new Date().toISOString(),
-                textLength: extractedText.length,
-                preview: extractedText.substring(0, 100) + '...'
-            });
-
-            // If we get here, we have a successful response with text
-            const modal = document.getElementById('successModal');
-            const successContent = modal.querySelector('.success-content');
-
-            // Update success modal content with formatted text
-            successContent.innerHTML = `
-                <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-                    <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
-                    <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-                </svg>
-                
-                <h2>Success!</h2>
-                
-                <div class="receipt-text">
-                    <h4>Detected Text:</h4>
-                    <pre>${extractedText.replace(/\n/g, '<br>')}</pre>
-                </div>
-                
-                <button class="close-button">Done</button>
-            `;
-
-            // Show success modal and confetti
-            modal.style.display = 'flex';
-            showConfetti();
-
-            // Handle close button
-            const closeButton = modal.querySelector('.close-button');
-            closeButton.addEventListener('click', function handleClose() {
-                closeButton.disabled = true;
-                closeButton.removeEventListener('click', handleClose);
-                modal.classList.add('fade-out');
-                
-                setTimeout(() => {
-                    modal.style.display = 'none';
-                    modal.classList.remove('fade-out');
-                    closeButton.disabled = false;
-                }, 300);
-            });
+            // Show confirmation modal with extracted data
+            showConfirmationModal(data);
 
         } catch (error) {
             console.error('Error:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your image. Please try again.');
         }
     }
-    
+
+    function showConfirmationModal(data) {
+        const modal = document.getElementById('confirmationModal');
+        
+        // Populate the form with extracted data
+        document.getElementById('confirmAmount').value = `Nu. ${data.amount || ''}`;
+        document.getElementById('confirmReference').value = data.referenceNo || '';
+        
+        // Parse and set the date with validation
+        let dateValue = '';
+        if (data.timestamp) {
+            const date = new Date(data.timestamp);
+            if (!isNaN(date.getTime())) {
+                dateValue = date.toISOString().split('T')[0];
+            }
+        }
+        
+        // Fallback to today's date if parsing fails
+        if (!dateValue) {
+            const today = new Date();
+            dateValue = today.toISOString().split('T')[0];
+        }
+        
+        document.getElementById('confirmDate').value = dateValue;
+
+        // Show the modal
+        window.recognizedText = data.recognizedText;
+        modal.style.display = 'flex';
+    }
+
+    async function handleConfirmDetails() {
+        // Get the values
+        const amount = document.getElementById('confirmAmount').value.replace('Nu. ', '');
+        const reference = document.getElementById('confirmReference').value;
+        const date = document.getElementById('confirmDate').value;
+
+        const confirmedCustomerDetails = {
+            amount,
+            referenceNo: reference,
+            timestamp: date,
+            customerID: sessionStorage.getItem('customerID'),
+            recognizedText: window.recognizedText
+        };
+
+        try {
+            const response = await fetch('/confirm-receipt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(confirmedCustomerDetails)
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to confirm receipt');
+            }
+
+            // Close the modal
+            closeConfirmationModal();
+            
+            // Show success message
+            showToast('Receipt details confirmed', 'success');
+            showConfetti(); // Add celebration effect
+
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Failed to confirm receipt', 'error');
+        }
+    }
+
+    function closeConfirmationModal() {
+        const modal = document.getElementById('confirmationModal');
+        modal.classList.add('fade-out');
+        
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.classList.remove('fade-out');
+            
+            // Reset form and make fields readonly again
+            document.getElementById('confirmAmount').setAttribute('readonly', true);
+            document.getElementById('confirmReference').setAttribute('readonly', true);
+            document.getElementById('confirmDate').setAttribute('readonly', true);
+            
+            // Reset form values
+            document.getElementById('confirmationForm').reset();
+        }, 300);
+    }
+
     async function processImage(file) {
         showToast('Processing image...', 'info');
 
@@ -781,7 +815,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="camera-controls">
                     <button id="capture-photo" class="camera-button capture">
-                        📸 Capture
+                         Capture
                     </button>
                     <button onclick="closeCameraModal()" class="camera-button retry">
                         ❌ Cancel
@@ -917,6 +951,9 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeManualEntryModal = closeManualEntryModal;
     window.closeFailureModal  = closeFailureModal;
     window.handleManualSubmit  = handleManualSubmit;
+    window.handleConfirmDetails = handleConfirmDetails;
+    // window.handleEditDetails = handleEditDetails;
+    window.closeConfirmationModal = closeConfirmationModal;
 
     // Example function to log an event
     async function logEvent(message) {

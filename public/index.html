@@ -70,9 +70,28 @@
     </div>
 
     <!-- Add this before </body> -->
-    <div id="successModal" class="success-modal" style="display: none;">
-        <div class="success-content">
-            <!-- Content will be dynamically updated -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <div class="question-icon">❓</div>
+            <h2>Is this the correct details?</h2>
+            <form id="confirmationForm">
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="text" id="confirmAmount">
+                </div>
+                <div class="form-group">
+                    <label>Reference Number</label>
+                    <input type="text" id="confirmReference">
+                </div>
+                <div class="form-group">
+                    <label>Date of Receipt</label>
+                    <input type="date" id="confirmDate">
+                </div>
+                <div class="button-group">
+                    <button type="button" class="primary-button" onclick="handleConfirmDetails()">Confirm Details</button>
+                    <button type="button" class="secondary-button" onclick="closeConfirmationModal()">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
