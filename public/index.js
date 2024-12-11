@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Handle capture button
-                document.getElementById('capture-photo').onclick = () => handlePhotoCapture(video, stream);
+                // document.getElementById('capture-photo').onclick = () => handlePhotoCapture(video, stream);
 
             } catch (error) {
                 console.error('Error accessing camera:', error);
@@ -810,11 +810,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="camera-controls">
-                    <button id="capture-photo" class="camera-button capture">
-                         Capture
+                    <button class="camera-button manual" onclick="showEmptyConfirmationModal()">
+                        Manual Entry
                     </button>
                     <button onclick="closeCameraModal()" class="camera-button retry">
-                        ❌ Cancel
+                        Close
                     </button>
                 </div>
             </div>
@@ -876,68 +876,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Add this after your existing utility functions
-    // function lightPreProcess(video) {
-    //     const canvas = document.createElement('canvas');
-    //     const ctx = canvas.getContext('2d');
+    // Add new function to show empty confirmation modal
+    function showEmptyConfirmationModal() {
+        const modal = document.getElementById('confirmationModal');
         
-    //     const MAX_DIMENSION = 1024;
-    //     const scale = MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight);
-    //     canvas.width = video.videoWidth * scale;
-    //     canvas.height = video.videoHeight * scale;
+        // Clear any existing values
+        document.getElementById('confirmAmount').value = '';
+        document.getElementById('confirmReference').value = '';
         
-    //     // Draw original image
-    //     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Set default date to today
+        const today = new Date();
+        const dateValue = today.toISOString().split('T')[0];
+        document.getElementById('confirmDate').value = dateValue;
         
-    //     // Get image data for analysis
-    //     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    //     const data = imageData.data;
+        // Show the modal
+        modal.style.display = 'flex';
         
-    //     // Calculate image quality metrics
-    //     let totalBrightness = 0;
-    //     let blurScore = 0;
-        
-    //     for (let i = 0; i < data.length; i += 4) {
-    //         // Calculate brightness
-    //         const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    //         totalBrightness += brightness;
-            
-    //         // Calculate local contrast for blur detection
-    //         if (i > 0 && i < data.length - 4) {
-    //             const diff = Math.abs(data[i] - data[i + 4]);
-    //             blurScore += diff;
-    //         }
-    //     }
-        
-    //     const avgBrightness = totalBrightness / (data.length / 4);
-    //     const normalizedBlurScore = blurScore / (data.length / 4);
-        
-    //     // Update guidance text based on image quality
-    //     const guidanceText = document.getElementById('guidanceText');
-    //     if (avgBrightness < 50) {
-    //         guidanceText.textContent = 'More light needed';
-    //         guidanceText.style.color = '#FFA500';
-    //         return canvas;
-    //     }
-    //     if (avgBrightness > 200) {
-    //         guidanceText.textContent = 'Too bright, reduce light';
-    //         guidanceText.style.color = '#FFA500';
-    //         return canvas;
-    //     }
-    //     if (normalizedBlurScore < 10) {
-    //         guidanceText.textContent = 'Image too blurry';
-    //         guidanceText.style.color = '#FFA500';
-    //         return canvas;
-    //     }
-        
-    //     // Apply enhancements
-    //     ctx.filter = 'contrast(1.2) brightness(1.1)';
-    //     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-    //     return canvas;
-    // }
+        // Close the camera modal
+        closeCameraModal();
+    }
 
-    
     // Example function to log an event
     async function logEvent(message) {
         try {
@@ -990,8 +948,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeFailureModal  = closeFailureModal;
     window.handleManualSubmit  = handleManualSubmit;
     window.handleConfirmDetails = handleConfirmDetails;
-    // window.handleEditDetails = handleEditDetails;
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
+    window.showEmptyConfirmationModal = showEmptyConfirmationModal;
 
 });

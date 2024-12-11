@@ -606,45 +606,48 @@ header {
 }
 
 .camera-controls {
-    padding: 20px;
+    padding: 16px;
     display: flex;
-    justify-content: space-around;
-    background: rgba(0, 0, 0, 0.7);
+    justify-content: space-between;
+    gap: 12px;
+    position: fixed;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
 }
 
 .camera-button {
-    padding: 12px 24px;
-    border-radius: 25px;
+    flex: 1;
+    padding: 16px;
+    border-radius: 12px;
     border: none;
-    background: #2196F3;
-    color: white;
-    font-size: 16px;
+    font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
-.camera-button:hover {
-    background: #1976D2;
-}
-
-.camera-button.capture {
-    background-color: #4CAF50; /* Green color for positive action */
+.camera-button.manual {
+    background-color: #2196F3;
     color: white;
-    transition: background-color 0.3s;
-}
-
-.camera-button.capture:hover {
-    background-color: #45a049; /* Darker green on hover */
 }
 
 .camera-button.retry {
-    background-color: #f44336; /* Red color for negative action */
+    background-color: #f44336;
     color: white;
-    transition: background-color 0.3s;
 }
 
-.camera-button.retry:hover {
-    background-color: #da190b; /* Darker red on hover */
+.camera-button:active {
+    transform: scale(0.98);
+}
+
+/* Make buttons more pill-shaped */
+.camera-button {
+    border-radius: 100px;
 }
 
 .form-group {
