@@ -70,12 +70,16 @@ function parseBankSpecificData(text, bankKey) {
     // Find currency amounts using compromise
     const currencyMatches = doc.match('#Currency+? #Value+?');
     const numberMatches = doc.numbers().get();
+
+    console.log('currencyMatches', JSON.stringify(currencyMatches));
     
     // Try to find amount using various methods
     if (currencyMatches.found) {
         // Get the first currency match with its associated number
         const match = currencyMatches.text();
+        console.log('match', match);
         const amount = match.replace(/[^\d.,]/g, '');
+        console.log('amount', amount);
         if (amount) {
             result.amount = amount;
         }
@@ -364,12 +368,7 @@ async function updateReceiptData(receiptData) {
         console.log(`Updating receipt data for ${tableName}:`, JSON.stringify(record, null, 2));
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-        await base(tableName).create([record], { 
-            typecast: true,
-            cellFormat: 'json',
-            returnFieldsByFieldId: false,
-            insertRecords: true  // This tells Airtable to insert at the top
-        });
+        await base(tableName).create([record]);
         console.log('Receipt data updated successfully');
         return true;
     } catch (error) {
