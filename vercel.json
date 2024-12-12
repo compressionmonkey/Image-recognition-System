@@ -2,6 +2,13 @@
   "version": 2,
   "builds": [
     {
+      "src": "build/generateHash.js",
+      "use": "@vercel/node",
+      "config": {
+        "buildCommand": "node build/generateHash.js"
+      }
+    },
+    {
       "src": "server.js",
       "use": "@vercel/node"
     },
@@ -17,12 +24,18 @@
   "routes": [
     {
       "src": "/style\\.css",
-      "headers": { "Content-Type": "text/css" },
+      "headers": { 
+        "Content-Type": "text/css",
+        "Cache-Control": "public, max-age=0, must-revalidate"
+      },
       "dest": "/public/style.css"
     },
     {
       "src": "/index\\.js",
-      "headers": { "Content-Type": "application/javascript" },
+      "headers": { 
+        "Content-Type": "application/javascript",
+        "Cache-Control": "public, max-age=0, must-revalidate"
+      },
       "dest": "/public/index.js"
     },
     {
@@ -31,6 +44,9 @@
     },
     {
       "src": "/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate"
+      },
       "dest": "/server.js"
     }
   ]
