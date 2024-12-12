@@ -357,7 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
         
-        logEvent('data', data);
+        logEvent(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.Amount || '';
         if (referenceInput) referenceInput.value = data.ReferenceNo || '';
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add date change event listener
         if (dateInput) {
-            dateInput.addEventListener('change', (e) => validateDate(e.target));
+            dateInput.addEventListener('change', (e) => validateDate(e.target.value));
         }
     }
 
@@ -890,8 +890,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add event listener for date changes and perform initial validation
         dateInput.removeEventListener('change', validateDate); // Remove any existing listener
-        dateInput.addEventListener('change', () => validateDate(dateInput));
-        validateDate(dateInput); // Perform initial validation
+        dateInput.addEventListener('change', () => validateDate(dateInput.value));
+        validateDate(dateInput.value); // Perform initial validation
         
         // Show the modal
         modal.style.display = 'flex';
@@ -900,17 +900,43 @@ document.addEventListener('DOMContentLoaded', function() {
         closeCameraModal();
     }
 
+    function isToday(dateString) {
+        try {
+            // Parse the input date string
+            const inputDate = new Date(dateString);
+            
+            // Check if parsing resulted in an invalid date
+            if (isNaN(inputDate)) {
+                return false;
+            }
+    
+            // Get today's date
+            const today = new Date();
+    
+            // Compare year, month, and day
+            return (
+                inputDate.getFullYear() === today.getFullYear() &&
+                inputDate.getMonth() === today.getMonth() &&
+                inputDate.getDate() === today.getDate()
+            );
+        } catch (error) {
+            return false; // Return false if there's any parsing or comparison error
+        }
+    }
+    
+
     function validateDate(dateInput) {
-        const selectedDate = new Date(dateInput.value);
-        const today = new Date();
-        
-        // Reset time portion for accurate date comparison
-        selectedDate.setHours(0, 0, 0, 0);
-        today.setHours(0, 0, 0, 0);
-        
+        // Check for empty date input first
+        if (!dateInput || dateInput === '') {
+            const validationMessage = document.getElementById('dateValidationMessage');
+            validationMessage.style.display = 'none';
+            validationMessage.classList.remove('show');
+            return;
+        }
+
         const validationMessage = document.getElementById('dateValidationMessage');
         
-        if (selectedDate.getTime() !== today.getTime()) {
+        if (!isToday(dateInput)) {
             validationMessage.textContent = 'Receipt Date is not today. Are you sure you want to add this?';
             validationMessage.style.display = 'block';
             validationMessage.classList.add('show');

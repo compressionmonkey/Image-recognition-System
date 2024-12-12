@@ -188,11 +188,9 @@ function parseBankSpecificData(text, bankKey) {
             if (panMatch) {
                 result.reference = panMatch[0];
             }
-
-            // Use current timestamp
-            const now = new Date();
-            result.date = formatDate(now).split(' ')[0];
-            result.time = formatDate(now).split(' ')[1];
+            // gobob will have no date. User will manually add
+            result.date = '';
+            result.time = '';
             break;
 
         case 'BOB_Key':
