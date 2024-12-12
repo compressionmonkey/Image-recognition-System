@@ -353,95 +353,92 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showConfirmationModal(data) {
         const modal = document.getElementById('confirmationModal');
-        
-        // Populate the form with extracted data
-        document.getElementById('confirmAmount').value = data.amount || '';
-        document.getElementById('confirmReference').value = data.referenceNo || '';
-        
-        // Parse and set the date with validation
-        let dateValue = '';
-        if (data.timestamp) {
-            const date = new Date(data.timestamp);
-            if (!isNaN(date.getTime())) {
-                dateValue = date.toISOString().split('T')[0];
-            }
-        }
-        
-        // Fallback to today's date if parsing fails
-        if (!dateValue) {
-            const today = new Date();
-            dateValue = today.toISOString().split('T')[0];
-        }
-        
-        document.getElementById('confirmDate').value = dateValue;
-
+        const amountInput = document.getElementById('confirmAmount');
+        const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
-        dateInput.value = dateValue;
-        
-        // Add event listener for date changes
-        dateInput.addEventListener('change', () => validateDate(dateInput));
-        
-        // Initial validation check
-        validateDate(dateInput);
-        
+
+        // Set default date to today
+        const today = new Date();
+        const dateValue = today.toISOString().split('T')[0];
+
+        // Check if elements exist before setting values
+        if (amountInput) amountInput.value = data.amount || '';
+        if (referenceInput) referenceInput.value = data.referenceNo || '';
+        if (dateInput) dateInput.value = dateValue;
+
+        // Show validation message if needed
+        const validationMessage = document.getElementById('dateValidationMessage');
+        if (validationMessage) {
+            validationMessage.style.display = 'none';
+        }
+
         // Show the modal
-        window.recognizedText = data.recognizedText;
-        modal.style.display = 'flex';
+        if (modal) {
+            modal.style.display = 'flex';
+        } else {
+            console.error('Confirmation modal not found in DOM');
+        }
+
+        // Log the data for debugging
+        logEvent(`Showing confirmation modal with data: ${JSON.stringify({
+            amount: data.amount,
+            referenceNo: data.referenceNo,
+            date: dateValue
+        })}`);
     }
 
-    async function handleConfirmDetails() {
-        // Get the values
-        const amount = document.getElementById('confirmAmount').value.replace('Nu. ', '');
-        const reference = document.getElementById('confirmReference').value;
+    // Add this function to handle confirmation
+    function handleConfirmDetails() {
+        const amount = document.getElementById('confirmAmount').value;
+        const referenceNo = document.getElementById('confirmReference').value;
         const date = document.getElementById('confirmDate').value;
 
-        const confirmedCustomerDetails = {
+        // Validate inputs
+        if (!amount || !referenceNo || !date) {
+            showToast('Please fill in all fields', 'error');
+            return;
+        }
+
+        // Get customer ID from session storage
+        const customerID = sessionStorage.getItem('customerID');
+
+        // Create confirmation data object
+        const confirmationData = {
+            customerID,
             amount,
-            referenceNo: reference,
+            referenceNo,
             timestamp: date,
-            customerID: sessionStorage.getItem('customerID'),
-            recognizedText: window.recognizedText
+            recognizedText: '' // Add any additional fields needed
         };
 
-        try {
-            const response = await fetch('/confirm-receipt', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(confirmedCustomerDetails)
-            });
-
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to confirm receipt');
+        // Send confirmation to server
+        fetch('/confirm-receipt', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(confirmationData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Receipt confirmed successfully', 'success');
+                closeConfirmationModal();
+            } else {
+                showToast(data.error || 'Failed to confirm receipt', 'error');
             }
-
-            // Close the modal
-            closeConfirmationModal();
-            
-            // Show success message
-            showToast('Receipt details confirmed', 'success');
-            showConfetti(); // Add celebration effect
-
-        } catch (error) {
+        })
+        .catch(error => {
             console.error('Error:', error);
             showToast('Failed to confirm receipt', 'error');
-        }
+        });
     }
 
     function closeConfirmationModal() {
         const modal = document.getElementById('confirmationModal');
-        modal.classList.add('fade-out');
-        
-        setTimeout(() => {
+        if (modal) {
             modal.style.display = 'none';
-            modal.classList.remove('fade-out');
-            
-            // Reset form values
-            document.getElementById('confirmationForm').reset();
-        }, 300);
+        }
     }
 
     async function processImage(file) {

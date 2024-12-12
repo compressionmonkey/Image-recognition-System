@@ -69,19 +69,18 @@ function parseBankSpecificData(text, bankKey) {
 
     // Find all currency matches and numbers
     const currencyMatches = doc.match('#Currency+? #Value+?');
-    console.log('currencyMatches', JSON.stringify(currencyMatches));
     
     if (currencyMatches.found) {
-        // Define currency patterns to look for
+        // Define currency patterns to look for - add 'g' flag to all patterns
         const currencyPatterns = [
-            /Nu\./i,                    // Nu.
-            /Ngultrum/i,               // Ngultrum
-            /NGN/i,                    // NGN
-            /Nu(?:\s+)?$/i,           // Nu with optional space at end
-            /Ngultrums?/i,            // Ngultrum/Ngultrums
-            /Nu(?:\s+)?:/i,           // Nu: with optional space
-            /Amount.*?Nu/i,            // Amount followed by Nu
-            /Total.*?Nu/i             // Total followed by Nu
+            /Nu\./gi,                    // Nu.
+            /Ngultrum/gi,               // Ngultrum
+            /NGN/gi,                    // NGN
+            /Nu(?:\s+)?$/gi,           // Nu with optional space at end
+            /Ngultrums?/gi,            // Ngultrum/Ngultrums
+            /Nu(?:\s+)?:/gi,           // Nu: with optional space
+            /Amount.*?Nu/gi,            // Amount followed by Nu
+            /Total.*?Nu/gi             // Total followed by Nu
         ];
 
         // Get all matches with their text and position
@@ -118,6 +117,8 @@ function parseBankSpecificData(text, bankKey) {
 
         // Sort by score and get the best match
         const bestMatch = scoredMatches.sort((a, b) => b.score - a.score)[0];
+        console.log('scoredMatches', scoredMatches);
+        console.log('bestMatch', bestMatch);
         
         if (bestMatch && bestMatch.score > 30) { // Threshold for accepting a match
             result.amount = bestMatch.amount;
