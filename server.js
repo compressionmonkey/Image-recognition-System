@@ -226,7 +226,8 @@ function parseReceiptData(text, bankKey) {
         const bankData = parseBankSpecificData(text, bankKey);
         console.log('bankData', bankData);
         return {
-            Timestamp: `${bankData.date} ${bankData.time}`,
+            Date: bankData.date,
+            Time: bankData.time,
             ReferenceNo: bankData.reference,
             Amount: bankData.amount,
         };

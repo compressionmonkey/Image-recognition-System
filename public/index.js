@@ -357,21 +357,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
 
-        // Format the date string to yyyy-MM-dd
-        let formattedDate = '';
-        if (data.timestamp) {
-            // Parse the date string (assuming format "dd/MM/yyyy HH:mm:ss")
-            const parts = data.timestamp.split(' ')[0].split('/');
-            if (parts.length === 3) {
-                // Rearrange to yyyy-MM-dd
-                formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            }
-        }
-
         // Check if elements exist before setting values
-        if (amountInput) amountInput.value = data.amount || '';
-        if (referenceInput) referenceInput.value = data.referenceNo || '';
-        if (dateInput) dateInput.value = formattedDate || '';
+        if (amountInput) amountInput.value = data.Amount || '';
+        if (referenceInput) referenceInput.value = data.ReferenceNo || '';
+        if (dateInput) dateInput.value = data.Date || '';
 
         // Show the modal first
         if (modal) {
@@ -380,10 +369,10 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Confirmation modal not found in DOM');
         }
 
-        // Then validate the date (removed the validation message hide)
+        // Then validate the date
         validateDate(dateInput.value);
 
-        // Add this to the showConfirmationModal function after the modal is shown
+        // Add date change event listener
         if (dateInput) {
             dateInput.addEventListener('change', (e) => validateDate(e.target));
         }
