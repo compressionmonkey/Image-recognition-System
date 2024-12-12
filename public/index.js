@@ -357,34 +357,36 @@ document.addEventListener('DOMContentLoaded', function() {
         const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
 
-        // Set default date to today
-        const today = new Date();
-        const dateValue = today.toISOString().split('T')[0];
+        // Format the date string to yyyy-MM-dd
+        let formattedDate = '';
+        if (data.timestamp) {
+            // Parse the date string (assuming format "dd/MM/yyyy HH:mm:ss")
+            const parts = data.timestamp.split(' ')[0].split('/');
+            if (parts.length === 3) {
+                // Rearrange to yyyy-MM-dd
+                formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
 
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.referenceNo || '';
-        if (dateInput) dateInput.value = dateValue;
+        if (dateInput) dateInput.value = formattedDate || '';
 
-        // Show validation message if needed
-        const validationMessage = document.getElementById('dateValidationMessage');
-        if (validationMessage) {
-            validationMessage.style.display = 'none';
-        }
-
-        // Show the modal
+        // Show the modal first
         if (modal) {
             modal.style.display = 'flex';
         } else {
             console.error('Confirmation modal not found in DOM');
         }
 
-        // Log the data for debugging
-        logEvent(`Showing confirmation modal with data: ${JSON.stringify({
-            amount: data.amount,
-            referenceNo: data.referenceNo,
-            date: dateValue
-        })}`);
+        // Then validate the date (removed the validation message hide)
+        validateDate(dateInput.value);
+
+        // Add this to the showConfirmationModal function after the modal is shown
+        if (dateInput) {
+            dateInput.addEventListener('change', (e) => validateDate(e.target));
+        }
     }
 
     // Add this function to handle confirmation
@@ -910,7 +912,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function validateDate(dateInput) {
         const selectedDate = new Date(dateInput.value);
-        const today = new Date(); // Using your fixed date
+        const today = new Date();
         
         // Reset time portion for accurate date comparison
         selectedDate.setHours(0, 0, 0, 0);
@@ -920,11 +922,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (selectedDate.getTime() !== today.getTime()) {
             validationMessage.textContent = 'Receipt Date is not today. Are you sure you want to add this?';
-            validationMessage.classList.add('show');
             validationMessage.style.display = 'block';
+            validationMessage.classList.add('show');
         } else {
-            validationMessage.classList.remove('show');
             validationMessage.style.display = 'none';
+            validationMessage.classList.remove('show');
         }
     }
 

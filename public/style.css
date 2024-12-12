@@ -944,9 +944,10 @@ header {
     border: 1px solid #ffeeba;
     color: #856404;
     font-size: 0.9em;
+    display: none;
     opacity: 0;
     transform: translateY(-10px);
-    transition: all 0.3s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .date-validation-message.show {
