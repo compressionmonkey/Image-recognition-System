@@ -356,7 +356,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const amountInput = document.getElementById('confirmAmount');
         const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
-
+        
+        logEvent('data', data);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.Amount || '';
         if (referenceInput) referenceInput.value = data.ReferenceNo || '';

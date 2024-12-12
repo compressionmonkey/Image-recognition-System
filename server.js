@@ -488,7 +488,8 @@ app.post('/vision-api', async (req, res) => {
             res.json({
                 amount: receiptData.Amount,
                 referenceNo: receiptData.ReferenceNo,
-                timestamp: receiptData.Timestamp,
+                Date: receiptData.Date,
+                Time: receiptData.Time,
                 recognizedText
             });
             return;
