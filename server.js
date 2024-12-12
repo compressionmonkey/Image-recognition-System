@@ -67,27 +67,67 @@ function parseBankSpecificData(text, bankKey) {
         time: null
     };
 
-    // Find currency amounts using compromise
+    // Find all currency matches and numbers
     const currencyMatches = doc.match('#Currency+? #Value+?');
-    const numberMatches = doc.numbers().get();
-
     console.log('currencyMatches', JSON.stringify(currencyMatches));
     
-    // Try to find amount using various methods
     if (currencyMatches.found) {
-        // Get the first currency match with its associated number
-        const match = currencyMatches.text();
-        console.log('match', match);
-        const amount = match.replace(/[^\d.,]/g, '');
-        console.log('amount', amount);
-        if (amount) {
-            result.amount = amount;
-        }
-    } else {
-        // Fallback to traditional regex if compromise doesn't find a match
-        const amountMatch = text.match(/(?:\d+\s+)?Nu\.?\s*([\d,]+\.?\d*)/i);
-        if (amountMatch) {
-            result.amount = amountMatch[1];
+        // Define currency patterns to look for
+        const currencyPatterns = [
+            /Nu\./i,                    // Nu.
+            /Ngultrum/i,               // Ngultrum
+            /NGN/i,                    // NGN
+            /Nu(?:\s+)?$/i,           // Nu with optional space at end
+            /Ngultrums?/i,            // Ngultrum/Ngultrums
+            /Nu(?:\s+)?:/i,           // Nu: with optional space
+            /Amount.*?Nu/i,            // Amount followed by Nu
+            /Total.*?Nu/i             // Total followed by Nu
+        ];
+
+        // Get all matches with their text and position
+        const matches = currencyMatches.map(m => ({
+            text: m.text(),
+            amount: m.text().replace(/[^\d.,]/g, ''),
+            index: text.indexOf(m.text())
+        })).filter(m => m.amount); // Filter out matches without numbers
+
+        // Score each match based on currency pattern proximity
+        const scoredMatches = matches.map(match => {
+            let highestScore = 0;
+            let matchedPattern = null;
+
+            currencyPatterns.forEach(pattern => {
+                const patternMatches = [...text.matchAll(pattern)];
+                patternMatches.forEach(pMatch => {
+                    const distance = Math.abs(match.index - pMatch.index);
+                    // Score formula: higher for closer matches, max score 100
+                    const score = Math.max(0, 100 - distance);
+                    if (score > highestScore) {
+                        highestScore = score;
+                        matchedPattern = pattern;
+                    }
+                });
+            });
+
+            return {
+                ...match,
+                score: highestScore,
+                pattern: matchedPattern
+            };
+        });
+
+        // Sort by score and get the best match
+        const bestMatch = scoredMatches.sort((a, b) => b.score - a.score)[0];
+        
+        if (bestMatch && bestMatch.score > 30) { // Threshold for accepting a match
+            result.amount = bestMatch.amount;
+            console.log('Best match:', bestMatch);
+        } else {
+            // Fallback to traditional regex if no good match found
+            const amountMatch = text.match(/(?:\d+\s+)?Nu\.?\s*([\d,]+\.?\d*)/i);
+            if (amountMatch) {
+                result.amount = amountMatch[1];
+            }
         }
     }
 
