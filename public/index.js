@@ -389,7 +389,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add this function to handle confirmation
     function handleConfirmDetails() {
-        alert(212321);
         const amount = document.getElementById('confirmAmount').value;
         const referenceNo = document.getElementById('confirmReference').value;
         const date = document.getElementById('confirmDate').value;
