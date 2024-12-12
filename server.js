@@ -140,8 +140,11 @@ function parseBankSpecificData(text, bankKey) {
     if (dateEntities.length > 0) {
         const dateEntity = dateEntities[0];
         console.log('dateEntity', dateEntity);
-        result.date = dateEntity.date ? dateEntity.date.start : null;
-        result.time = dateEntity.time ? dateEntity.time.start : null;
+        if (dateEntity.dates) {
+            const date = new Date(dateEntity.dates.start);
+            result.date = date.toISOString().split('T')[0];
+            result.time = date.toTimeString().split(' ')[0];
+        }
     }
 
     // Fallback to regex if compromise didn't find a date
