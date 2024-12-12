@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
 import nlp from 'compromise';
+import plg from 'compromise-dates'
+nlp.plugin(plg)
 
 dotenv.config();
 
@@ -132,24 +134,32 @@ function parseBankSpecificData(text, bankKey) {
         }
     }
 
+    // Use compromise to extract dates and times
+    const dateEntities = doc.dates().json();
+    console.log('dateEntities', dateEntities);
+    if (dateEntities.length > 0) {
+        const dateEntity = dateEntities[0];
+        console.log('dateEntity', dateEntity);
+        result.date = dateEntity.date ? dateEntity.date.start : null;
+        result.time = dateEntity.time ? dateEntity.time.start : null;
+    }
+
+    // Fallback to regex if compromise didn't find a date
+    if (!result.date) {
+        const isoDateMatch = text.match(/\d{4}-\d{2}-\d{2}/);
+        console.log('isoDateMatch', isoDateMatch);
+        if (isoDateMatch) {
+            result.date = isoDateMatch[0];
+        }
+    }
+
+    // Handle bank-specific logic
     switch (bankKey) {
         case 'BNB_Key':
             // Reference number (RRN)
             const rrnMatch = text.match(/\b43\d{10}\b/);
             if (rrnMatch) {
                 result.reference = rrnMatch[0];
-            }
-
-            // Date and Time
-            const bnbDateMatch = text.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
-            const bnbTimeMatch = text.match(/(\d{2}:\d{2}:\d{2}\s*(?:AM|PM)?)/i);
-            
-            if (bnbDateMatch) {
-                const [_, day, month, year] = bnbDateMatch;
-                result.date = `${day}/${getMonthNumber(month)}/${year}`;
-            }
-            if (bnbTimeMatch) {
-                result.time = bnbTimeMatch[1];
             }
             break;
 
@@ -159,18 +169,6 @@ function parseBankSpecificData(text, bankKey) {
             if (pnbRefMatch) {
                 result.reference = pnbRefMatch[0];
             }
-
-            // Date and Time
-            const pnbDateMatch = text.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
-            const pnbTimeMatch = text.match(/(\d{2}:\d{2}\s*(?:AM|PM))/i);
-            
-            if (pnbDateMatch) {
-                const [_, day, month, year] = pnbDateMatch;
-                result.date = `${day}/${getMonthNumber(month)}/${year}`;
-            }
-            if (pnbTimeMatch) {
-                result.time = pnbTimeMatch[0];
-            }
             break;
 
         case 'Eteeru_Key':
@@ -178,18 +176,6 @@ function parseBankSpecificData(text, bankKey) {
             const txnIdMatches = text.match(/\b\d+\b/g);
             if (txnIdMatches && txnIdMatches.length >= 2) {
                 result.reference = txnIdMatches.join('');
-            }
-
-            // Date and Time
-            const eteeruDateMatch = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i);
-            const eteeruTimeMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
-            
-            if (eteeruDateMatch) {
-                const [_, day, month, year] = eteeruDateMatch;
-                result.date = `${day}/${getMonthNumber(month)}/${year}`;
-            }
-            if (eteeruTimeMatch) {
-                result.time = eteeruTimeMatch[0];
             }
             break;
 
@@ -211,18 +197,6 @@ function parseBankSpecificData(text, bankKey) {
             const jrnlMatch = text.match(/(?:Jrnl\.?\s*No\.?:?\s*)(\d+)/i);
             if (jrnlMatch) {
                 result.reference = jrnlMatch[1];
-            }
-
-            // Date and Time
-            const bobDateMatch = text.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i);
-            const bobTimeMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
-            
-            if (bobDateMatch) {
-                const [_, day, month, year] = bobDateMatch;
-                result.date = `${day}/${getMonthNumber(month)}/${year}`;
-            }
-            if (bobTimeMatch) {
-                result.time = bobTimeMatch[0];
             }
             break;
     }
