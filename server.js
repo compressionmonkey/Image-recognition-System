@@ -25,6 +25,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Add custom words for recognizing Ngultrum variations
+nlp.plugin({
+    words: {
+    // Define different possibilities using regex
+    'ngultrum': 'Currency',
+    '/nu\\./i': 'Currency' // Case-insensitive match for "Nu."
+    }
+});
+
 // Configure Airtable
 const airtableApiKey = process.env.AIRTABLE_API_KEY;
 const baseId = 'apptAcEDVua80Ab5c'; // Replace with your Airtable base ID
@@ -58,13 +67,24 @@ function parseBankSpecificData(text, bankKey) {
         time: null
     };
 
-    console.log('text', text);
-    // Common amount pattern matching for all banks
-    const amountMatch = text.match(/(?:\d+\s+)?Nu\.?\s*([\d,]+\.?\d*)/i);
-    console.log('amountMatch', amountMatch);
-    if (amountMatch) {
-        result.amount = amountMatch[1];
-        console.log('result.amount', result.amount);
+    // Find currency amounts using compromise
+    const currencyMatches = doc.match('#Currency+? #Value+?');
+    const numberMatches = doc.numbers().get();
+    
+    // Try to find amount using various methods
+    if (currencyMatches.found) {
+        // Get the first currency match with its associated number
+        const match = currencyMatches.text();
+        const amount = match.replace(/[^\d.,]/g, '');
+        if (amount) {
+            result.amount = amount;
+        }
+    } else {
+        // Fallback to traditional regex if compromise doesn't find a match
+        const amountMatch = text.match(/(?:\d+\s+)?Nu\.?\s*([\d,]+\.?\d*)/i);
+        if (amountMatch) {
+            result.amount = amountMatch[1];
+        }
     }
 
     switch (bankKey) {
@@ -344,7 +364,12 @@ async function updateReceiptData(receiptData) {
         console.log(`Updating receipt data for ${tableName}:`, JSON.stringify(record, null, 2));
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-        await base(tableName).create([record]);
+        await base(tableName).create([record], { 
+            typecast: true,
+            cellFormat: 'json',
+            returnFieldsByFieldId: false,
+            insertRecords: true  // This tells Airtable to insert at the top
+        });
         console.log('Receipt data updated successfully');
         return true;
     } catch (error) {

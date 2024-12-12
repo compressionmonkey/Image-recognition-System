@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('confirmationModal');
         
         // Populate the form with extracted data
-        document.getElementById('confirmAmount').value = `Nu. ${data.amount || ''}`;
+        document.getElementById('confirmAmount').value = data.amount || '';
         document.getElementById('confirmReference').value = data.referenceNo || '';
         
         // Parse and set the date with validation
@@ -375,6 +375,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         document.getElementById('confirmDate').value = dateValue;
 
+        const dateInput = document.getElementById('confirmDate');
+        dateInput.value = dateValue;
+        
+        // Add event listener for date changes
+        dateInput.addEventListener('change', () => validateDate(dateInput));
+        
+        // Initial validation check
+        validateDate(dateInput);
+        
         // Show the modal
         window.recognizedText = data.recognizedText;
         modal.style.display = 'flex';
@@ -887,13 +896,39 @@ document.addEventListener('DOMContentLoaded', function() {
         // Set default date to today
         const today = new Date();
         const dateValue = today.toISOString().split('T')[0];
-        document.getElementById('confirmDate').value = dateValue;
+        const dateInput = document.getElementById('confirmDate');
+        dateInput.value = dateValue;
+        
+        // Add event listener for date changes and perform initial validation
+        dateInput.removeEventListener('change', validateDate); // Remove any existing listener
+        dateInput.addEventListener('change', () => validateDate(dateInput));
+        validateDate(dateInput); // Perform initial validation
         
         // Show the modal
         modal.style.display = 'flex';
         
         // Close the camera modal
         closeCameraModal();
+    }
+
+    function validateDate(dateInput) {
+        const selectedDate = new Date(dateInput.value);
+        const today = new Date(); // Using your fixed date
+        
+        // Reset time portion for accurate date comparison
+        selectedDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        
+        const validationMessage = document.getElementById('dateValidationMessage');
+        
+        if (selectedDate.getTime() !== today.getTime()) {
+            validationMessage.textContent = 'Receipt Date is not today. Are you sure you want to add this?';
+            validationMessage.classList.add('show');
+            validationMessage.style.display = 'block';
+        } else {
+            validationMessage.classList.remove('show');
+            validationMessage.style.display = 'none';
+        }
     }
 
     // Example function to log an event
