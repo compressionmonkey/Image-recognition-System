@@ -548,6 +548,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showConfirmationModal(data);
 
         } catch (error) {
+            logEvent(`Error ${JSON.stringify(error)}`);
             console.error('Error:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your image. Please try again.');
         }
