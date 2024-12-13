@@ -502,8 +502,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 250);
     }
 
+    // Add this at the top level of your script
+    let currentImageData;
+
     async function uploadToServer(imageData) {
         try {
+            // Store the image data globally
+            currentImageData = imageData;
+
             // First, close any existing modals
             const photoOptionsModal = document.getElementById('photoOptionsModal');
             const cameraModal = document.querySelector('.camera-modal');
