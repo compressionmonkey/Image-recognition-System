@@ -181,24 +181,143 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update the saveImageToDevice function
     async function saveImageToDevice(imageData, filename = 'receipt.jpg') {
         try {
-            // Convert base64 to blob
+            // Create and show preview modal
+            const previewModal = document.createElement('div');
+            previewModal.className = 'image-preview-modal';
+            previewModal.innerHTML = `
+                <div class="preview-content">
+                    <img src="data:image/jpeg;base64,${imageData}" alt="Receipt Preview">
+                    <div class="preview-controls">
+                        <button class="preview-button save-btn">
+                            <span class="icon">💾</span> Save Image
+                        </button>
+                        <button class="preview-button share-btn">
+                            <span class="icon">📤</span> Share
+                        </button>
+                        <button class="preview-button recent-btn">
+                            <span class="icon">🕒</span> Recent
+                        </button>
+                        ${document.getElementById('confirmationModal').style.display === 'flex' ? `
+                            <button class="preview-button return-btn">
+                                <span class="icon">↩️</span> Return to Form
+                            </button>
+                        ` : ''}
+                        <button class="preview-button close-btn">
+                            <span class="icon">✖️</span> Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(previewModal);
+            
+            // Add to recent files
+            addToRecentFiles(imageData, filename);
+
+            // Force reflow then add show class for animation
+            previewModal.offsetHeight;
+            previewModal.classList.add('show');
+
+            // Setup touch handling for mobile
+            let touchStartY = 0;
+            previewModal.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+            });
+
+            previewModal.addEventListener('touchmove', (e) => {
+                const deltaY = e.touches[0].clientY - touchStartY;
+                if (deltaY > 100) {
+                    closePreviewModal();
+                }
+            });
+
+            // Setup image zoom
+            const img = previewModal.querySelector('img');
+            let scale = 1;
+            let panning = false;
+            let pointX = 0;
+            let pointY = 0;
+            let start = { x: 0, y: 0 };
+
+            img.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const xs = (e.clientX - img.offsetLeft) / scale;
+                const ys = (e.clientY - img.offsetTop) / scale;
+                
+                scale += e.deltaY * -0.01;
+                scale = Math.min(Math.max(1, scale), 4);
+                
+                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+            });
+
+            img.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                start = { x: e.clientX - pointX, y: e.clientY - pointY };
+                panning = true;
+            });
+
+            img.addEventListener('mousemove', (e) => {
+                e.preventDefault();
+                if (!panning) return;
+                pointX = (e.clientX - start.x);
+                pointY = (e.clientY - start.y);
+                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+            });
+
+            img.addEventListener('mouseup', () => {
+                panning = false;
+            });
+
+            // Handle button clicks
+            const saveBtn = previewModal.querySelector('.save-btn');
+            const shareBtn = previewModal.querySelector('.share-btn');
+            const recentBtn = previewModal.querySelector('.recent-btn');
+            const closeBtn = previewModal.querySelector('.close-btn');
+            const returnBtn = previewModal.querySelector('.return-btn');
+
+            saveBtn.onclick = async () => {
+                await handleSave(imageData, filename);
+            };
+
+            shareBtn.onclick = async () => {
+                await handleShare(imageData, filename);
+            };
+
+            recentBtn.onclick = () => {
+                showRecentFiles();
+            };
+
+            if (returnBtn) {
+                returnBtn.onclick = () => {
+                    closePreviewModal();
+                };
+            }
+
+            closeBtn.onclick = closePreviewModal;
+
+            function closePreviewModal() {
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Failed to handle image', 'error');
+        }
+    }
+
+    // Helper functions for saving and sharing
+    async function handleSave(imageData, filename) {
+        try {
             const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
             const blob = await base64Response.blob();
-
-            // For iOS Safari and other mobile browsers
+            
             if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-                // Create temporary link and trigger download
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = filename;
-                link.style.display = 'none';
-                document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
                 URL.revokeObjectURL(link.href);
                 showToast('Image saved to downloads', 'success');
             } else {
-                // For desktop browsers, try using File System Access API first
                 try {
                     const handle = await window.showSaveFilePicker({
                         suggestedName: filename,
@@ -212,7 +331,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     await writable.close();
                     showToast('Image saved successfully!', 'success');
                 } catch (err) {
-                    // Fallback for browsers that don't support File System Access API
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
                     link.download = filename;
@@ -222,8 +340,92 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (error) {
-            console.error('Error saving image:', error);
             showToast('Failed to save image', 'error');
+        }
+    }
+
+    async function handleShare(imageData, filename) {
+        if (navigator.share) {
+            try {
+                const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
+                const blob = await base64Response.blob();
+                const file = new File([blob], filename, { type: 'image/jpeg' });
+                await navigator.share({
+                    files: [file],
+                    title: 'Receipt Image',
+                });
+                showToast('Image shared successfully', 'success');
+            } catch (err) {
+                showToast('Failed to share image', 'error');
+            }
+        } else {
+            showToast('Sharing not supported on this device', 'error');
+        }
+    }
+
+    // Recent files management
+    function addToRecentFiles(imageData, filename) {
+        try {
+            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+            recentFiles.unshift({
+                imageData,
+                filename,
+                timestamp: Date.now()
+            });
+            localStorage.setItem('recentFiles', JSON.stringify(recentFiles.slice(0, 5)));
+        } catch (error) {
+            console.error('Error saving to recent files:', error);
+        }
+    }
+
+    function showRecentFiles() {
+        try {
+            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+            if (recentFiles.length === 0) {
+                showToast('No recent files', 'info');
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.className = 'image-preview-modal';
+            modal.innerHTML = `
+                <div class="preview-content">
+                    <h2 style="color: white; text-align: center;">Recent Files</h2>
+                    <div class="recent-files-grid">
+                        ${recentFiles.map(file => `
+                            <div class="recent-file-item">
+                                <img src="data:image/jpeg;base64,${file.imageData}" alt="Recent receipt">
+                                <div class="recent-file-timestamp">
+                                    ${new Date(file.timestamp).toLocaleDateString()}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="preview-controls">
+                        <button class="preview-button close-btn">Close</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+            setTimeout(() => modal.classList.add('show'), 0);
+
+            modal.querySelector('.close-btn').onclick = () => {
+                modal.classList.remove('show');
+                setTimeout(() => modal.remove(), 300);
+            };
+
+            // Add click handlers for recent files
+            modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
+                item.onclick = () => {
+                    const file = recentFiles[index];
+                    saveImageToDevice(file.imageData, file.filename);
+                    modal.remove();
+                };
+            });
+        } catch (error) {
+            console.error('Error showing recent files:', error);
+            showToast('Failed to load recent files', 'error');
         }
     }
 
@@ -362,6 +564,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (amountInput) amountInput.value = data.Amount || '';
         if (referenceInput) referenceInput.value = data.ReferenceNo || '';
         if (dateInput) dateInput.value = data.Date || '';
+
+        // Add view image button if not exists
+        let viewImageBtn = modal.querySelector('.view-image-btn');
+        if (!viewImageBtn && currentImageData) {
+            const form = modal.querySelector('form');
+            viewImageBtn = document.createElement('button');
+            viewImageBtn.type = 'button';
+            viewImageBtn.className = 'view-image-btn';
+            viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
+            viewImageBtn.onclick = (e) => {
+                e.preventDefault();
+                saveImageToDevice(currentImageData, 'receipt.jpg');
+            };
+            form.insertBefore(viewImageBtn, form.firstChild);
+        }
 
         // Show the modal first
         if (modal) {
@@ -551,7 +768,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (file) {
                     closePhotoOptions();
                     if (isLoggedIn) {
-                        await processImage(file);
+                        // Read file and store it
+                        const reader = new FileReader();
+                        reader.onload = async function(event) {
+                            const base64Image = event.target.result.split(',')[1];
+                            currentImageData = base64Image; // Store the image data
+                            await saveImageToDevice(base64Image, file.name);
+                            await processImage(file);
+                        };
+                        reader.readAsDataURL(file);
                     } else {
                         const loginOverlay = document.getElementById('loginOverlay');
                         if (loginOverlay) loginOverlay.style.display = 'block';
