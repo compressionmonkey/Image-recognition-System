@@ -537,8 +537,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const data = await response.json();
 
+            // Log relevant response details
+            logEvent(`check data: ${JSON.stringify(data)} response status: ${response.status}, ok: ${response.ok}`);
+
             // First check if response is not ok
-            logEvent(`check ${JSON.stringify(data)} ${JSON.stringify(response)}`);
             if (!response.ok) {
                 showFailureModal('Scan failed', 'Please retry');
                 return;
