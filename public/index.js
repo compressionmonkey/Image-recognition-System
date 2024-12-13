@@ -542,6 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // First check if response is not ok
             if (!response.ok) {
+                logEvent('this is triggered');
                 showFailureModal('Scan failed', 'Please retry');
                 return;
             }
