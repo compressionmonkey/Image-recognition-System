@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 closeManualEntryModal();
                 showToast('Receipt added successfully', 'success');
+                showConfetti();
             } else {
                 showToast(data.error || 'Failed to add receipt', 'error');
             }
@@ -643,6 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 showToast('Receipt confirmed successfully', 'success');
                 closeConfirmationModal();
+                showConfetti();
             } else {
                 showToast(data.error || 'Failed to confirm receipt', 'error');
             }
