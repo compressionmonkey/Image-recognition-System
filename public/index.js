@@ -187,7 +187,9 @@ document.addEventListener('DOMContentLoaded', function() {
             previewModal.className = 'image-preview-modal';
             previewModal.innerHTML = `
                 <div class="preview-content">
-                    <img src="data:image/jpeg;base64,${imageData}" alt="Receipt Preview">
+                    <div class="image-container">
+                        <img src="data:image/jpeg;base64,${imageData}" alt="Receipt Preview" loading="lazy" decoding="async">
+                    </div>
                     <div class="preview-controls">
                         <button class="preview-button save-btn">
                             <span class="icon">💾</span> Save Image
@@ -299,6 +301,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 previewModal.classList.remove('show');
                 setTimeout(() => previewModal.remove(), 300);
             }
+
+            // Add pinch-zoom support
+            let currentScale = 1;
+            let startDistance = 0;
+
+            img.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    startDistance = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                }
+            });
+
+            img.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    
+                    const currentDistance = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                    
+                    const scale = currentDistance / startDistance;
+                    currentScale = Math.min(Math.max(1, currentScale * scale), 4);
+                    
+                    img.style.transform = `scale(${currentScale})`;
+                    startDistance = currentDistance;
+                }
+            });
+
+            // Add a loading indicator
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'loading-indicator';
+            previewModal.querySelector('.image-container').appendChild(loadingIndicator);
+
+            img.onload = () => {
+                loadingIndicator.remove();
+            };
         } catch (error) {
             console.error('Error:', error);
             showToast('Failed to handle image', 'error');
@@ -673,9 +714,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    // Dynamic resolution adjustment
+                    // Maintain higher resolution
                     let { width, height } = img;
-                    const maxDim = Math.min(1920, Math.max(width, height));
+                    const maxDim = Math.min(2560, Math.max(width, height)); // Increased from 1920
                     if (Math.max(width, height) > maxDim) {
                         const scale = maxDim / Math.max(width, height);
                         width *= scale;
@@ -685,16 +726,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     canvas.width = width;
                     canvas.height = height;
                     
-                    // Apply pre-processing
-                    ctx.filter = 'contrast(1.2) brightness(1.1)';
+                    // Disable image smoothing for sharper edges
+                    ctx.imageSmoothingEnabled = false;
+                    
+                    // Draw image without filters
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Compress dynamic range
-                    const imageData = ctx.getImageData(0, 0, width, height);
-                    compressDynamicRange(imageData);
-                    ctx.putImageData(imageData, 0, 0);
-                    
-                    const finalImage = canvas.toDataURL('image/jpeg', 0.7);
+                    // Use higher quality JPEG encoding
+                    const finalImage = canvas.toDataURL('image/jpeg', 0.95); // Increased from 0.7
                     const base64Image = finalImage.split(',')[1];
                     
                     await uploadToServer(base64Image);
