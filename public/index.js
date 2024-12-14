@@ -590,7 +590,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // First check if response is not ok
             if (!response.ok) {
-                logEvent('this is triggered');
                 showFailureModal('Scan failed', 'Please retry');
                 return;
             }
@@ -610,10 +609,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const amountInput = document.getElementById('confirmAmount');
         const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
-        
+        console.log('data', data);
         logEvent(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
-        if (amountInput) amountInput.value = data.Amount || '';
+        if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.ReferenceNo || '';
         if (dateInput) dateInput.value = data.Date || '';
 

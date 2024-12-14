@@ -6,8 +6,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
 import nlp from 'compromise';
-import plg from 'compromise-dates'
-nlp.plugin(plg)
+import plg from 'compromise-dates';
+
+nlp.plugin(plg);
 
 dotenv.config();
 
@@ -31,7 +32,6 @@ app.get('/', (req, res) => {
 nlp.plugin({
     words: {
     // Define different possibilities using regex
-    'ngultrum': 'Currency',
     '/nu\\./i': 'Currency' // Case-insensitive match for "Nu."
     }
 });
@@ -61,7 +61,6 @@ function formatDate(date) {
 }
 
 function parseBankSpecificData(text, bankKey) {
-    const doc = nlp(text);
     let result = {
         amount: null,
         reference: null,
@@ -69,72 +68,54 @@ function parseBankSpecificData(text, bankKey) {
         time: null
     };
 
-    // Find all currency matches and numbers
-    const currencyMatches = doc.match('#Currency+? #Value+?');
-    
-    if (currencyMatches.found) {
-        // Define currency patterns to look for - add 'g' flag to all patterns
-        const currencyPatterns = [
-            /Nu\./gi,                    // Nu.
-            /Ngultrum/gi,               // Ngultrum
-            /NGN/gi,                    // NGN
-            /Nu(?:\s+)?$/gi,           // Nu with optional space at end
-            /Ngultrums?/gi,            // Ngultrum/Ngultrums
-            /Nu(?:\s+)?:/gi,           // Nu: with optional space
-            /Amount.*?Nu/gi,            // Amount followed by Nu
-            /Total.*?Nu/gi             // Total followed by Nu
-        ];
+    // Define all possible patterns for Ngultrum amounts
+    const currencyPatterns = [
+        /Nu\.\s*(\d[\d,]*\.?\d*)/gi,      // Nu. 100
+        /nu\.\s*(\d[\d,]*\.?\d*)/gi,      // nu. 100
+        /(\d[\d,]*\.?\d*)\s*Nu\./gi,      // 100 Nu.
+        /(\d[\d,]*\.?\d*)\s*nu\./gi,      // 100 nu.
+        /Amount[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,  // Amount: Nu. 100
+        /Total[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,   // Total: Nu. 100
+        /Nu\s*(\d[\d,]*\.?\d*)/gi,        // Nu 100
+        /nu\s*(\d[\d,]*\.?\d*)/gi,        // nu 100
+        /(\d[\d,]*\.?\d*)\s*Nu\b/gi,      // 100 Nu
+        /(\d[\d,]*\.?\d*)\s*nu\b/gi       // 100 nu
+    ];
 
-        // Get all matches with their text and position
-        const matches = currencyMatches.map(m => ({
-            text: m.text(),
-            amount: m.text().replace(/[^\d.,]/g, ''),
-            index: text.indexOf(m.text())
-        })).filter(m => m.amount); // Filter out matches without numbers
+    let allAmounts = [];
 
-        // Score each match based on currency pattern proximity
-        const scoredMatches = matches.map(match => {
-            let highestScore = 0;
-            let matchedPattern = null;
-
-            currencyPatterns.forEach(pattern => {
-                const patternMatches = [...text.matchAll(pattern)];
-                patternMatches.forEach(pMatch => {
-                    const distance = Math.abs(match.index - pMatch.index);
-                    // Score formula: higher for closer matches, max score 100
-                    const score = Math.max(0, 100 - distance);
-                    if (score > highestScore) {
-                        highestScore = score;
-                        matchedPattern = pattern;
-                    }
-                });
-            });
-
-            return {
-                ...match,
-                score: highestScore,
-                pattern: matchedPattern
-            };
-        });
-
-        // Sort by score and get the best match
-        const bestMatch = scoredMatches.sort((a, b) => b.score - a.score)[0];
-        console.log('scoredMatches', scoredMatches);
-        console.log('bestMatch', bestMatch);
-        
-        if (bestMatch && bestMatch.score > 30) { // Threshold for accepting a match
-            result.amount = bestMatch.amount;
-            console.log('Best match:', bestMatch);
-        } else {
-            // Fallback to traditional regex if no good match found
-            const amountMatch = text.match(/(?:\d+\s+)?Nu\.?\s*([\d,]+\.?\d*)/i);
-            if (amountMatch) {
-                result.amount = amountMatch[1];
+    // Find all amounts using the patterns
+    currencyPatterns.forEach(pattern => {
+        const matches = [...text.matchAll(pattern)];
+        matches.forEach(match => {
+            // Clean up the amount - remove commas and non-digit characters except decimal point
+            const amount = match[1]?.replace(/[^\d.]/g, '');
+            if (amount) {
+                const numAmount = parseFloat(amount);
+                // Only consider reasonable amounts (adjust range as needed)
+                if (numAmount >= 1 && numAmount <= 10000) {
+                    allAmounts.push({
+                        amount: numAmount,
+                        index: match.index,
+                        text: match[0]
+                    });
+                }
             }
-        }
+        });
+    });
+
+    // Sort amounts by their position in the text
+    allAmounts.sort((a, b) => a.index - b.index);
+
+    console.log('Found amounts:', allAmounts);
+
+    // Take the last amount found (usually the total amount)
+    if (allAmounts.length > 0) {
+        result.amount = allAmounts[allAmounts.length - 1].amount.toString();
     }
 
     // Use compromise to extract dates and times
+    const doc = nlp(text);
     const dateEntities = doc.dates().json();
     console.log('dateEntities', dateEntities);
     if (dateEntities.length > 0) {
