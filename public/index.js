@@ -735,12 +735,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         height: { ideal: 720 },
                         // Add focus capabilities
                         focusMode: ['continuous', 'auto'],
-                        focusDistance: { ideal: 0.33 },
+                        focusDistance: { ideal: 1.0 },
                         // Add additional camera controls for better image quality
                         whiteBalanceMode: ['continuous'],
                         exposureMode: ['continuous']
                     }
                 });
+
+                logEvent(`stream ${JSON.stringify(stream)}`);
 
                 // Create and show camera modal
                 const cameraModal = createCameraModal();
