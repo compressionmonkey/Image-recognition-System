@@ -285,17 +285,35 @@ function parseBankSpecificData(text, bankKey) {
     // Filter out future dates
     const currentDate = new Date();
     const inValidDates = dateEntities.filter(date => {
-        const dateObj = new Date(date);
-        return dateObj.toISOString().split('T')[0] !== currentDate.toISOString().split('T')[0];
+        try {
+            const dateObj = new Date(date);
+            // Check if date is valid
+            if (isNaN(dateObj.getTime())) {
+                return false;
+            }
+            return dateObj.toISOString().split('T')[0] !== currentDate.toISOString().split('T')[0];
+        } catch (error) {
+            console.error('Error processing date:', date, error);
+            return false;
+        }
     });
     console.log('inValidDates', JSON.stringify(inValidDates));
 
     // Pick out the first invalid date or create a new date if none exist
     if (inValidDates.length < 1) {
         result.date = new Date().toISOString().split('T')[0];
-    }
-    if (inValidDates.length > 0) {
-        result.date = inValidDates[0];
+    } else {
+        try {
+            const dateObj = new Date(inValidDates[0]);
+            if (!isNaN(dateObj.getTime())) {
+                result.date = inValidDates[0];
+            } else {
+                result.date = new Date().toISOString().split('T')[0];
+            }
+        } catch (error) {
+            console.error('Error setting result date:', error);
+            result.date = new Date().toISOString().split('T')[0];
+        }
     }
 
     const timePossibilities = doc.times().get();
