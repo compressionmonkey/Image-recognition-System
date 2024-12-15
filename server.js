@@ -120,7 +120,7 @@ function parseBankSpecificData(text, bankKey) {
     const datePossibilities = doc.dates().get();
     console.log('datePossibilities', JSON.stringify(datePossibilities));
 
-    const dateEntities = doc.dates().format('YYYY-MM-DD');
+    const dateEntities = doc.dates().format('YYYY-MM-DD').out('array');
     console.log('dateEntities hjksadjhkdsajkh', JSON.stringify(dateEntities));
 
     const timePossibilities = doc.times().get();
