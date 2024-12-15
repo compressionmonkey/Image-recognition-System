@@ -121,24 +121,40 @@ function parseBankSpecificData(text, bankKey) {
     console.log('datePossibilities', JSON.stringify(datePossibilities));
     const timePossibilities = doc.times().get();
     console.log('timePossibilities', JSON.stringify(timePossibilities));
-    const dateEntities = doc.dates().json();
-    console.log('dateEntities', dateEntities);
-    if (dateEntities.length > 0) {
-        const dateEntity = dateEntities[0];
-        console.log('dateEntity', dateEntity);
-        if (dateEntity.dates) {
-            const date = new Date(dateEntity.dates.start);
-            result.date = date.toISOString().split('T')[0];
-            result.time = date.toTimeString().split(' ')[0];
+
+    // Fool-proof date selection
+    if (datePossibilities && datePossibilities.length > 0) {
+        // Get middle index for dates
+        const middleIndex = Math.floor(datePossibilities.length / 2);
+        const selectedDate = datePossibilities[middleIndex];
+        console.log('Selected date from middle index:', selectedDate);
+        
+        if (selectedDate) {
+            const date = new Date(selectedDate);
+            if (date instanceof Date && !isNaN(date)) {
+                result.date = date.toISOString().split('T')[0];
+                console.log('Set result.date to:', result.date);
+            }
         }
     }
 
-    // Fallback to regex if compromise didn't find a date
-    if (!result.date) {
-        const isoDateMatch = text.match(/\d{4}-\d{2}-\d{2}/);
-        console.log('isoDateMatch', isoDateMatch);
-        if (isoDateMatch) {
-            result.date = isoDateMatch[0];
+    // Fool-proof time selection
+    if (timePossibilities && timePossibilities.length > 0) {
+        // Get last index for times
+        const lastIndex = timePossibilities.length - 1;
+        const selectedTime = timePossibilities[lastIndex];
+        console.log('Selected time from last index:', selectedTime);
+        
+        if (selectedTime) {
+            // Try to parse time in 24-hour format
+            const timeMatch = selectedTime.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            if (timeMatch) {
+                const hours = timeMatch[1].padStart(2, '0');
+                const minutes = timeMatch[2];
+                const seconds = timeMatch[3] || '00';
+                result.time = `${hours}:${minutes}:${seconds}`;
+                console.log('Set result.time to:', result.time);
+            }
         }
     }
 
