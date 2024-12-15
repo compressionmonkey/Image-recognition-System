@@ -60,14 +60,7 @@ function formatDate(date) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-function parseBankSpecificData(text, bankKey) {
-    let result = {
-        amount: null,
-        reference: null,
-        date: null,
-        time: null
-    };
-
+function findCurrency(text, result) {
     // Define all possible patterns for Ngultrum amounts
     const currencyPatterns = [
         // Standard Nu. format with spaces
@@ -165,173 +158,145 @@ function parseBankSpecificData(text, bankKey) {
     if (allAmounts.length > 0) {
         result.amount = allAmounts[allAmounts.length - 1].amount.toString();
     }
+}
 
-    function findLastDate(text) {
-        const datePatterns = [
-            // Format: 14 Nov 2024, 14-Nov-2024, 14/Nov/2024
-            /(\d{1,2})[\s-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{4})/gi,
-            
-            // Format: Nov 14 2024, Nov-14-2024, Nov/14/2024
-            /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})/gi,
-            
-            // Format: 14/11/2024, 14-11-2024
-            /(\d{1,2})[\s-/](\d{1,2})[\s-/](\d{4})/g,
-            
-            // Format: 2024/11/14, 2024-11-14
-            /(\d{4})[\s-/](\d{1,2})[\s-/](\d{1,2})/g
-        ];
-    
-        let lastDate = null;
-        let lastIndex = -1;
-    
-        // Check each pattern
-        datePatterns.forEach(pattern => {
-            let matches = [...text.matchAll(pattern)];
-            if (matches.length > 0) {
-                // Get the last match for this pattern
-                let lastMatch = matches[matches.length - 1];
-                if (lastMatch.index > lastIndex) {
-                    lastDate = lastMatch[0];
-                    lastIndex = lastMatch.index;
-                }
-            }
-        });
-    
-        return lastDate;
+function convertDateFormat(dateStr) {
+    // Define month mapping
+    const monthMap = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+        'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+        'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    };
+
+    // Remove any leading/trailing whitespace
+    dateStr = dateStr.trim();
+
+    // Convert to lowercase for consistent processing
+    const lowerDate = dateStr.toLowerCase();
+
+    // Try different date patterns
+    let match;
+
+    // NEW PATTERN: Handle dates with newline between month and year (e.g., "14 November\n    2024")
+    match = lowerDate.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*[\n\s]+(\d{4})/i);
+    if (match) {
+        const [_, day, month, year] = match;
+        return `${year}-${monthMap[month.toLowerCase()]}-${day.padStart(2, '0')}`;
     }
-    
-    const lastDate = findLastDate(text);
-    console.log('lastDate', lastDate); // Output: "14 Nov 2024"
 
-    // Use compromise to extract dates and times
-    const doc = nlp(text);
+    // Pattern 1: 14 Nov 2024, 14-Nov-2024, 14/Nov/2024
+    match = lowerDate.match(/(\d{1,2})[\s-/](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-/](\d{4})/i);
+    if (match) {
+        const [_, day, month, year] = match;
+        return `${year}-${monthMap[month.toLowerCase()]}-${day.padStart(2, '0')}`;
+    }
 
-    const datePossibilities = doc.dates().get();
-    console.log('datePossibilities', JSON.stringify(datePossibilities));
+    // Pattern 2: Nov 14 2024, Nov-14-2024, Nov/14/2024
+    match = lowerDate.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})/i);
+    if (match) {
+        const [_, month, day, year] = match;
+        return `${year}-${monthMap[month.toLowerCase()]}-${day.padStart(2, '0')}`;
+    }
 
-    const dateEntities = doc.dates().format('YYYY-MM-DD').out('array');
-    const timeEntities = doc.dates().format('HH:mm:ss').out('array');
-    let timeEntities2 = doc.times().get();
-    console.log('dateEntities', JSON.stringify(dateEntities));
-    console.log('timeEntities', JSON.stringify(timeEntities));
-    console.log('timeEntities2', JSON.stringify(timeEntities2));
+    // Pattern 3: 14/11/2024, 14-11-2024
+    match = lowerDate.match(/(\d{1,2})[\s-/](\d{1,2})[\s-/](\d{4})/);
+    if (match) {
+        const [_, day, month, year] = match;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
 
+    // Pattern 4: 2024/11/14, 2024-11-14
+    match = lowerDate.match(/(\d{4})[\s-/](\d{1,2})[\s-/](\d{1,2})/);
+    if (match) {
+        const [_, year, month, day] = match;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+
+    // Return null if no pattern matches
+    return null;
+}
+
+function findDate(text, result) {
     const datePatterns = [
+        // Format: 14 November 2024, 14-November-2024, 14/November/2024
+        /(\d{1,2})\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s*[,-/]?\s*(\d{4})/gi,
+        
+        // Format: November 14 2024, November-14-2024, November/14/2024
+        /(January|February|March|April|May|June|July|August|September|October|November|December)\s*[,-/]?\s*(\d{1,2})\s*[,-/]?\s*(\d{4})/gi,
+        
         // Format: 14 Nov 2024, 14-Nov-2024, 14/Nov/2024
-        /\b(\d{1,2})[\s-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{4})\b/i,
+        /(\d{1,2})[\s-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{4})/gi,
         
         // Format: Nov 14 2024, Nov-14-2024, Nov/14/2024
-        /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})\b/i,
+        /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})/gi,
         
         // Format: 14/11/2024, 14-11-2024
-        /\b(\d{1,2})[\s-/](\d{1,2})[\s-/](\d{4})\b/,
+        /(\d{1,2})[\s-/](\d{1,2})[\s-/](\d{4})/g,
         
         // Format: 2024/11/14, 2024-11-14
-        /\b(\d{4})[\s-/](\d{1,2})[\s-/](\d{1,2})\b/
-      ];
+        /(\d{4})[\s-/](\d{1,2})[\s-/](\d{1,2})/g
+    ];
 
-    function findDate(text) {
-        for (let pattern of datePatterns) {
-          const match = text.match(pattern);
-          if (match) {
-            // Process the matched date
-            return match[match.length - 1];
-          }
-        }
-        return null;
-    }
+    let lastDate = null;
+    let lastIndex = -1;
 
-    console.log('findDate', findDate(text));
-
-    function findLastTime(text) {
-        const timePatterns = [
-            // 24-hour format with seconds: 16:16:48, 16.16.48, 16-16-48
-            /\b([01]\d|2[0-3])[:.-]([0-5]\d)[:.-]([0-5]\d)\b/g,
-            
-            // 12-hour format with seconds: 04:16:48 PM, 4:16:48 PM, 04.16.48 PM
-            /\b(0?[1-9]|1[0-2])[:.-]([0-5]\d)[:.-]([0-5]\d)\s*(?:AM|PM|am|pm)\b/g,
-        ];
-    
-        let lastTime = null;
-        let lastIndex = -1;
-    
-        timePatterns.forEach(pattern => {
-            const matches = [...text.matchAll(pattern)];
-            if (matches.length > 0) {
-                const lastMatch = matches[matches.length - 1];
-                if (lastMatch.index > lastIndex) {
-                    lastTime = lastMatch[0];
-                    lastIndex = lastMatch.index;
-                }
+    // Check each pattern
+    datePatterns.forEach(pattern => {
+        let matches = [...text.matchAll(pattern)];
+        if (matches.length > 0) {
+            // Get the last match for this pattern
+            let lastMatch = matches[matches.length - 1];
+            if (lastMatch.index > lastIndex) {
+                lastDate = lastMatch[0];
+                lastIndex = lastMatch.index;
             }
-        });
-    
-        return lastTime;
-    }
-    
-    const lastTime = findLastTime(text);
-    console.log('lastTime', lastTime); // Output: "16:16:48"
-    
-
-    // Filter out future dates
-    const currentDate = new Date();
-    const inValidDates = dateEntities.filter(date => {
-        try {
-            const dateObj = new Date(date);
-            // Check if date is valid
-            if (isNaN(dateObj.getTime())) {
-                return false;
-            }
-            return dateObj.toISOString().split('T')[0] !== currentDate.toISOString().split('T')[0];
-        } catch (error) {
-            console.error('Error processing date:', date, error);
-            return false;
         }
     });
-    console.log('inValidDates', JSON.stringify(inValidDates));
 
-    // Pick out the first invalid date or create a new date if none exist
-    if (inValidDates.length < 1) {
-        result.date = new Date().toISOString().split('T')[0];
-    } else {
-        try {
-            const dateObj = new Date(inValidDates[0]);
-            if (!isNaN(dateObj.getTime())) {
-                result.date = inValidDates[0];
-            } else {
-                result.date = new Date().toISOString().split('T')[0];
-            }
-        } catch (error) {
-            console.error('Error setting result date:', error);
-            result.date = new Date().toISOString().split('T')[0];
-        }
-    }
+    console.log('lastDate dateformat', convertDateFormat(lastDate));
+    result.date = convertDateFormat(lastDate);
+}
 
-    const timePossibilities = doc.times().get();
-    console.log('timePossibilities', JSON.stringify(timePossibilities));
-
-    // Fool-proof time selection
-    if (timePossibilities && timePossibilities.length > 0) {
-        // Get last index for times
-        const lastIndex = timePossibilities.length - 1;
-        const selectedTime = timePossibilities[lastIndex];
-        console.log('Selected time from last index:', selectedTime);
+function findTime(text, result) {
+    const timePatterns = [
+        // 12-hour format with seconds: 04:16:48 PM, 4:16:48 PM, 04.16.48 PM
+        /\b(0?[1-9]|1[0-2])[:.-]([0-5]\d)[:.-]([0-5]\d)\s*(?:AM|PM|am|pm)\b/g,
         
-        if (selectedTime) {
-            // Convert to string and ensure we're working with a string
-            const timeStr = String(selectedTime.text || selectedTime);
-            // Try to parse time in 24-hour format
-            const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-            if (timeMatch) {
-                const hours = timeMatch[1].padStart(2, '0');
-                const minutes = timeMatch[2];
-                const seconds = timeMatch[3] || '00';
-                result.time = `${hours}:${minutes}:${seconds}`;
-                console.log('Set result.time to:', result.time);
+        // 24-hour format with seconds: 16:16:48, 16.16.48, 16-16-48
+        /\b([01]\d|2[0-3])[:.-]([0-5]\d)[:.-]([0-5]\d)\b/g,
+    ];
+
+    let lastTime = null;
+    let lastIndex = -1;
+
+    timePatterns.forEach(pattern => {
+        const matches = [...text.matchAll(pattern)];
+        if (matches.length > 0) {
+            const lastMatch = matches[matches.length - 1];
+            if (lastMatch.index > lastIndex) {
+                lastTime = lastMatch[0];
+                lastIndex = lastMatch.index;
             }
         }
-    }
+    });
+    console.log('lastTime', lastTime);
+    result.time = lastTime;
+}
 
+function parseBankSpecificData(text, bankKey) {
+    // Initialize result object
+    let result = {
+        amount: null,
+        reference: null,
+        date: null,
+        time: null
+    };
+
+    // Pass result object to helper functions
+    findCurrency(text, result);
+    findDate(text, result);
+    findTime(text, result);
+    
     // Handle bank-specific logic
     switch (bankKey) {
         case 'BNB_Key':
@@ -379,19 +344,6 @@ function parseBankSpecificData(text, bankKey) {
     }
 
     return result;
-}
-
-function getMonthNumber(month) {
-    const months = {
-        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
-        'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
-        'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
-        'january': '01', 'february': '02', 'march': '03',
-        'april': '04', 'june': '06', 'july': '07',
-        'august': '08', 'september': '09', 'october': '10',
-        'november': '11', 'december': '12'
-    };
-    return months[month.toLowerCase()] || '01';
 }
 
 // Update parseReceiptData to use the new function
