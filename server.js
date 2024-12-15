@@ -146,8 +146,10 @@ function parseBankSpecificData(text, bankKey) {
         console.log('Selected time from last index:', selectedTime);
         
         if (selectedTime) {
+            // Convert to string and ensure we're working with a string
+            const timeStr = String(selectedTime.text || selectedTime);
             // Try to parse time in 24-hour format
-            const timeMatch = selectedTime.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
             if (timeMatch) {
                 const hours = timeMatch[1].padStart(2, '0');
                 const minutes = timeMatch[2];
