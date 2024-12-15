@@ -139,7 +139,7 @@ function parseBankSpecificData(text, bankKey) {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
             // Clean up the amount - remove commas and non-digit characters except decimal point
-            const amount = match[1]?.replace(/\./g, '')  // Remove thousand separators
+            const amount = match[1]?.replace(/\,/g, '')  // Remove thousand separators
                                        .replace(',', '.')     // Convert decimal comma to period
                                        .replace(/[^\d.]/g, ''); // Remove any remaining non-digit/non-decimal chars
             if (amount) {
