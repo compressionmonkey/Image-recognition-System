@@ -248,17 +248,8 @@ function parseBankSpecificData(text, bankKey) {
             // 24-hour format with seconds: 16:16:48, 16.16.48, 16-16-48
             /\b([01]\d|2[0-3])[:.-]([0-5]\d)[:.-]([0-5]\d)\b/g,
             
-            // 24-hour format without seconds: 16:16, 16.16, 16-16
-            /\b([01]\d|2[0-3])[:.-]([0-5]\d)\b/g,
-            
             // 12-hour format with seconds: 04:16:48 PM, 4:16:48 PM, 04.16.48 PM
             /\b(0?[1-9]|1[0-2])[:.-]([0-5]\d)[:.-]([0-5]\d)\s*(?:AM|PM|am|pm)\b/g,
-            
-            // 12-hour format without seconds: 04:16 PM, 4:16 PM, 04.16 PM
-            /\b(0?[1-9]|1[0-2])[:.-]([0-5]\d)\s*(?:AM|PM|am|pm)\b/g,
-            
-            // Military time: 1616, 0416
-            /\b([01]\d|2[0-3])([0-5]\d)\b/g
         ];
     
         let lastTime = null;
