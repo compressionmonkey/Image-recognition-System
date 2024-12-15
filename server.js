@@ -70,32 +70,66 @@ function parseBankSpecificData(text, bankKey) {
 
     // Define all possible patterns for Ngultrum amounts
     const currencyPatterns = [
+        // Standard Nu. format with spaces
         /Nu\.\s*(\d[\d,]*\.?\d*)/gi,      // Nu. 100
         /nu\.\s*(\d[\d,]*\.?\d*)/gi,      // nu. 100
+        /NU\.\s*(\d[\d,]*\.?\d*)/gi,      // NU. 100
+        
+        // Amount after currency
         /(\d[\d,]*\.?\d*)\s*Nu\./gi,      // 100 Nu.
         /(\d[\d,]*\.?\d*)\s*nu\./gi,      // 100 nu.
+        /(\d[\d,]*\.?\d*)\s*NU\./gi,      // 100 NU.
+        
+        // With Amount/Total prefix
         /Amount[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,  // Amount: Nu. 100
         /Total[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,   // Total: Nu. 100
+        /Amt[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,     // Amt: Nu. 100
+        
+        // Without dot after Nu
         /Nu\s*(\d[\d,]*\.?\d*)/gi,        // Nu 100
         /nu\s*(\d[\d,]*\.?\d*)/gi,        // nu 100
+        /NU\s*(\d[\d,]*\.?\d*)/gi,        // NU 100
+        
+        // Currency symbol after amount without dot
         /(\d[\d,]*\.?\d*)\s*Nu\b/gi,      // 100 Nu
         /(\d[\d,]*\.?\d*)\s*nu\b/gi,      // 100 nu
-        /Amt[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,     // Amt: Nu. 100
+        /(\d[\d,]*\.?\d*)\s*NU\b/gi,      // 100 NU
+        
+        // Just amount with common prefixes
         /Amt[:\s]+(\d[\d,]*\.?\d*)/gi,    // Amt: 100
+        /Amount[:\s]+(\d[\d,]*\.?\d*)/gi,  // Amount: 100
+        /Total[:\s]+(\d[\d,]*\.?\d*)/gi,   // Total: 100
 
-        // New patterns with comma decimals
+        // Comma decimal versions
+        // Standard Nu. format with spaces
         /Nu\.\s*(\d[\d.]*,?\d*)/gi,      // Nu. 100,00
         /nu\.\s*(\d[\d.]*,?\d*)/gi,      // nu. 100,00
+        /NU\.\s*(\d[\d.]*,?\d*)/gi,      // NU. 100,00
+        
+        // Amount after currency
         /(\d[\d.]*,?\d*)\s*Nu\./gi,      // 100,00 Nu.
         /(\d[\d.]*,?\d*)\s*nu\./gi,      // 100,00 nu.
+        /(\d[\d.]*,?\d*)\s*NU\./gi,      // 100,00 NU.
+        
+        // With Amount/Total prefix
         /Amount[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,  // Amount: Nu. 100,00
         /Total[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,   // Total: Nu. 100,00
+        /Amt[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,     // Amt: Nu. 100,00
+        
+        // Without dot after Nu
         /Nu\s*(\d[\d.]*,?\d*)/gi,        // Nu 100,00
         /nu\s*(\d[\d.]*,?\d*)/gi,        // nu 100,00
+        /NU\s*(\d[\d.]*,?\d*)/gi,        // NU 100,00
+        
+        // Currency symbol after amount without dot
         /(\d[\d.]*,?\d*)\s*Nu\b/gi,      // 100,00 Nu
         /(\d[\d.]*,?\d*)\s*nu\b/gi,      // 100,00 nu
-        /Amt[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,     // Amt: Nu. 100,00
-        /Amt[:\s]+(\d[\d.]*,?\d*)/gi     // Amt: 100,00
+        /(\d[\d.]*,?\d*)\s*NU\b/gi,      // 100,00 NU
+        
+        // Just amount with common prefixes
+        /Amt[:\s]+(\d[\d.]*,?\d*)/gi,    // Amt: 100,00
+        /Amount[:\s]+(\d[\d.]*,?\d*)/gi,  // Amount: 100,00
+        /Total[:\s]+(\d[\d.]*,?\d*)/gi    // Total: 100,00
     ];
 
     let allAmounts = [];
