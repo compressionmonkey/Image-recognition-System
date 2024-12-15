@@ -119,6 +119,10 @@ function parseBankSpecificData(text, bankKey) {
 
     const datePossibilities = doc.dates().get();
     console.log('datePossibilities', JSON.stringify(datePossibilities));
+
+    const dateEntities = doc.dates().format('YYYY-MM-DD');
+    console.log('dateEntities hjksadjhkdsajkh', JSON.stringify(dateEntities));
+
     const timePossibilities = doc.times().get();
     console.log('timePossibilities', JSON.stringify(timePossibilities));
 
@@ -134,8 +138,7 @@ function parseBankSpecificData(text, bankKey) {
             if (date instanceof Date && !isNaN(date)) {
                 result.date = date.toISOString().split('T')[0];
                 console.log('Set result.date to:', result.date);
-            }
-        }
+            }        }
     }
 
     // Fool-proof time selection
