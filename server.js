@@ -114,6 +114,43 @@ function parseBankSpecificData(text, bankKey) {
         result.amount = allAmounts[allAmounts.length - 1].amount.toString();
     }
 
+    function findLastDate(text) {
+        const datePatterns = [
+            // Format: 14 Nov 2024, 14-Nov-2024, 14/Nov/2024
+            /(\d{1,2})[\s-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{4})/gi,
+            
+            // Format: Nov 14 2024, Nov-14-2024, Nov/14/2024
+            /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})/gi,
+            
+            // Format: 14/11/2024, 14-11-2024
+            /(\d{1,2})[\s-/](\d{1,2})[\s-/](\d{4})/g,
+            
+            // Format: 2024/11/14, 2024-11-14
+            /(\d{4})[\s-/](\d{1,2})[\s-/](\d{1,2})/g
+        ];
+    
+        let lastDate = null;
+        let lastIndex = -1;
+    
+        // Check each pattern
+        datePatterns.forEach(pattern => {
+            let matches = [...text.matchAll(pattern)];
+            if (matches.length > 0) {
+                // Get the last match for this pattern
+                let lastMatch = matches[matches.length - 1];
+                if (lastMatch.index > lastIndex) {
+                    lastDate = lastMatch[0];
+                    lastIndex = lastMatch.index;
+                }
+            }
+        });
+    
+        return lastDate;
+    }
+    
+    const lastDate = findLastDate(text);
+    console.log('lastDate', lastDate); // Output: "14 Nov 2024"
+
     // Use compromise to extract dates and times
     const doc = nlp(text);
 
@@ -121,14 +158,46 @@ function parseBankSpecificData(text, bankKey) {
     console.log('datePossibilities', JSON.stringify(datePossibilities));
 
     const dateEntities = doc.dates().format('YYYY-MM-DD').out('array');
+    const timeEntities = doc.dates().format('HH:mm:ss').out('array');
+    let timeEntities2 = doc.times().get();
     console.log('dateEntities', JSON.stringify(dateEntities));
+    console.log('timeEntities', JSON.stringify(timeEntities));
+    console.log('timeEntities2', JSON.stringify(timeEntities2));
+
+    const datePatterns = [
+        // Format: 14 Nov 2024, 14-Nov-2024, 14/Nov/2024
+        /\b(\d{1,2})[\s-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{4})\b/i,
+        
+        // Format: Nov 14 2024, Nov-14-2024, Nov/14/2024
+        /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})\b/i,
+        
+        // Format: 14/11/2024, 14-11-2024
+        /\b(\d{1,2})[\s-/](\d{1,2})[\s-/](\d{4})\b/,
+        
+        // Format: 2024/11/14, 2024-11-14
+        /\b(\d{4})[\s-/](\d{1,2})[\s-/](\d{1,2})\b/
+      ];
+
+    function findDate(text) {
+        for (let pattern of datePatterns) {
+          const match = text.match(pattern);
+          if (match) {
+            // Process the matched date
+            return match[match.length - 1];
+          }
+        }
+        return null;
+    }
+
+    console.log('findDate', findDate(text));
+
     // Filter out future dates
     const currentDate = new Date();
     const inValidDates = dateEntities.filter(date => {
         const dateObj = new Date(date);
         return dateObj.toISOString().split('T')[0] !== currentDate.toISOString().split('T')[0];
     });
-    console.log('validDates', JSON.stringify(inValidDates));
+    console.log('inValidDates', JSON.stringify(inValidDates));
 
     // Pick out the first invalid date or create a new date if none exist
     if (inValidDates.length < 1) {
