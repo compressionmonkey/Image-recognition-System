@@ -124,15 +124,18 @@ function parseBankSpecificData(text, bankKey) {
     console.log('dateEntities', JSON.stringify(dateEntities));
     // Filter out future dates
     const currentDate = new Date();
-    const validDates = dateEntities.filter(date => {
+    const inValidDates = dateEntities.filter(date => {
         const dateObj = new Date(date);
         return dateObj.toISOString().split('T')[0] !== currentDate.toISOString().split('T')[0];
     });
-    console.log('validDates', JSON.stringify(validDates));
+    console.log('validDates', JSON.stringify(inValidDates));
 
-    // Keep the middle index selection approach
-    if (validDates.length > 0) {
-        result.date = validDates[0];
+    // Pick out the first invalid date or create a new date if none exist
+    if (inValidDates.length < 1) {
+        result.date = new Date().toISOString().split('T')[0];
+    }
+    if (inValidDates.length > 0) {
+        result.date = inValidDates[0];
     }
 
     const timePossibilities = doc.times().get();
