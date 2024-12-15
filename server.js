@@ -121,25 +121,23 @@ function parseBankSpecificData(text, bankKey) {
     console.log('datePossibilities', JSON.stringify(datePossibilities));
 
     const dateEntities = doc.dates().format('YYYY-MM-DD').out('array');
-    console.log('dateEntities hjksadjhkdsajkh', JSON.stringify(dateEntities));
+    console.log('dateEntities', JSON.stringify(dateEntities));
+    // Filter out future dates
+    const currentDate = new Date();
+    const validDates = dateEntities.filter(date => {
+        const dateObj = new Date(date);
+        return dateObj <= currentDate;
+    });
+    console.log('validDates', JSON.stringify(validDates));
+
+    // Keep the middle index selection approach
+    if (validDates.length > 0) {
+        const middleIndex = Math.floor(validDates.length / 2);
+        result.date = validDates[middleIndex];
+    }
 
     const timePossibilities = doc.times().get();
     console.log('timePossibilities', JSON.stringify(timePossibilities));
-
-    // Fool-proof date selection
-    if (datePossibilities && datePossibilities.length > 0) {
-        // Get middle index for dates
-        const middleIndex = Math.floor(datePossibilities.length / 2);
-        const selectedDate = datePossibilities[middleIndex];
-        console.log('Selected date from middle index:', selectedDate);
-        
-        if (selectedDate) {
-            const date = new Date(selectedDate);
-            if (date instanceof Date && !isNaN(date)) {
-                result.date = date.toISOString().split('T')[0];
-                console.log('Set result.date to:', result.date);
-            }        }
-    }
 
     // Fool-proof time selection
     if (timePossibilities && timePossibilities.length > 0) {
