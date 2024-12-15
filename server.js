@@ -79,7 +79,23 @@ function parseBankSpecificData(text, bankKey) {
         /Nu\s*(\d[\d,]*\.?\d*)/gi,        // Nu 100
         /nu\s*(\d[\d,]*\.?\d*)/gi,        // nu 100
         /(\d[\d,]*\.?\d*)\s*Nu\b/gi,      // 100 Nu
-        /(\d[\d,]*\.?\d*)\s*nu\b/gi       // 100 nu
+        /(\d[\d,]*\.?\d*)\s*nu\b/gi,      // 100 nu
+        /Amt[:\s]+Nu\.?\s*(\d[\d,]*\.?\d*)/gi,     // Amt: Nu. 100
+        /Amt[:\s]+(\d[\d,]*\.?\d*)/gi,    // Amt: 100
+
+        // New patterns with comma decimals
+        /Nu\.\s*(\d[\d.]*,?\d*)/gi,      // Nu. 100,00
+        /nu\.\s*(\d[\d.]*,?\d*)/gi,      // nu. 100,00
+        /(\d[\d.]*,?\d*)\s*Nu\./gi,      // 100,00 Nu.
+        /(\d[\d.]*,?\d*)\s*nu\./gi,      // 100,00 nu.
+        /Amount[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,  // Amount: Nu. 100,00
+        /Total[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,   // Total: Nu. 100,00
+        /Nu\s*(\d[\d.]*,?\d*)/gi,        // Nu 100,00
+        /nu\s*(\d[\d.]*,?\d*)/gi,        // nu 100,00
+        /(\d[\d.]*,?\d*)\s*Nu\b/gi,      // 100,00 Nu
+        /(\d[\d.]*,?\d*)\s*nu\b/gi,      // 100,00 nu
+        /Amt[:\s]+Nu\.?\s*(\d[\d.]*,?\d*)/gi,     // Amt: Nu. 100,00
+        /Amt[:\s]+(\d[\d.]*,?\d*)/gi     // Amt: 100,00
     ];
 
     let allAmounts = [];
@@ -89,7 +105,9 @@ function parseBankSpecificData(text, bankKey) {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
             // Clean up the amount - remove commas and non-digit characters except decimal point
-            const amount = match[1]?.replace(/[^\d.]/g, '');
+            const amount = match[1]?.replace(/\./g, '')  // Remove thousand separators
+                                       .replace(',', '.')     // Convert decimal comma to period
+                                       .replace(/[^\d.]/g, ''); // Remove any remaining non-digit/non-decimal chars
             if (amount) {
                 const numAmount = parseFloat(amount);
                 // Only consider reasonable amounts (adjust range as needed)
