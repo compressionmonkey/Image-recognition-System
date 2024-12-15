@@ -613,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
         logEvent(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
-        if (referenceInput) referenceInput.value = data.ReferenceNo || '';
+        if (referenceInput) referenceInput.value = data.referenceNo || '';
         if (dateInput) dateInput.value = data.Date || '';
 
         // Add view image button if not exists
