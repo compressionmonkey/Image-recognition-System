@@ -6,9 +6,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Airtable from 'airtable';
 import nlp from 'compromise';
-import plg from 'compromise-dates';
-
-nlp.plugin(plg);
 
 dotenv.config();
 
@@ -28,13 +25,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Add custom words for recognizing Ngultrum variations
-nlp.plugin({
-    words: {
-    // Define different possibilities using regex
-    '/nu\\./i': 'Currency' // Case-insensitive match for "Nu."
-    }
-});
 
 // Configure Airtable
 const airtableApiKey = process.env.AIRTABLE_API_KEY;

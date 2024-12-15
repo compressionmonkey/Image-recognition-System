@@ -594,6 +594,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            window.recognizedText = data.recognizedText;
+
             // Show confirmation modal with extracted data
             showConfirmationModal(data);
 
@@ -668,7 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
             amount,
             referenceNo,
             timestamp: date,
-            recognizedText: '' // Add any additional fields needed
+            recognizedText: window.recognizedText 
         };
 
         // Send confirmation to server
