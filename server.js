@@ -116,6 +116,11 @@ function parseBankSpecificData(text, bankKey) {
 
     // Use compromise to extract dates and times
     const doc = nlp(text);
+
+    const datePossibilities = doc.dates().get();
+    console.log('datePossibilities', JSON.stringify(datePossibilities));
+    const timePossibilities = doc.times().get();
+    console.log('timePossibilities', JSON.stringify(timePossibilities));
     const dateEntities = doc.dates().json();
     console.log('dateEntities', dateEntities);
     if (dateEntities.length > 0) {
