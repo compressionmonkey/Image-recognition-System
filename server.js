@@ -194,30 +194,28 @@ function parseBankSpecificData(text, bankKey) {
     function findLastTime(text) {
         const timePatterns = [
             // 24-hour format with seconds: 16:16:48, 16.16.48, 16-16-48
-            /(\d{1,2})[:.-](\d{2})[:.-](\d{2})/g,
+            /\b([01]\d|2[0-3])[:.-]([0-5]\d)[:.-]([0-5]\d)\b/g,
             
             // 24-hour format without seconds: 16:16, 16.16, 16-16
-            /(\d{1,2})[:.-](\d{2})/g,
+            /\b([01]\d|2[0-3])[:.-]([0-5]\d)\b/g,
             
-            // 12-hour format with seconds: 04:16:48 PM, 4:16:48 PM
-            /(\d{1,2})[:.-](\d{2})[:.-](\d{2})\s*(am|pm)/gi,
+            // 12-hour format with seconds: 04:16:48 PM, 4:16:48 PM, 04.16.48 PM
+            /\b(0?[1-9]|1[0-2])[:.-]([0-5]\d)[:.-]([0-5]\d)\s*(?:AM|PM|am|pm)\b/g,
             
-            // 12-hour format without seconds: 04:16 PM, 4:16 PM
-            /(\d{1,2})[:.-](\d{2})\s*(am|pm)/gi,
+            // 12-hour format without seconds: 04:16 PM, 4:16 PM, 04.16 PM
+            /\b(0?[1-9]|1[0-2])[:.-]([0-5]\d)\s*(?:AM|PM|am|pm)\b/g,
             
             // Military time: 1616, 0416
-            /([01]\d|2[0-3])([0-5]\d)/g
+            /\b([01]\d|2[0-3])([0-5]\d)\b/g
         ];
     
         let lastTime = null;
         let lastIndex = -1;
     
-        // Check each pattern
         timePatterns.forEach(pattern => {
-            let matches = [...text.matchAll(pattern)];
+            const matches = [...text.matchAll(pattern)];
             if (matches.length > 0) {
-                // Get the last match for this pattern
-                let lastMatch = matches[matches.length - 1];
+                const lastMatch = matches[matches.length - 1];
                 if (lastMatch.index > lastIndex) {
                     lastTime = lastMatch[0];
                     lastIndex = lastMatch.index;
