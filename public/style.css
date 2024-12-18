@@ -1016,6 +1016,18 @@ header {
     padding: 0 20px;
 }
 
+@media (max-width: 768px) {
+    .preview-controls {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 10px;
+        margin: 0;
+    }
+}
+
 .preview-button {
     padding: 12px 24px;
     border-radius: 8px;
