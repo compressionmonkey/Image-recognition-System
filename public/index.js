@@ -1205,21 +1205,35 @@ document.addEventListener('DOMContentLoaded', function() {
     
 
     function validateDate(dateInput) {
-        // Check for empty date input first
+        const validationMessage = document.getElementById('dateValidationMessage');
+        const dateInputElement = document.getElementById('confirmDate');
+        
+        // Remove existing classes first
+        dateInputElement.classList.remove('date-warning');
+        
         if (!dateInput || dateInput === '') {
-            const validationMessage = document.getElementById('dateValidationMessage');
             validationMessage.style.display = 'none';
             validationMessage.classList.remove('show');
             return;
         }
 
-        const validationMessage = document.getElementById('dateValidationMessage');
-        
         if (!isToday(dateInput)) {
-            validationMessage.textContent = 'Receipt Date is not today. Are you sure you want to add this?';
-            validationMessage.style.display = 'block';
+            // Add warning class to input
+            dateInputElement.classList.add('date-warning');
+            
+            // Update validation message with icon
+            validationMessage.innerHTML = `
+                <span class="warning-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 9v4M12 17h.01M12 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2s2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </span>
+                Receipt Date is not today. Are you sure you want to add this?
+            `;
+            validationMessage.style.display = 'flex';
             validationMessage.classList.add('show');
         } else {
+            dateInputElement.classList.remove('date-warning');
             validationMessage.style.display = 'none';
             validationMessage.classList.remove('show');
         }
