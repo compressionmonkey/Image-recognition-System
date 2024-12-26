@@ -243,7 +243,7 @@ function findCurrency(text, result) {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
             // Get the full matched text for debugging
-            console.log('Found match:', match[0], 'Groups:', match.groups, 'Captured:', match[1]);
+            console.log('Found match: ', match[0], 'Groups:', match.groups, 'Captured:', match[1]);
             
             // Directly use the captured amount if it exists
             let amount = match[1];
