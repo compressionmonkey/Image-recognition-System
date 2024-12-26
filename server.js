@@ -95,10 +95,10 @@ export function determineBankKey(paragraph) {
       }, { bankKey: 'Unknown', score: 0 });
       
     // Log for debugging
-  //   console.log('Bank detection scores:', {
-  //     bestMatch,
-  //     allScores: scores
-  //   });
+    console.log('Bank detection scores:', {
+      bestMatch,
+      allScores: scores
+    });
     
     // Return result if confidence threshold met (lowered from 3 to 2)
     return bestMatch.score >= 2 && normalizedText.length > 30 ? 
@@ -134,6 +134,14 @@ export function parseReceiptData(text, bankKey) {
 function findCurrency(text, result) {
     // Define all possible patterns for Ngultrum amounts
     const currencyPatterns = [
+        // Add these new patterns at the beginning of your currencyPatterns array
+        /Nu\.\s*(\d{1,3}(?:,\d{3})*\.\d{2})/gi,     // Nu. 15,350.00
+        /nu\.\s*(\d{1,3}(?:,\d{3})*\.\d{2})/gi,     // nu. 15,350.00
+        /NU\.\s*(\d{1,3}(?:,\d{3})*\.\d{2})/gi,     // NU. 15,350.00
+        
+        // Amount with currency after
+        /(\d{1,3}(?:,\d{3})*\.\d{2})\s*Nu\./gi,     // 15,350.00 Nu.
+        
         // Standard Nu. format with spaces
         /Nu\.\s*(\d[\d,]*\.?\d*)/gi,      // Nu. 100
         /nu\.\s*(\d[\d,]*\.?\d*)/gi,      // nu. 100
@@ -234,14 +242,20 @@ function findCurrency(text, result) {
     currencyPatterns.forEach(pattern => {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
-            // Clean up the amount - remove commas and non-digit characters except decimal point
-            const amount = match[1]?.replace(/\,/g, '')  // Remove thousand separators
-                                       .replace(',', '.')     // Convert decimal comma to period
-                                       .replace(/[^\d.]/g, ''); // Remove any remaining non-digit/non-decimal chars
+            // Get the full matched text for debugging
+            console.log('Found match:', match[0], 'Groups:', match.groups, 'Captured:', match[1]);
+            
+            // Directly use the captured amount if it exists
+            let amount = match[1];
             if (amount) {
-                const numAmount = parseFloat(amount);
+                // Keep the commas for now to preserve number structure
+                amount = amount.trim();
+                
+                // Convert to number format (remove commas only at this stage)
+                const numAmount = parseFloat(amount.replace(/,/g, ''));
+                
                 // Only consider reasonable amounts (adjust range as needed)
-                if (numAmount >= 1 && numAmount <= 10000) {
+                if (numAmount >= 1 && numAmount <= 100000) {  // Increased upper limit
                     allAmounts.push({
                         amount: numAmount,
                         index: match.index,
@@ -257,7 +271,7 @@ function findCurrency(text, result) {
 
     // Take the last amount found (usually the total amount)
     if (allAmounts.length > 0) {
-        result.amount = allAmounts[allAmounts.length - 1].amount.toString();
+        result.amount = allAmounts[allAmounts.length - 1].amount.toFixed(2); // Ensure 2 decimal places
     }
 }
 
@@ -490,7 +504,7 @@ const BANK_KEYS = {
     }
   },
   BOB: {
-    primary: ['MOBILE BANKING', 'mBOB', 'Purpose/Bill QR', 'Amt', 'Jrnl. No'],
+    primary: ['MOBILE BANKING', 'mobile banking', 'mBOB', 'bob', 'successful', 'Successful', 'Purpose/Bill QR', 'Amt', 'Amount', 'Jrnl. No'],
     fuzzy: {
       'mobile': ['mobile banking', 'm-banking', 'mbob'],
       'purpose': ['purpose', 'bill qr', 'qr payment'],
@@ -630,6 +644,7 @@ app.post('/vision-api', async (req, res) => {
 
         if (confidence > 0.7) {
             const bankKey = determineBankKey(recognizedText);
+            console.log('recognizedText',recognizedText);
             const receiptData = parseReceiptData(recognizedText, bankKey);
             console.log('receiptData',receiptData);
             // Send only the essential data
