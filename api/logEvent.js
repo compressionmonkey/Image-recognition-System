@@ -1,13 +1,46 @@
-export default async function handler(req, res) {
+export const config = {
+    runtime: 'edge',
+};
+
+export default async function handler(req) {
     if (req.method === 'POST') {
-        const { message } = req.body;
+        try {
+            const { message } = await req.json();
+            
+            // Log to Vercel's console
+            console.log('[Event Log]:', message);
 
-        // Log to Vercel's console (visible in Vercel logs)
-        console.log(message);
-
-        res.status(200).json({ success: true });
-    } else {
-        res.setHeader('Allow', ['POST']);
-        res.status(405).end(`Method ${req.method} Not Allowed`);
+            return new Response(
+                JSON.stringify({ success: true }), 
+                {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+        } catch (error) {
+            console.error('[Log Event Error]:', error);
+            return new Response(
+                JSON.stringify({ success: false, error: error.message }), 
+                {
+                    status: 500,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+        }
     }
+
+    return new Response(
+        JSON.stringify({ error: `Method ${req.method} Not Allowed` }), 
+        {
+            status: 405,
+            headers: {
+                'Allow': ['POST'],
+                'Content-Type': 'application/json',
+            },
+        }
+    );
 }

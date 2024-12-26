@@ -1247,16 +1247,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    message
-                })
+                body: JSON.stringify({ message })
             });
 
             if (!response.ok) {
-                console.error('Failed to log event:', response.statusText);
+                const error = await response.json();
+                console.error('Failed to log event:', error);
+                return false;
             }
+
+            const data = await response.json();
+            return data.success;
         } catch (error) {
             console.error('Error logging event:', error);
+            return false;
         }
     }
 
