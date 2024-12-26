@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.x"
+  },
   "repository": "git@github.com:compressionmonkey/Image-recognition-System.git",
   "author": "Kelden Dradul Dorji <keldendraduldorji@gmail.com>",
   "license": "MIT",
@@ -21,9 +24,10 @@
     "ua-parser-js": "^1.0.39"
   },
   "scripts": {
+    "dev": "NODE_ENV=development node server.js",
     "build": "node build/generateHash.js",
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "NODE_ENV=production node server.js",
+    "vercel-build": "npm run build"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

@@ -39,15 +39,95 @@ const customerTables = {
     '72d72': 'Customer5'
 };
 
-function formatDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+export function determineBankKey(paragraph) {
+    // Normalize and prepare text
+    const doc = nlp(paragraph);
+    doc.normalize({
+      whitespace: true,
+      case: true,
+      punctuation: true,
+      unicode: true,
+      contractions: true,
+      acronyms: true,
+      parentheses: true,
+      quotations: true,
+      emoji: true
+    });
+    
+    const normalizedText = doc.text().toLowerCase();
+    let scores = {};
+    
+    // Initialize scores
+    for (const bankKey of Object.keys(BANK_KEYS)) {
+      scores[bankKey] = {
+        primaryMatches: 0,
+        fuzzyMatches: 0,
+        totalScore: 0
+      };
+    }
+    
+    // Process each bank's patterns
+    for (const [bankKey, patterns] of Object.entries(BANK_KEYS)) {
+      // Check primary keywords (exact matches - 2 points)
+      patterns.primary.forEach(keyword => {
+        if (normalizedText.includes(keyword.toLowerCase())) {
+          scores[bankKey].primaryMatches++;
+          scores[bankKey].totalScore += 2;
+        }
+      });
+      
+      // Check fuzzy matches using compromise (1 point)
+      Object.entries(patterns.fuzzy).forEach(([category, variations]) => {
+        const terms = doc.match(variations.join('|'));
+        if (terms.found) {
+          scores[bankKey].fuzzyMatches++;
+          scores[bankKey].totalScore += 1;
+        }
+      });
+    }
+    
+    // Find best match
+    const bestMatch = Object.entries(scores)
+      .reduce((best, [bankKey, score]) => {
+        return score.totalScore > best.score ? 
+          { bankKey, score: score.totalScore } : 
+          best;
+      }, { bankKey: 'Unknown', score: 0 });
+      
+    // Log for debugging
+  //   console.log('Bank detection scores:', {
+  //     bestMatch,
+  //     allScores: scores
+  //   });
+    
+    // Return result if confidence threshold met (lowered from 3 to 2)
+    return bestMatch.score >= 2 && normalizedText.length > 30 ? 
+      bestMatch.bankKey : 
+      'Unknown';
+  }
+// Update parseReceiptData to use the new function
+export function parseReceiptData(text, bankKey) {
+    try {
+        const bankData = parseBankSpecificData(text, bankKey);
+        return {
+            Date: bankData.date,
+            Time: bankData.time,
+            ReferenceNo: bankData.reference,
+            Amount: bankData.amount,
+        };
+    } catch (error) {
+        console.error('Error in parseReceiptData:', error);
+        return {
+            Timestamp: formatDate(new Date()),
+            ReferenceNo: 'ERROR',
+            BankType: bankKey.replace('_Key', ''),
+            Amount: '0.00',
+            FromAccount: null,
+            ToAccount: null,
+            Purpose: null,
+            Remarks: null
+        };
+    }
 }
 
 function findCurrency(text, result) {
@@ -112,7 +192,39 @@ function findCurrency(text, result) {
         // Just amount with common prefixes
         /Amt[:\s]+(\d[\d.]*,?\d*)/gi,    // Amt: 100,00
         /Amount[:\s]+(\d[\d.]*,?\d*)/gi,  // Amount: 100,00
-        /Total[:\s]+(\d[\d.]*,?\d*)/gi    // Total: 100,00
+        /Total[:\s]+(\d[\d.]*,?\d*)/gi,   // Total: 100,00
+
+        // BTN patterns
+        /BTN\s*(\d[\d,]*\.?\d*)/gi,      // BTN 100
+        /btn\s*(\d[\d,]*\.?\d*)/gi,      // btn 100
+        /Btn\s*(\d[\d,]*\.?\d*)/gi,      // Btn 100
+        
+        // BTN after amount
+        /(\d[\d,]*\.?\d*)\s*BTN/gi,      // 100 BTN
+        /(\d[\d,]*\.?\d*)\s*btn/gi,      // 100 btn
+        /(\d[\d,]*\.?\d*)\s*Btn/gi,      // 100 Btn
+        
+        // BTN with comma decimal
+        /BTN\s*(\d[\d.]*,?\d*)/gi,      // BTN 100,00
+        /btn\s*(\d[\d.]*,?\d*)/gi,      // btn 100,00
+        /Btn\s*(\d[\d.]*,?\d*)/gi,      // Btn 100,00
+        
+        // Amount/Total with BTN and comma decimal
+        /Amount[:\s]+BTN\s*(\d[\d.]*,?\d*)/gi,  // Amount: BTN 100,00
+        /Total[:\s]+BTN\s*(\d[\d.]*,?\d*)/gi,   // Total: BTN 100,00
+        /Amt[:\s]+BTN\s*(\d[\d.]*,?\d*)/gi,     // Amt: BTN 100,00
+        
+        // BTN after amount with comma decimal
+        /(\d[\d.]*,?\d*)\s*BTN/gi,      // 100,00 BTN
+        /(\d[\d.]*,?\d*)\s*btn/gi,      // 100,00 btn
+        /(\d[\d.]*,?\d*)\s*Btn/gi,      // 100,00 Btn
+
+        // Exclude balance amounts
+        /(?<!Balance\s)Nu\.\s*(\d[\d,]*\.?\d*)/gi,  // Matches "Nu. 180" but not "Balance Nu. 4,13.99"
+        
+        // Amount-specific patterns
+        /Amount\s*:?\s*Nu\.\s*(\d[\d,]*\.?\d*)/gi,  // Amount: Nu. 180
+        /Amount\s*Nu\.\s*(\d[\d,]*\.?\d*)/gi,       // Amount Nu. 180
     ];
 
     let allAmounts = [];
@@ -142,12 +254,21 @@ function findCurrency(text, result) {
     // Sort amounts by their position in the text
     allAmounts.sort((a, b) => a.index - b.index);
 
-    console.log('Found amounts:', allAmounts);
-
     // Take the last amount found (usually the total amount)
     if (allAmounts.length > 0) {
         result.amount = allAmounts[allAmounts.length - 1].amount.toString();
     }
+}
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function convertDateFormat(dateStr) {
@@ -243,8 +364,7 @@ function findDate(text, result) {
         }
     });
 
-    console.log('lastDate dateformat', convertDateFormat(lastDate));
-    result.date = convertDateFormat(lastDate);
+    result.date = lastDate ? convertDateFormat(lastDate) : null;
 }
 
 function findTime(text, result) {
@@ -269,7 +389,6 @@ function findTime(text, result) {
             }
         }
     });
-    console.log('lastTime', lastTime);
     result.time = lastTime;
 }
 
@@ -289,7 +408,7 @@ function parseBankSpecificData(text, bankKey) {
     
     // Handle bank-specific logic
     switch (bankKey) {
-        case 'BNB_Key':
+        case 'BNB':
             // Reference number (RRN)
             const rrnMatch = text.match(/\b43\d{10}\b/);
             if (rrnMatch) {
@@ -297,7 +416,7 @@ function parseBankSpecificData(text, bankKey) {
             }
             break;
 
-        case 'PNB_Key':
+        case 'PNB':
             // Reference number
             const pnbRefMatch = text.match(/\b43\d{10}\b/);
             if (pnbRefMatch) {
@@ -305,7 +424,7 @@ function parseBankSpecificData(text, bankKey) {
             }
             break;
 
-        case 'Eteeru_Key':
+        case 'Eteeru':
             // Transaction ID (combining split numbers)
             const txnIdMatches = text.match(/\b\d+\b/g);
             if (txnIdMatches && txnIdMatches.length >= 2) {
@@ -313,7 +432,7 @@ function parseBankSpecificData(text, bankKey) {
             }
             break;
 
-        case 'goBOB_Key':
+        case 'goBOB':
             // PAN Number
             const panMatch = text.match(/\b\d{16}\b/);
             if (panMatch) {
@@ -324,11 +443,18 @@ function parseBankSpecificData(text, bankKey) {
             result.time = '';
             break;
 
-        case 'BOB_Key':
+        case 'BOB':
             // Journal Number
             const jrnlMatch = text.match(/(?:Jrnl\.?\s*No\.?:?\s*)(\d+)/i);
             if (jrnlMatch) {
                 result.reference = jrnlMatch[1];
+            }
+            break;
+        case 'DK':
+            // Transfer Number
+            const transferMatch = text.match(/(?:Transfer\s*No\.?:?\s*)(\d+)/i);
+            if (transferMatch) {
+                result.reference = transferMatch[1];
             }
             break;
     }
@@ -336,35 +462,9 @@ function parseBankSpecificData(text, bankKey) {
     return result;
 }
 
-// Update parseReceiptData to use the new function
-function parseReceiptData(text, bankKey) {
-    try {
-        const bankData = parseBankSpecificData(text, bankKey);
-        console.log('bankData', bankData);
-        return {
-            Date: bankData.date,
-            Time: bankData.time,
-            ReferenceNo: bankData.reference,
-            Amount: bankData.amount,
-        };
-    } catch (error) {
-        console.error('Error in parseReceiptData:', error);
-        return {
-            Timestamp: formatDate(new Date()),
-            ReferenceNo: 'ERROR',
-            BankType: bankKey.replace('_Key', ''),
-            Amount: '0.00',
-            FromAccount: null,
-            ToAccount: null,
-            Purpose: null,
-            Remarks: null
-        };
-    }
-}
-
 // Define the bank keys with primary and fuzzy matches
 const BANK_KEYS = {
-  BNB_Key: {
+  BNB: {
     primary: ['RRN', 'TRANSACTION SUCCESSFUL', 'Amount'],
     fuzzy: {
       'reference': ['RRN', 'reference no', 'ref no', 'ref.no'],
@@ -372,7 +472,7 @@ const BANK_KEYS = {
       'success': ['transaction successful', 'transaction success', 'successful transaction']
     }
   },
-  PNB_Key: {
+  PNB: {
     primary: ['TRANSACTION SUCCESSFUL', 'Ref. No', 'Bank Name', 'Transaction Type', 'Druk Pay'],
     fuzzy: {
       'reference': ['ref. no', 'reference no', 'ref no'],
@@ -380,7 +480,7 @@ const BANK_KEYS = {
       'transaction': ['txn type', 'transaction type']
     }
   },
-  Eteeru_Key: {
+  Eteeru: {
     primary: ['Processed By', 'Merchant Name', 'Amount', 'Purpose', 'Transaction ID'],
     fuzzy: {
       'amount': ['amt', 'total amount'],
@@ -388,7 +488,7 @@ const BANK_KEYS = {
       'transaction': ['txn id', 'transaction id', 'tid']
     }
   },
-  BOB_Key: {
+  BOB: {
     primary: ['MOBILE BANKING', 'mBOB', 'Purpose/Bill QR', 'Amt', 'Jrnl. No'],
     fuzzy: {
       'mobile': ['mobile banking', 'm-banking', 'mbob'],
@@ -397,82 +497,25 @@ const BANK_KEYS = {
       'journal': ['jrnl. no', 'journal no', 'jrnl no']
     }
   },
-  goBOB_Key: {
+  goBOB: {
     primary: ['Wallet Number', 'Amount', 'Merchant Bank', 'PAN Number', 'Purpose'],
     fuzzy: {
       'wallet': ['wallet number', 'wallet no'],
       'amount': ['amt', 'total amount'],
       'pan': ['pan number', 'pan no']
     }
+  },
+  DK: {
+    primary: ['Transfer no', 'Amount', 'Beneficiary bank', 'Beneficiary name', 'Purpose', 'Remarks'],
+    fuzzy: {
+      'wallet': ['wallet number', 'transfer no', 'reference number'],
+      'amount': ['amt', 'amount', 'total amount'],
+      'purpose': ['purpose', 'remarks', 'reason', 'description'],
+      'bank': ['beneficiary bank', 'merchant bank', 'bank details'],
+      'name': ['beneficiary name', 'recipient name']
+    }
   }
 };
-
-function determineBankKey(paragraph) {
-  // Normalize and prepare text
-  const doc = nlp(paragraph);
-  doc.normalize({
-    whitespace: true,
-    case: true,
-    punctuation: true,
-    unicode: true,
-    contractions: true,
-    acronyms: true,
-    parentheses: true,
-    quotations: true,
-    emoji: true
-  });
-  
-  const normalizedText = doc.text().toLowerCase();
-  let scores = {};
-  
-  // Initialize scores
-  for (const bankKey of Object.keys(BANK_KEYS)) {
-    scores[bankKey] = {
-      primaryMatches: 0,
-      fuzzyMatches: 0,
-      totalScore: 0
-    };
-  }
-  
-  // Process each bank's patterns
-  for (const [bankKey, patterns] of Object.entries(BANK_KEYS)) {
-    // Check primary keywords (exact matches - 2 points)
-    patterns.primary.forEach(keyword => {
-      if (normalizedText.includes(keyword.toLowerCase())) {
-        scores[bankKey].primaryMatches++;
-        scores[bankKey].totalScore += 2;
-      }
-    });
-    
-    // Check fuzzy matches using compromise (1 point)
-    Object.entries(patterns.fuzzy).forEach(([category, variations]) => {
-      const terms = doc.match(variations.join('|'));
-      if (terms.found) {
-        scores[bankKey].fuzzyMatches++;
-        scores[bankKey].totalScore += 1;
-      }
-    });
-  }
-  
-  // Find best match
-  const bestMatch = Object.entries(scores)
-    .reduce((best, [bankKey, score]) => {
-      return score.totalScore > best.score ? 
-        { bankKey, score: score.totalScore } : 
-        best;
-    }, { bankKey: 'Unknown', score: 0 });
-    
-  // Log for debugging
-//   console.log('Bank detection scores:', {
-//     bestMatch,
-//     allScores: scores
-//   });
-  
-  // Return result if confidence threshold met (lowered from 3 to 2)
-  return bestMatch.score >= 2 && normalizedText.length > 30 ? 
-    bestMatch.bankKey : 
-    'Unknown';
-}
 
 // Function to check and get current user's table name
 function checkCurrentUser(customerID) {
@@ -499,12 +542,9 @@ async function updateReceiptData(receiptData) {
                 'Recognized Text': receiptData.recognizedText
             }
         };
-
-        console.log(`Updating receipt data for ${tableName}:`, JSON.stringify(record, null, 2));
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
         await base(tableName).create([record]);
-        console.log('Receipt data updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating receipt data:', error);
@@ -530,12 +570,9 @@ async function updateAnalytics(customerID, analyticsData) {
                 'ErrorMessage': analyticsData.ErrorMessage || ''
             }
         };
-
-        console.log(`Updating analytics for ${tableName}:`, JSON.stringify(record, null, 2));
         
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
         await base(tableName).create([record]);
-        // console.log('Analytics updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating analytics:', error);
@@ -550,8 +587,6 @@ app.post('/vision-api', async (req, res) => {
     const customerID = req.body.customerID;
 
     try {
-        // console.log('Received request for Vision API');
-        
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
             headers: {
@@ -576,19 +611,15 @@ app.post('/vision-api', async (req, res) => {
         });
 
         const data = await response.json();
-
-        // console.log('herertjhajksfdhhjk', JSON.stringify(data))
         
         // Try to get processing time from Vision API response first
         let totalProcessingTime;
         if (data.responses[0]?.latencyInfo?.totalLatencyMillis) {
             totalProcessingTime = data.responses[0].latencyInfo.totalLatencyMillis / 1000;
-            // console.log('Using Vision API latency:', totalProcessingTime);
         } else {
             // Fallback to manual calculation
             const endTime = Date.now();
             totalProcessingTime = (endTime - startTime) / 1000;
-            // console.log('Using manual latency calculation:', totalProcessingTime);
         }
 
         const textResult = data.responses[0]?.fullTextAnnotation;
@@ -642,15 +673,6 @@ app.post('/api/logs', async (req, res) => {
     const { level, message, data, timestamp, customerID } = req.body;
     
     try {
-        // Log to console (will appear in Vercel logs)
-        console.log(JSON.stringify({
-            timestamp: timestamp || new Date().toISOString(),
-            level,
-            customerID,
-            message,
-            data
-        }));
-
         // Optionally store in Airtable
         const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
         await base('Logs').create([{
@@ -684,13 +706,6 @@ app.post('/record-cash', async (req, res) => {
             });
         }
 
-        // Log the request for debugging
-        console.log('Cash record request:', {
-            isCash,
-            amount,
-            timestamp: formatDate(new Date())
-        });
-
         // For now, just send back a success response
         res.status(200).json({
             success: true,
@@ -716,7 +731,6 @@ app.post('/confirm-receipt', async (req, res) => {
     
     try {
         // Log the confirmed details
-        console.log('Confirmed receipt details:', confirmedDetails);
         await updateReceiptData(confirmedDetails);
         // Send back the confirmed details
         res.json({
@@ -746,5 +760,20 @@ app.get('/api/dashboard-url', (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Export a serverless function handler for Vercel
+export default function handler(req, res) {
+    // Don't process favicon requests
+    if (req.url === '/favicon.ico') {
+        res.status(204).end();
+        return;
+    }
+
+    // Handle all other requests through the Express app
+    return app(req, res);
+}
+
+// If running locally, start the server
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}

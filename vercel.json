@@ -2,52 +2,43 @@
   "version": 2,
   "builds": [
     {
-      "src": "build/generateHash.js",
+      "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "buildCommand": "node build/generateHash.js"
+        "includeFiles": ["public/**"]
       }
-    },
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/logEvent.js",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/style\\.css",
+      "dest": "/public/style.css",
       "headers": { 
         "Content-Type": "text/css",
         "Cache-Control": "public, max-age=0, must-revalidate"
-      },
-      "dest": "/public/style.css"
+      }
     },
     {
       "src": "/index\\.js",
+      "dest": "/public/index.js",
       "headers": { 
         "Content-Type": "application/javascript",
         "Cache-Control": "public, max-age=0, must-revalidate"
-      },
-      "dest": "/public/index.js"
+      }
     },
     {
-      "src": "/api/logEvent",
-      "dest": "/api/logEvent.js"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "headers": {
-        "Cache-Control": "public, max-age=0, must-revalidate"
-      },
       "dest": "/server.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
