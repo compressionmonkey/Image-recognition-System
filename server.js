@@ -114,6 +114,7 @@ export function parseReceiptData(text, bankKey) {
             Time: bankData.time,
             ReferenceNo: bankData.reference,
             Amount: bankData.amount,
+            bank: bankKey
         };
     } catch (error) {
         console.error('Error in parseReceiptData:', error);
@@ -630,7 +631,7 @@ app.post('/vision-api', async (req, res) => {
         if (confidence > 0.7) {
             const bankKey = determineBankKey(recognizedText);
             const receiptData = parseReceiptData(recognizedText, bankKey);
-            
+            console.log('receiptData',receiptData);
             // Send only the essential data
             res.json({
                 amount: receiptData.Amount,
