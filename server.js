@@ -318,7 +318,7 @@ function convertDateFormat(dateStr) {
     }
 
     // Pattern 2: Nov 14 2024, Nov-14-2024, Nov/14/2024
-    match = lowerDate.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-/](\d{1,2})[\s-/](\d{4})/i);
+    match = lowerDate.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s-/](\d{1,2})\s*[,-/]?\s*(\d{4})/i);
     if (match) {
         const [_, month, day, year] = match;
         return `${year}-${monthMap[month.toLowerCase()]}-${day.padStart(2, '0')}`;
@@ -439,30 +439,40 @@ function parseBankSpecificData(text, bankKey) {
             }
             break;
 
-        case 'Eteeru':
-            // Transaction ID (combining split numbers)
-            const txnIdMatches = text.match(/\b\d+\b/g);
-            if (txnIdMatches && txnIdMatches.length >= 2) {
-                result.reference = txnIdMatches.join('');
-            }
-            break;
-
         case 'goBOB':
-            // PAN Number
-            const panMatch = text.match(/\b\d{16}\b/);
-            if (panMatch) {
-                result.reference = panMatch[0];
+            // Transaction ID - matches specific patterns for goBOB transaction numbers
+            const goBOBtransactionIDMatch = text.match(/(4[0-2]\d{14,20})\n(?:.*?(\d{4,6})\n)?/s);
+            if (goBOBtransactionIDMatch) {
+                const firstPart = goBOBtransactionIDMatch[1].replace(/\D/g, '');  // Remove all non-digits
+                const secondPart = (goBOBtransactionIDMatch[2] || '').replace(/\D/g, ''); // Remove all non-digits, handle null case
+                
+                // Only combine if total length is 21 digits and first part starts with 4
+                if ((firstPart.length + secondPart.length) === 21 && /^4/.test(firstPart)) {
+                    result.reference = firstPart + secondPart;
+                }
             }
-            // gobob will have no date. User will manually add
-            result.date = '';
-            result.time = '';
             break;
 
         case 'BOB':
-            // Journal Number
-            const jrnlMatch = text.match(/(?:Jrnl\.?\s*No\.?:?\s*)(\d+)/i);
-            if (jrnlMatch) {
-                result.reference = jrnlMatch[1];
+            // Journal Number - try multiple patterns
+            const bobPatterns = [
+                /(?:Jrnl\.?\s*No\.?:?\s*)(\d{6,7})/i,    // Matches "Jrnl. No: 447475" or "Jrnl. No: 4474755"
+                /(?:Jml\.?\s*No\.?:?\s*)(\d{6,7})/i,      // Matches "Jml. No 447475" or "Jml. No 4474755"
+                /(?:Jrnl\.?\s*No\n\s*:)(\d{6,7})/i,      // Matches "Jrnl. No\n:1226175"
+                /Nu\.\s*\d+\.?\d*\s*\n\s*(\d{6,7})\b/i,  // Matches "Nu. 665.00\n1275106"
+                /:\s*(\d{5,7})\b/i,                      // Modified to match 5-7 digits after colon
+                /(?:Jrnl\.?\s*No\s*)(\d{6,7})\s*\.\.\./i, // Matches "Jrnl. No 1600516 ..."
+                /\b(\d{6,7})\b(?=\s*(?:Amt|Amount))/i,    // Matches any 6-7 digits followed by Amt/Amount
+                /Transaction Successful\s*\n\s*(\d{6})\b/i // Matches "Transaction Successful\n283108"
+            ];
+
+            // Try each pattern until we find a match
+            for (const pattern of bobPatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    result.reference = match[1];
+                    break;
+                }
             }
             break;
         case 'DK':
@@ -470,6 +480,30 @@ function parseBankSpecificData(text, bankKey) {
             const transferMatch = text.match(/(?:Transfer\s*No\.?:?\s*)(\d+)/i);
             if (transferMatch) {
                 result.reference = transferMatch[1];
+            }
+            break;
+        case 'TBank':
+            // Transaction ID
+            const transactionIDMatch = text.match(/(?:Transaction\s*ID\.?:?\s*)(\d+)/i);
+            if (transactionIDMatch) {
+                result.reference = transactionIDMatch[1];
+            }
+            break;
+        case 'BDBL':
+            // Try multiple patterns for RR Number
+            const bdblPatterns = [
+                /(?:RR\s*Number\s*\n\s*)(\d{12})/i,    // Matches "RR Number\n433711555940"
+                /(?:RR\s*\.?:?\s*)(\d{12})/i,          // Matches original "RR: 433711555940"
+                /(?:Digital\s*Receipt\s*\n\s*)(\d{12})/i  // Matches "Digital Receipt\n433711555940"
+            ];
+
+            // Try each pattern until we find a match
+            for (const pattern of bdblPatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    result.reference = match[1];
+                    break;
+                }
             }
             break;
     }
@@ -480,11 +514,23 @@ function parseBankSpecificData(text, bankKey) {
 // Define the bank keys with primary and fuzzy matches
 const BANK_KEYS = {
   BNB: {
-    primary: ['RRN', 'TRANSACTION SUCCESSFUL', 'Amount'],
+    primary: ['RRN', 'TRANSACTION SUCCESSFUL', 'Amount', 'Reference No'],
     fuzzy: {
       'reference': ['RRN', 'reference no', 'ref no', 'ref.no'],
       'amount': ['amt', 'amount', 'total amount'],
-      'success': ['transaction successful', 'transaction success', 'successful transaction']
+      'success': ['transaction successful', 'transaction success', 'successful transaction'],
+      'remarks': ['remarks', 'Remarks'],
+      'Time': ['Time', 'time']
+    }
+  },
+  BOB: {
+    primary: ['MOBILE BANKING', 'mobile banking', 'mBOB', 'TRANSACTION SUCCESSFUL', 'Purpose/Bill QR', 'Amt', 'Amount', 'Jrnl. No'],
+    fuzzy: {
+      'mobile': ['mobile banking', 'm-banking', 'mbob'],
+      'purpose': ['purpose', 'bill qr', 'qr payment'],
+      'amount': ['amt', 'amount'],
+      'journal': ['jrnl. no', 'journal no', 'jrnl no'],
+      'Success': ['transaction successful']
     }
   },
   PNB: {
@@ -495,29 +541,12 @@ const BANK_KEYS = {
       'transaction': ['txn type', 'transaction type']
     }
   },
-  Eteeru: {
-    primary: ['Processed By', 'Merchant Name', 'Amount', 'Purpose', 'Transaction ID'],
-    fuzzy: {
-      'amount': ['amt', 'total amount'],
-      'purpose': ['reason', 'description'],
-      'transaction': ['txn id', 'transaction id', 'tid']
-    }
-  },
-  BOB: {
-    primary: ['MOBILE BANKING', 'mobile banking', 'mBOB', 'bob', 'successful', 'Successful', 'Purpose/Bill QR', 'Amt', 'Amount', 'Jrnl. No'],
-    fuzzy: {
-      'mobile': ['mobile banking', 'm-banking', 'mbob'],
-      'purpose': ['purpose', 'bill qr', 'qr payment'],
-      'amount': ['amt', 'amount', 'total'],
-      'journal': ['jrnl. no', 'journal no', 'jrnl no']
-    }
-  },
   goBOB: {
-    primary: ['Wallet Number', 'Amount', 'Merchant Bank', 'PAN Number', 'Purpose'],
+    primary: ['Wallet Number', 'Amount', 'Merchant Bank', 'Processed By', 'Purpose'],
     fuzzy: {
-      'wallet': ['wallet number', 'wallet no'],
-      'amount': ['amt', 'total amount'],
-      'pan': ['pan number', 'pan no']
+      'Date & Time': ['Date & Time', 'date & time'],
+      'amount': ['amt', 'amount'],
+      'Transaction ID': ['Transaction ID']
     }
   },
   DK: {
@@ -528,6 +557,22 @@ const BANK_KEYS = {
       'purpose': ['purpose', 'remarks', 'reason', 'description'],
       'bank': ['beneficiary bank', 'merchant bank', 'bank details'],
       'name': ['beneficiary name', 'recipient name']
+    }
+  },
+  TBank: {
+    primary: ['Amount', 'Your fund transfer is successful', 'Transaction ID', 'Do Another Transaction'],
+    fuzzy: {
+      'amount': ['amt', 'Amount'],
+      'transaction': ['transaction id', 'Transaction ID'],
+      'question': ['Do Another Transaction']
+    }
+  },
+  BDBL: {
+    primary: ['Transfer Amount', 'RR Number', 'Transfer Purpose'],
+    fuzzy: {
+      'amount': ['transfer amount', 'Transfer Amount'],
+      'transaction': ['digitial receipt no', 'Digitial Receipt No', 'RR Number', 'rr number'],
+      'Success': ['Payment Successful']
     }
   }
 };
