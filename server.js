@@ -482,13 +482,25 @@ function parseBankSpecificData(text, bankKey) {
                 result.reference = transferMatch[1];
             }
             break;
-        case 'TBank':
-            // Transaction ID
-            const transactionIDMatch = text.match(/(?:Transaction\s*ID\.?:?\s*)(\d+)/i);
-            if (transactionIDMatch) {
-                result.reference = transactionIDMatch[1];
+        case 'TBank': {
+            // Transaction ID - try multiple patterns
+            const tbankPatterns = [
+                /(?:Transaction\s*ID\.?:?\s*)(\d+)/i,    // Original pattern
+                /\b(4\d{11})\b/,                         // Matches 12-digit number starting with 4
+                /(?:Nu\.?\s*\d+\.?\d*\s*\n\s*)(4\d{11})\b/i,  // Matches amount followed by reference
+                /(?:Account\s*\n\s*)(4\d{11})\b/i,      // Matches "Account" followed by reference
+            ];
+
+            // Try each pattern until we find a match
+            for (const pattern of tbankPatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    result.reference = match[1];
+                    break;
+                }
             }
             break;
+        }
         case 'BDBL':
             // Try multiple patterns for RR Number
             const bdblPatterns = [
