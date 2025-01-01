@@ -34,7 +34,8 @@
       "dest": "/public/dist/index.min.js",
       "headers": { 
         "Content-Type": "application/javascript",
-        "Cache-Control": "public, max-age=0, must-revalidate"
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "X-Content-Type-Options": "nosniff"
       }
     },
     {
