@@ -689,7 +689,11 @@ app.post('/vision-api', async (req, res) => {
 
         if (confidence > 0.7) {
             const bankKey = determineBankKey(recognizedText);
-            console.log('recognizedText',recognizedText);
+            console.log('recognizedText (raw):', recognizedText);
+            console.log('recognizedText (formatted):', JSON.stringify(recognizedText, null, 2)
+                .replace(/\\n/g, '\n')
+                .replace(/^"|"$/g, '')
+            );
             const receiptData = parseReceiptData(recognizedText, bankKey);
             console.log('receiptData',receiptData);
             // Send only the essential data
