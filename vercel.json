@@ -2,6 +2,13 @@
   "version": 2,
   "builds": [
     {
+      "src": "build/obfuscate.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["public/**"]
+      }
+    },
+    {
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
@@ -24,7 +31,7 @@
     },
     {
       "src": "/index\\.js",
-      "dest": "/public/index.js",
+      "dest": "/public/dist/index.min.js",
       "headers": { 
         "Content-Type": "application/javascript",
         "Cache-Control": "public, max-age=0, must-revalidate"

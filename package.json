@@ -24,12 +24,14 @@
     "ua-parser-js": "^1.0.39"
   },
   "scripts": {
-    "dev": "NODE_ENV=development node server.js",
-    "build": "node build/generateHash.js",
-    "start": "NODE_ENV=production node server.js",
+    "dev": "cross-env NODE_ENV=development node server.js",
+    "build": "node build/obfuscate.js && node build/generateHash.js",
+    "start": "node server.js",
     "vercel-build": "npm run build"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7"
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.7",
+    "javascript-obfuscator": "^4.1.0"
   }
 }
