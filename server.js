@@ -504,9 +504,11 @@ function parseBankSpecificData(text, bankKey) {
         case 'BDBL':
             // Try multiple patterns for RR Number
             const bdblPatterns = [
-                /(?:RR\s*Number\s*\n\s*)(\d{12})/i,    // Matches "RR Number\n433711555940"
-                /(?:RR\s*\.?:?\s*)(\d{12})/i,          // Matches original "RR: 433711555940"
-                /(?:Digital\s*Receipt\s*\n\s*)(\d{12})/i  // Matches "Digital Receipt\n433711555940"
+                /(?:RR\s*Number\s*\n?\s*:?\s*)(\d{12})/i,    // Matches "RR Number: 435913595114"
+                /(?:RR\s*\.?:?\s*)(\d{12})/i,                // Matches "RR: 435913595114"
+                /(?:Digital\s*Receipt\s*(?:No)?\.?\s*:?\s*)(\d{12})/i,  // Matches "Digital Receipt No: 435913595114"
+                /(?:RR\s*Number\s*:?\s*)(\d{12})/i,          // Matches "RR Number: 435913595114" without newline
+                /(?:Digital\s*Receipt\s*:?\s*)(\d{12})/i      // Matches "Digital Receipt: 435913595114"
             ];
 
             // Try each pattern until we find a match
