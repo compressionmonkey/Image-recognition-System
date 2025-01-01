@@ -16,7 +16,12 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Serve static files from the current directory
+// Modify your static file serving
+app.use('/index.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dist', 'index.min.js'));
+});
+
+// Keep your other static file serving
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static('public'));
 

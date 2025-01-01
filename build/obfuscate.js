@@ -4,13 +4,15 @@ import path from 'path';
 
 async function obfuscateClientCode() {
     try {
-        console.log('Starting JavaScript obfuscation...');
+        console.log('🚀 Starting JavaScript obfuscation...');
         
-        // Read the original client JS file
-        const sourceCode = await fs.readFile('public/index.js', 'utf8');
-        console.log('Source code loaded successfully');
-
-        // Enhanced obfuscation options for API security
+        const sourceFilePath = 'public/index.js';
+        const outputFilePath = 'public/dist/index.min.js';
+        
+        console.log(`📖 Reading source file: ${sourceFilePath}`);
+        const sourceCode = await fs.readFile(sourceFilePath, 'utf8');
+        
+        // Enhanced obfuscation options
         const obfuscationResult = JavaScriptObfuscator.obfuscate(sourceCode, {
             compact: true,
             controlFlowFlattening: true,
@@ -19,9 +21,9 @@ async function obfuscateClientCode() {
             deadCodeInjectionThreshold: 0.5,
             debugProtection: true,
             debugProtectionInterval: 3000,
-            disableConsoleOutput: true,
+            disableConsoleOutput: false, // Set to false for debugging
             identifierNamesGenerator: 'hexadecimal',
-            log: false,
+            log: true, // Enable logging
             numbersToExpressions: true,
             renameGlobals: false,
             rotateStringArray: true,
@@ -37,25 +39,39 @@ async function obfuscateClientCode() {
             unicodeEscapeSequence: false
         });
 
-        // Create dist directory if it doesn't exist
+        // Ensure dist directory exists
         await fs.mkdir('public/dist', { recursive: true });
 
         // Write the obfuscated code
-        await fs.writeFile('public/dist/index.min.js', obfuscationResult.getObfuscatedCode());
+        const obfuscatedCode = obfuscationResult.getObfuscatedCode();
+        await fs.writeFile(outputFilePath, obfuscatedCode);
         
-        console.log('✅ JavaScript obfuscation completed successfully!');
+        // Log file sizes for verification
+        const originalSize = sourceCode.length;
+        const obfuscatedSize = obfuscatedCode.length;
         
-        // Optional: Write source map for development
+        console.log('✅ Obfuscation completed successfully!');
+        console.log(`📊 Original size: ${originalSize} bytes`);
+        console.log(`📊 Obfuscated size: ${obfuscatedSize} bytes`);
+        console.log(`📊 Compression ratio: ${((obfuscatedSize/originalSize)*100).toFixed(1)}%`);
+        
+        // Write source map in development
         if (process.env.NODE_ENV === 'development') {
             await fs.writeFile(
-                'public/dist/index.min.js.map', 
+                `${outputFilePath}.map`,
                 obfuscationResult.getSourceMap()
             );
+            console.log('📍 Source map generated for development');
         }
     } catch (error) {
         console.error('❌ Error during obfuscation:', error);
+        console.error('Stack:', error.stack);
         process.exit(1);
     }
 }
 
-obfuscateClientCode(); 
+// Execute
+obfuscateClientCode().catch(error => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+}); 
