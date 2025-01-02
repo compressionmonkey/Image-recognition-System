@@ -31,7 +31,7 @@
     },
     {
       "src": "/index\\.js",
-      "dest": "/public/dist/index.min.js",
+      "dest": process.env.NODE_ENV === "development" ? "/public/index.js" : "/public/dist/index.min.js",
       "headers": { 
         "Content-Type": "application/javascript",
         "Cache-Control": "no-cache, no-store, must-revalidate",

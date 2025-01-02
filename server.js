@@ -18,7 +18,13 @@ app.use(express.json({ limit: '50mb' }));
 
 // Modify your static file serving
 app.use('/index.js', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dist', 'index.min.js'));
+    if (process.env.NODE_ENV === 'development') {
+        // In development, serve the original file
+        res.sendFile(path.join(__dirname, 'public', 'index.js'));
+    } else {
+        // In production, serve the obfuscated file
+        res.sendFile(path.join(__dirname, 'public', 'dist', 'index.min.js'));
+    }
 });
 
 // Keep your other static file serving
