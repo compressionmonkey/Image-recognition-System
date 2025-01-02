@@ -4,6 +4,24 @@ import path from 'path';
 
 async function obfuscateClientCode() {
     try {
+        // Skip obfuscation in development mode
+        if (process.env.NODE_ENV === 'development') {
+            console.log('🔧 Development mode: Skipping obfuscation...');
+            
+            // Copy original file to dist directory
+            const sourceFilePath = 'public/index.js';
+            const outputFilePath = 'public/dist/index.min.js';
+            
+            // Ensure dist directory exists
+            await fs.mkdir('public/dist', { recursive: true });
+            
+            // Copy file without obfuscation
+            await fs.copyFile(sourceFilePath, outputFilePath);
+            
+            console.log('✅ Development build completed');
+            return;
+        }
+
         console.log('🚀 Starting JavaScript obfuscation...');
         
         const sourceFilePath = 'public/index.js';
