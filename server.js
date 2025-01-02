@@ -435,10 +435,16 @@ function parseBankSpecificData(text, bankKey) {
     // Handle bank-specific logic
     switch (bankKey) {
         case 'BNB':
-            // Reference number (RRN)
+            // First try the original RRN pattern
             const rrnMatch = text.match(/\b43\d{10}\b/);
             if (rrnMatch) {
                 result.reference = rrnMatch[0];
+            } else {
+                // Try the new Reference No pattern
+                const refNoMatch = text.match(/Reference No:\s*(\w+)/);
+                if (refNoMatch) {
+                    result.reference = refNoMatch[1];  // This will extract '000MFTB243630120'
+                }
             }
             break;
 
