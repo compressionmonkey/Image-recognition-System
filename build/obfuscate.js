@@ -12,31 +12,38 @@ async function obfuscateClientCode() {
         console.log(`📖 Reading source file: ${sourceFilePath}`);
         const sourceCode = await fs.readFile(sourceFilePath, 'utf8');
         
-        // Enhanced obfuscation options
         const obfuscationResult = JavaScriptObfuscator.obfuscate(sourceCode, {
             compact: true,
             controlFlowFlattening: true,
-            controlFlowFlatteningThreshold: 0.8,
+            controlFlowFlatteningThreshold: 0.7,
             deadCodeInjection: true,
-            deadCodeInjectionThreshold: 0.5,
-            debugProtection: true,
-            debugProtectionInterval: 3000,
-            disableConsoleOutput: false, // Set to false for debugging
+            deadCodeInjectionThreshold: 0.4,
+            debugProtection: false,
+            debugProtectionInterval: 0,
+            disableConsoleOutput: false,
             identifierNamesGenerator: 'hexadecimal',
-            log: true, // Enable logging
+            log: true,
             numbersToExpressions: true,
             renameGlobals: false,
             rotateStringArray: true,
-            selfDefending: true,
+            selfDefending: false,
             shuffleStringArray: true,
             simplify: true,
             splitStrings: true,
             splitStringsChunkLength: 5,
             stringArray: true,
-            stringArrayEncoding: ['rc4'],
-            stringArrayThreshold: 0.8,
+            stringArrayEncoding: ['base64'],
+            stringArrayThreshold: 0.75,
             transformObjectKeys: true,
-            unicodeEscapeSequence: false
+            unicodeEscapeSequence: false,
+            reservedNames: [
+                'console',
+                'log',
+                'error',
+                'warn',
+                'info',
+                'debug'
+            ]
         });
 
         // Ensure dist directory exists
