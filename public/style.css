@@ -774,26 +774,96 @@ header {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    padding: 10px;
-    z-index: 2;
     width: 100%;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .detection-stats {
-    background: transparent;
-    padding: 12px;
-    border-radius: 8px;
-    margin: 0 auto;
-    width: fit-content;
-    text-align: center;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 20px 40px;
+    border-radius: 100px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.3s ease-out;
 }
 
 .detection-stats p {
-    margin: 5px 0;
+    margin: 0;
     color: white;
-    font-size: 120px;
-    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
-    opacity: 1;
+    font-size: 32px;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    letter-spacing: 0.5px;
+}
+
+/* Color-specific styles */
+.detection-stats p[style*="color: #FFA500"] {
+    color: #FFB74D !important; /* Warmer orange */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detection-stats p[style*="color: #FFA500"]::before {
+    content: "⚠️";
+    font-size: 24px;
+}
+
+.detection-stats p[style*="color: #4CAF50"] {
+    color: #81C784 !important; /* Softer green */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detection-stats p[style*="color: #4CAF50"]::before {
+    content: "👍";
+    font-size: 24px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .detection-stats {
+        padding: 15px 30px;
+    }
+
+    .detection-stats p {
+        font-size: 24px;
+    }
+
+    .detection-stats p[style*="color: #FFA500"]::before,
+    .detection-stats p[style*="color: #4CAF50"]::before {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .detection-stats {
+        padding: 12px 24px;
+    }
+
+    .detection-stats p {
+        font-size: 20px;
+    }
+
+    .detection-stats p[style*="color: #FFA500"]::before,
+    .detection-stats p[style*="color: #4CAF50"]::before {
+        font-size: 18px;
+    }
 }
 
 #areaRatioDisplay {
