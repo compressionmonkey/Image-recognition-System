@@ -198,22 +198,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update the saveImageToDevice function
-    async function saveImageToDevice(imageData, filename = 'receipt.jpg') {
+    async function saveImageToDevice(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
         try {
             // Create and show preview modal
             const previewModal = document.createElement('div');
             previewModal.className = 'image-preview-modal';
             previewModal.innerHTML = `
                 <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>Receipt Preview</h3>
+                    </div>
                     <div class="image-container">
-                        <img src="data:image/jpeg;base64,${imageData}" alt="Receipt Preview" loading="lazy" decoding="async">
+                        <img src="data:image/jpeg;base64,${imageData}" 
+                             alt="Receipt Preview" 
+                             loading="lazy" 
+                             decoding="async">
+                        <div class="zoom-hint">
+                            <span class="icon">🔍</span>
+                            Pinch or scroll to zoom
+                        </div>
                     </div>
                     <div class="preview-controls">
-                        <button class="preview-button save-btn">
-                            <span class="icon">💾</span> Save Image
+                        <button class="preview-button retake-btn">
+                            <span class="icon">📸</span> Retake
                         </button>
                         <button class="preview-button close-btn">
-                            <span class="icon">✖️</span> Close
+                            <span class="icon">➡️</span> Proceed
                         </button>
                     </div>
                 </div>
@@ -226,6 +236,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Force reflow then add show class for animation
             previewModal.offsetHeight;
             previewModal.classList.add('show');
+
+            // Auto-download if flag is true
+            if (shouldAutoDownload) {
+                const link = document.createElement('a');
+                link.href = `data:image/jpeg;base64,${imageData}`;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
 
             // Setup touch handling for mobile
             let touchStartY = 0;
@@ -278,18 +298,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // Handle button clicks
-            const saveBtn = previewModal.querySelector('.save-btn');
             const closeBtn = previewModal.querySelector('.close-btn');
-
-            if (saveBtn) {
-                saveBtn.onclick = async () => {
-                    await handleSave(imageData, filename);
-                };
-            }
 
             closeBtn.onclick = closePreviewModal;
 
             function closePreviewModal() {
+                imageSaved = false;  // Reset flag on close
                 previewModal.classList.remove('show');
                 setTimeout(() => previewModal.remove(), 300);
             }
@@ -331,6 +345,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             img.onload = () => {
                 loadingIndicator.remove();
+            };
+
+            const retakeBtn = previewModal.querySelector('.retake-btn');
+            retakeBtn.onclick = () => {
+                closePreviewModal();
+                closeConfirmationModal();
+                const photoOptionsModal = document.getElementById('photoOptionsModal');
+                if (photoOptionsModal) {
+                    photoOptionsModal.style.display = 'flex';
+                }
             };
         } catch (error) {
             console.error('Error:', error);
@@ -434,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
-                    saveImageToDevice(file.imageData, file.filename);
+                    saveImageToDevice(file.imageData, file.filename, false);
                     modal.remove();
                 };
             });
@@ -524,6 +548,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Store the image data globally
             currentImageData = imageData;
+            imageSaved = true;  // Set flag when image is stored
 
             // First, close any existing modals
             const photoOptionsModal = document.getElementById('photoOptionsModal');
@@ -573,6 +598,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showConfirmationModal(data);
 
         } catch (error) {
+            imageSaved = false;  // Reset flag on error
             logEvent(`Error ${JSON.stringify(error)}`);
             console.error('Error:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your image. Please try again.');
@@ -601,7 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
             viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
             viewImageBtn.onclick = (e) => {
                 e.preventDefault();
-                saveImageToDevice(currentImageData, 'receipt.jpg');
+                saveImageToDevice(currentImageData, 'receipt.jpg', false);
             };
             form.insertBefore(viewImageBtn, form.firstChild);
         }
@@ -657,6 +683,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                imageSaved = false;  // Reset flag on successful submission
                 showToast('Receipt confirmed successfully', 'success');
                 closeConfirmationModal();
                 showConfetti();
@@ -799,7 +826,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         reader.onload = async function(event) {
                             const base64Image = event.target.result.split(',')[1];
                             currentImageData = base64Image; // Store the image data
-                            await saveImageToDevice(base64Image, file.name);
+                            await saveImageToDevice(base64Image, file.name, true);
                             await processImage(file);
                         };
                         reader.readAsDataURL(file);
@@ -1085,7 +1112,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
-                        await saveImageToDevice(base64Image, filename);
+                        await saveImageToDevice(base64Image, filename, true);
                         
                         // Continue with normal flow
                         closeCameraModal();
