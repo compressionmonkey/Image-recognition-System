@@ -922,11 +922,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update UI with all metrics
                 guidanceText.innerHTML = `
                     <div class="detection-stats">
-                        <p>Status: <span style="color: ${isGoodRatio && !qualityMetrics.isBlurred ? '#4CAF50' : '#FFA500'}">Active</span></p>
-                        <p>Area Ratio: <span class="ratio-value">${areaRatio.toFixed(3)}</span></p>
-                        <p>Device: ${isMobileOrTablet ? 'Mobile/Tablet' : 'Desktop'}</p>
-                        <p>Movement: <span style="color: ${qualityMetrics.isStable ? '#4CAF50' : '#FFA500'}">${qualityMetrics.movement.toFixed(1)}</span></p>
-                        <p>Sharpness: <span style="color: ${qualityMetrics.isSharp ? '#4CAF50' : '#FFA500'}">${qualityMetrics.sharpness.toFixed(1)}</span></p>
                         ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
                     </div>
                 `;
@@ -1049,7 +1044,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="camera-guidance">
                     <div class="detection-stats">
                         <p id="guidanceText"></p>
-                        <p id="areaRatioDisplay"></p>
                     </div>
                 </div>
                 <div class="camera-controls">
