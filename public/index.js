@@ -217,9 +217,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <span class="icon">↩️</span> Return to Form
                             </button>
                         ` : ''}
-                        <button class="preview-button close-btn">
-                            <span class="icon">✖️</span> Close
-                        </button>
                     </div>
                 </div>
             `;
