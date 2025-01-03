@@ -1258,5 +1258,5 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
     window.showEmptyConfirmationModal = showEmptyConfirmationModal;
-
+    window.showRecentFiles = showRecentFiles;
 });

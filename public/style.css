@@ -1284,3 +1284,88 @@ header {
     height: 16px;
 }
 
+#userNav {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1000;
+    width: calc(100% - 40px);
+}
+
+.nav-left, .nav-right {
+    display: flex;
+    gap: 12px;
+}
+
+.nav-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 100px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.nav-button.primary {
+    background: #2196F3;
+    color: white;
+}
+
+.nav-button.primary:hover {
+    background: #1976D2;
+}
+
+.nav-button.secondary {
+    background: white;
+    color: #333;
+    border: 1px solid #e0e0e0;
+}
+
+.nav-button.secondary:hover {
+    background: #f8f9fa;
+}
+
+.nav-button .icon {
+    font-size: 16px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    #userNav {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        width: calc(100% - 24px);
+    }
+
+    .nav-button {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    .nav-button .icon {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .nav-button {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+}
+
