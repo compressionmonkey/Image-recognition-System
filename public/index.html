@@ -55,15 +55,27 @@
     </div>
 
     <div id="mainContent" style="display: none;">
-        <div id="userNav" style="position: absolute; top: 20px; right: 20px;">
-            <button id="dashboardButton" class="cta-button" onclick="routeUser()">View Dashboard</button>
+        <div id="userNav">
+            <div class="nav-left">
+                <button id="fileHistoryBtn" class="nav-button primary" onclick="showRecentFiles()">
+                    <span class="icon">📁</span> File History
+                </button>
+            </div>
+            <div class="nav-right">
+                <button id="dashboardButton" class="nav-button secondary" onclick="routeUser()">
+                    <span class="icon">📊</span> View Dashboard
+                </button>
+            </div>
         </div>
         <div class="action-buttons">
-            <button id="addPhotoBtn" class="primary-button">
+            <button id="addPhotoBtn" class="action-button photo-button">
                 <span class="icon">📸</span> Add ReceiptPhoto
             </button>
-            <button id="addManualBtn" class="secondary-button">
-                <span class="icon">✍</span> Add Cash Receipt Manually
+            <button id="addCashBtn" class="action-button cash-button">
+                <span class="icon">💰</span> Add Cash Receipt
+            </button>
+            <button id="addManualBtn" class="action-button manual-button">
+                <span class="icon">✍️</span> Enter Receipt Manually
             </button>
         </div>
     </div>

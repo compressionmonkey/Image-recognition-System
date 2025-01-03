@@ -66,9 +66,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add event listener for the Add Photo button
     document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
-
+    
+    document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
      // Add manual entry button handler
-     document.getElementById('addManualBtn').addEventListener('click', showManualEntryModal);
+     document.getElementById('addManualBtn').addEventListener('click', showEmptyConfirmationModal);
 
     // Load COCO-SSD model when page loads
     cocoSsd.load().then(function(loadedModel) {
@@ -87,7 +88,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showManualEntryModal() {
-        document.getElementById('manualEntryModal').style.display = 'flex';
+        // Clear any existing values
+        document.getElementById('confirmAmount').value = '';
+        document.getElementById('confirmReference').value = '';
+        
+        // Set default date to today and validate
+        const today = new Date();
+        const dateValue = today.toISOString().split('T')[0];
+        const dateInput = document.getElementById('confirmDate');
+        dateInput.value = dateValue;
+        
+        // Remove any existing listener before adding a new one
+        dateInput.removeEventListener('change', validateDate);
+        dateInput.addEventListener('change', () => validateDate(dateInput.value));
+        validateDate(dateInput.value);
+        
+        // Show the modal
+        const modal = document.getElementById('manualEntryModal');
+        modal.style.display = 'flex';  // Make sure we're targeting the correct modal
     }
 
     function validateLogin() {
@@ -180,33 +198,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update the saveImageToDevice function
-    async function saveImageToDevice(imageData, filename = 'receipt.jpg') {
+    async function saveImageToDevice(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
         try {
             // Create and show preview modal
             const previewModal = document.createElement('div');
             previewModal.className = 'image-preview-modal';
             previewModal.innerHTML = `
                 <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>Receipt Preview</h3>
+                    </div>
                     <div class="image-container">
-                        <img src="data:image/jpeg;base64,${imageData}" alt="Receipt Preview" loading="lazy" decoding="async">
+                        <img src="data:image/jpeg;base64,${imageData}" 
+                             alt="Receipt Preview" 
+                             loading="lazy" 
+                             decoding="async">
+                        <div class="zoom-hint">
+                            <span class="icon">🔍</span>
+                            Pinch or scroll to zoom
+                        </div>
                     </div>
                     <div class="preview-controls">
-                        <button class="preview-button save-btn">
-                            <span class="icon">💾</span> Save Image
+                        <button class="preview-button retake-btn">
+                            <span class="icon">📸</span> Retake
                         </button>
-                        <button class="preview-button share-btn">
-                            <span class="icon">📤</span> Share
-                        </button>
-                        <button class="preview-button recent-btn">
-                            <span class="icon">🕒</span> Recent
-                        </button>
-                        ${document.getElementById('confirmationModal').style.display === 'flex' ? `
-                            <button class="preview-button return-btn">
-                                <span class="icon">↩️</span> Return to Form
-                            </button>
-                        ` : ''}
                         <button class="preview-button close-btn">
-                            <span class="icon">✖️</span> Close
+                            <span class="icon">➡️</span> Proceed
                         </button>
                     </div>
                 </div>
@@ -219,6 +236,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Force reflow then add show class for animation
             previewModal.offsetHeight;
             previewModal.classList.add('show');
+
+            // Auto-download if flag is true
+            if (shouldAutoDownload) {
+                const link = document.createElement('a');
+                link.href = `data:image/jpeg;base64,${imageData}`;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
 
             // Setup touch handling for mobile
             let touchStartY = 0;
@@ -271,33 +298,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // Handle button clicks
-            const saveBtn = previewModal.querySelector('.save-btn');
-            const shareBtn = previewModal.querySelector('.share-btn');
-            const recentBtn = previewModal.querySelector('.recent-btn');
             const closeBtn = previewModal.querySelector('.close-btn');
-            const returnBtn = previewModal.querySelector('.return-btn');
-
-            saveBtn.onclick = async () => {
-                await handleSave(imageData, filename);
-            };
-
-            shareBtn.onclick = async () => {
-                await handleShare(imageData, filename);
-            };
-
-            recentBtn.onclick = () => {
-                showRecentFiles();
-            };
-
-            if (returnBtn) {
-                returnBtn.onclick = () => {
-                    closePreviewModal();
-                };
-            }
 
             closeBtn.onclick = closePreviewModal;
 
             function closePreviewModal() {
+                imageSaved = false;  // Reset flag on close
                 previewModal.classList.remove('show');
                 setTimeout(() => previewModal.remove(), 300);
             }
@@ -339,6 +345,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             img.onload = () => {
                 loadingIndicator.remove();
+            };
+
+            const retakeBtn = previewModal.querySelector('.retake-btn');
+            retakeBtn.onclick = () => {
+                closePreviewModal();
+                closeConfirmationModal();
+                const photoOptionsModal = document.getElementById('photoOptionsModal');
+                if (photoOptionsModal) {
+                    photoOptionsModal.style.display = 'flex';
+                }
             };
         } catch (error) {
             console.error('Error:', error);
@@ -383,25 +399,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             showToast('Failed to save image', 'error');
-        }
-    }
-
-    async function handleShare(imageData, filename) {
-        if (navigator.share) {
-            try {
-                const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
-                const blob = await base64Response.blob();
-                const file = new File([blob], filename, { type: 'image/jpeg' });
-                await navigator.share({
-                    files: [file],
-                    title: 'Receipt Image',
-                });
-                showToast('Image shared successfully', 'success');
-            } catch (err) {
-                showToast('Failed to share image', 'error');
-            }
-        } else {
-            showToast('Sharing not supported on this device', 'error');
         }
     }
 
@@ -461,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
-                    saveImageToDevice(file.imageData, file.filename);
+                    saveImageToDevice(file.imageData, file.filename, false);
                     modal.remove();
                 };
             });
@@ -551,6 +548,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Store the image data globally
             currentImageData = imageData;
+            imageSaved = true;  // Set flag when image is stored
 
             // First, close any existing modals
             const photoOptionsModal = document.getElementById('photoOptionsModal');
@@ -600,6 +598,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showConfirmationModal(data);
 
         } catch (error) {
+            imageSaved = false;  // Reset flag on error
             logEvent(`Error ${JSON.stringify(error)}`);
             console.error('Error:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your image. Please try again.');
@@ -628,7 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
             viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
             viewImageBtn.onclick = (e) => {
                 e.preventDefault();
-                saveImageToDevice(currentImageData, 'receipt.jpg');
+                saveImageToDevice(currentImageData, 'receipt.jpg', false);
             };
             form.insertBefore(viewImageBtn, form.firstChild);
         }
@@ -684,6 +683,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                imageSaved = false;  // Reset flag on successful submission
                 showToast('Receipt confirmed successfully', 'success');
                 closeConfirmationModal();
                 showConfetti();
@@ -822,12 +822,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (file) {
                     closePhotoOptions();
                     if (isLoggedIn) {
-                        // Read file and store it
                         const reader = new FileReader();
                         reader.onload = async function(event) {
                             const base64Image = event.target.result.split(',')[1];
                             currentImageData = base64Image; // Store the image data
-                            await saveImageToDevice(base64Image, file.name);
+                            await saveImageToDevice(base64Image, file.name, true);
                             await processImage(file);
                         };
                         reader.readAsDataURL(file);
@@ -956,11 +955,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update UI with all metrics
                 guidanceText.innerHTML = `
                     <div class="detection-stats">
-                        <p>Status: <span style="color: ${isGoodRatio && !qualityMetrics.isBlurred ? '#4CAF50' : '#FFA500'}">Active</span></p>
-                        <p>Area Ratio: <span class="ratio-value">${areaRatio.toFixed(3)}</span></p>
-                        <p>Device: ${isMobileOrTablet ? 'Mobile/Tablet' : 'Desktop'}</p>
-                        <p>Movement: <span style="color: ${qualityMetrics.isStable ? '#4CAF50' : '#FFA500'}">${qualityMetrics.movement.toFixed(1)}</span></p>
-                        <p>Sharpness: <span style="color: ${qualityMetrics.isSharp ? '#4CAF50' : '#FFA500'}">${qualityMetrics.sharpness.toFixed(1)}</span></p>
                         ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
                     </div>
                 `;
@@ -1083,14 +1077,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="camera-guidance">
                     <div class="detection-stats">
                         <p id="guidanceText"></p>
-                        <p id="areaRatioDisplay"></p>
                     </div>
                 </div>
                 <div class="camera-controls">
-                    <button class="camera-button manual" onclick="showEmptyConfirmationModal()">
-                        Manual Entry
-                    </button>
-                    <button onclick="closeCameraModal()" class="camera-button retry">
+                    <button onclick="closeCameraModal()" class="camera-button retry" style="width: 100%;">
                         Close
                     </button>
                 </div>
@@ -1122,7 +1112,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
-                        await saveImageToDevice(base64Image, filename);
+                        await saveImageToDevice(base64Image, filename, true);
                         
                         // Continue with normal flow
                         closeCameraModal();
@@ -1174,9 +1164,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show the modal
         modal.style.display = 'flex';
-        
-        // Close the camera modal
-        closeCameraModal();
     }
 
     function isToday(dateString) {
@@ -1298,5 +1285,5 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
     window.showEmptyConfirmationModal = showEmptyConfirmationModal;
-
+    window.showRecentFiles = showRecentFiles;
 });
