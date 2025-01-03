@@ -66,9 +66,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add event listener for the Add Photo button
     document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
-
+    
+    document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
      // Add manual entry button handler
-     document.getElementById('addManualBtn').addEventListener('click', showManualEntryModal);
+     document.getElementById('addManualBtn').addEventListener('click', showEmptyConfirmationModal);
 
     // Load COCO-SSD model when page loads
     cocoSsd.load().then(function(loadedModel) {
@@ -87,7 +88,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showManualEntryModal() {
-        document.getElementById('manualEntryModal').style.display = 'flex';
+        // Clear any existing values
+        document.getElementById('confirmAmount').value = '';
+        document.getElementById('confirmReference').value = '';
+        
+        // Set default date to today and validate
+        const today = new Date();
+        const dateValue = today.toISOString().split('T')[0];
+        const dateInput = document.getElementById('confirmDate');
+        dateInput.value = dateValue;
+        
+        // Remove any existing listener before adding a new one
+        dateInput.removeEventListener('change', validateDate);
+        dateInput.addEventListener('change', () => validateDate(dateInput.value));
+        validateDate(dateInput.value);
+        
+        // Show the modal
+        const modal = document.getElementById('manualEntryModal');
+        modal.style.display = 'flex';  // Make sure we're targeting the correct modal
     }
 
     function validateLogin() {
@@ -1134,9 +1152,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show the modal
         modal.style.display = 'flex';
-        
-        // Close the camera modal
-        closeCameraModal();
     }
 
     function isToday(dateString) {

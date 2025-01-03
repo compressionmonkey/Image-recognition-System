@@ -214,34 +214,66 @@ header {
     flex-direction: column;
     gap: 10px;
     width: 90%;
-    max-width: 400px;
-    padding: 20px;
-    background: white;
-    border-radius: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 360px;
+    padding: 16px;
 }
 
-.primary-button, .secondary-button {
-    padding: 12px;
-    border-radius: 8px;
-    border: none;
-    font-size: 1em;
+.action-button {
+    width: 100%;
+    padding: 16px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    transition: all 0.2s ease;
+    border: none;
 }
 
-.primary-button {
-    background: #000;
+.photo-button {
+    background: #000000;
     color: white;
 }
 
-.secondary-button {
+.cash-button {
     background: white;
-    color: #000;
-    border: 1px solid #000;
+    color: #000000;
+    border: 1px solid #E5E5E5;
+}
+
+.manual-button {
+    background: #F5F5F5;
+    color: #000000;
+    border: none;
+}
+
+.action-button:active {
+    transform: scale(0.98);
+}
+
+.action-button .icon {
+    font-size: 18px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .action-buttons {
+        width: 85%;
+    }
+    
+    .action-button {
+        padding: 14px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .action-buttons {
+        width: 80%;
+    }
 }
 
 .photo-options-modal {
