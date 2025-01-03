@@ -1065,10 +1065,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="camera-controls">
-                    <button class="camera-button manual" onclick="showEmptyConfirmationModal()">
-                        Manual Entry
-                    </button>
-                    <button onclick="closeCameraModal()" class="camera-button retry">
+                    <button onclick="closeCameraModal()" class="camera-button retry" style="width: 100%;">
                         Close
                     </button>
                 </div>

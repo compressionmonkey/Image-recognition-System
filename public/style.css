@@ -664,11 +664,6 @@ header {
     gap: 8px;
 }
 
-.camera-button.manual {
-    background-color: #2196F3;
-    color: white;
-}
-
 .camera-button.retry {
     background-color: #f44336;
     color: white;
