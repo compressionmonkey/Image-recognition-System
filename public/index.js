@@ -212,11 +212,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="preview-button save-btn">
                             <span class="icon">💾</span> Save Image
                         </button>
-                        ${document.getElementById('confirmationModal').style.display === 'flex' ? `
-                            <button class="preview-button return-btn">
-                                <span class="icon">↩️</span> Return to Form
-                            </button>
-                        ` : ''}
+                        <button class="preview-button close-btn">
+                            <span class="icon">✖️</span> Close
+                        </button>
                     </div>
                 </div>
             `;
@@ -282,17 +280,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Handle button clicks
             const saveBtn = previewModal.querySelector('.save-btn');
             const closeBtn = previewModal.querySelector('.close-btn');
-            const returnBtn = previewModal.querySelector('.return-btn');
 
             if (saveBtn) {
                 saveBtn.onclick = async () => {
                     await handleSave(imageData, filename);
-                };
-            }
-
-            if (returnBtn) {
-                returnBtn.onclick = () => {
-                    closePreviewModal();
                 };
             }
 
