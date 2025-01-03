@@ -194,12 +194,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="preview-button save-btn">
                             <span class="icon">💾</span> Save Image
                         </button>
-                        <button class="preview-button share-btn">
-                            <span class="icon">📤</span> Share
-                        </button>
-                        <button class="preview-button recent-btn">
-                            <span class="icon">🕒</span> Recent
-                        </button>
                         ${document.getElementById('confirmationModal').style.display === 'flex' ? `
                             <button class="preview-button return-btn">
                                 <span class="icon">↩️</span> Return to Form
@@ -272,22 +266,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Handle button clicks
             const saveBtn = previewModal.querySelector('.save-btn');
-            const shareBtn = previewModal.querySelector('.share-btn');
-            const recentBtn = previewModal.querySelector('.recent-btn');
             const closeBtn = previewModal.querySelector('.close-btn');
             const returnBtn = previewModal.querySelector('.return-btn');
 
-            saveBtn.onclick = async () => {
-                await handleSave(imageData, filename);
-            };
-
-            shareBtn.onclick = async () => {
-                await handleShare(imageData, filename);
-            };
-
-            recentBtn.onclick = () => {
-                showRecentFiles();
-            };
+            if (saveBtn) {
+                saveBtn.onclick = async () => {
+                    await handleSave(imageData, filename);
+                };
+            }
 
             if (returnBtn) {
                 returnBtn.onclick = () => {
@@ -383,25 +369,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             showToast('Failed to save image', 'error');
-        }
-    }
-
-    async function handleShare(imageData, filename) {
-        if (navigator.share) {
-            try {
-                const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
-                const blob = await base64Response.blob();
-                const file = new File([blob], filename, { type: 'image/jpeg' });
-                await navigator.share({
-                    files: [file],
-                    title: 'Receipt Image',
-                });
-                showToast('Image shared successfully', 'success');
-            } catch (err) {
-                showToast('Failed to share image', 'error');
-            }
-        } else {
-            showToast('Sharing not supported on this device', 'error');
         }
     }
 
@@ -822,7 +789,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (file) {
                     closePhotoOptions();
                     if (isLoggedIn) {
-                        // Read file and store it
                         const reader = new FileReader();
                         reader.onload = async function(event) {
                             const base64Image = event.target.result.split(',')[1];

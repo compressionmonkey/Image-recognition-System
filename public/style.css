@@ -308,13 +308,14 @@ header {
 
 .toast {
     position: fixed;
-    bottom: 20px;
+    top: 20px;
     left: 50%;
-    transform: translateX(-50%) translateY(100px);
-    padding: 12px 24px;
-    border-radius: 8px;
+    transform: translateX(-50%) translateY(-100px);
+    padding: 16px 32px;
+    border-radius: 12px;
     color: white;
     font-weight: 500;
+    font-size: 1.2em;
     z-index: 9999;
     opacity: 0;
     transition: all 0.3s ease;
