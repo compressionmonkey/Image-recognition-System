@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let isLoggedIn = false;
     let model = undefined;
     let children = [];
+    let currentConfirmationData = null;
 
     // Add a flag to control prediction loop
     let isPredicting = false;
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function handleManualSubmit() {
         const amount = parseFloat(document.getElementById('amount').value);
+        const customerID = sessionStorage.getItem('customerID');
         
         // Validate amount
         if (!amount || isNaN(amount) || amount <= 0) {
@@ -45,7 +47,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    amount: amount
+                    amount: amount,
+                    paymentMethod: 'Cash',
+                    customerID: customerID
                 })
             });
 
@@ -219,11 +223,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                     <div class="preview-controls">
+                        <button class="preview-button close-btn">
+                        <span class="icon">➡️</span> Proceed
+                        </button>
                         <button class="preview-button retake-btn">
                             <span class="icon">📸</span> Retake
-                        </button>
-                        <button class="preview-button close-btn">
-                            <span class="icon">➡️</span> Proceed
                         </button>
                     </div>
                 </div>
@@ -576,6 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     deviceInfo: navigator.userAgent,
                     screenResolution: `${window.screen.width}x${window.screen.height}`,
                     imageSize: imageData.length,
+                    paymentMethod: 'Bank Receipt',
                     customerID: customerID,
                     startTime: new Date().getTime()
                 })
@@ -591,8 +596,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 showFailureModal('Scan failed', 'Please retry');
                 return;
             }
-
-            window.recognizedText = data.recognizedText;
 
             // Show confirmation modal with extracted data
             showConfirmationModal(data);
@@ -610,6 +613,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const amountInput = document.getElementById('confirmAmount');
         const referenceInput = document.getElementById('confirmReference');
         const dateInput = document.getElementById('confirmDate');
+        currentConfirmationData = data;
+
         console.log('data', data);
         logEvent(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
@@ -668,8 +673,11 @@ document.addEventListener('DOMContentLoaded', function() {
             customerID,
             amount,
             referenceNo,
-            timestamp: date,
-            recognizedText: window.recognizedText 
+            'OCR Timestamp': date,
+            'Time': currentConfirmationData.Time,
+            'Payment Method': currentConfirmationData.PaymentMethod,
+            'Bank': currentConfirmationData.Bank,
+            'Recognized Text': currentConfirmationData.recognizedText 
         };
 
         // Send confirmation to server

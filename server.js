@@ -125,7 +125,8 @@ export function parseReceiptData(text, bankKey) {
             Time: bankData.time,
             ReferenceNo: bankData.reference,
             Amount: bankData.amount,
-            bank: bankKey
+            Bank: bankData.bank,
+            PaymentMethod: bankData.paymentMethod
         };
     } catch (error) {
         console.error('Error in parseReceiptData:', error);
@@ -424,7 +425,9 @@ function parseBankSpecificData(text, bankKey) {
         amount: null,
         reference: null,
         date: null,
-        time: null
+        time: null,
+        paymentMethod: "Bank Receipt",
+        bank: bankKey
     };
 
     // Pass result object to helper functions
@@ -627,10 +630,12 @@ async function updateReceiptData(receiptData) {
 
         const record = {
             fields: {
-                'Timestamp': receiptData.timestamp,
+                'OCR Timestamp': receiptData['OCR Timestamp'],
                 'Reference Number': receiptData.referenceNo,
                 'Amount': receiptData.amount,
-                'Recognized Text': receiptData.recognizedText
+                'Recognized Text': receiptData['Recognized Text'],
+                'Payment Method': receiptData['Payment Method'],
+                'Bank': receiptData['Bank']
             }
         };
         
@@ -733,6 +738,8 @@ app.post('/vision-api', async (req, res) => {
                 referenceNo: receiptData.ReferenceNo,
                 Date: receiptData.Date,
                 Time: receiptData.Time,
+                PaymentMethod: receiptData.PaymentMethod,
+                Bank: receiptData.Bank,
                 recognizedText
             });
             return;
@@ -790,8 +797,7 @@ app.post('/api/logs', async (req, res) => {
 
 // Add this new endpoint for recording cash transactions
 app.post('/record-cash', async (req, res) => {
-    const { amount } = req.body;
-    const isCash = true;  // This is always true for cash transactions
+    const { amount, paymentMethod, customerID } = req.body;
     
     try {
         // Basic validation
@@ -802,13 +808,30 @@ app.post('/record-cash', async (req, res) => {
             });
         }
 
-        // For now, just send back a success response
+        // Get customer's table name
+        const tableName = checkCurrentUser(customerID);
+        if (!tableName) {
+            throw new Error('Invalid customer ID or table name not found');
+        }
+
+        // Create record for Airtable
+        const record = {
+            fields: {
+                'Amount': parseFloat(amount).toFixed(2),
+                'Payment Method': paymentMethod
+            }
+        };
+
+        // Store in Airtable
+        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+        await base(tableName).create([record]);
+
         res.status(200).json({
             success: true,
-            message: 'Cash record received',
+            message: 'Cash record stored successfully',
             data: {
-                isCash,
                 amount,
+                paymentMethod,
                 timestamp: formatDate(new Date())
             }
         });
@@ -817,7 +840,7 @@ app.post('/record-cash', async (req, res) => {
         console.error('Error recording cash:', error);
         res.status(500).json({
             success: false,
-            error: 'Internal server error'
+            error: error.message || 'Internal server error'
         });
     }
 });
