@@ -223,11 +223,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                     <div class="preview-controls">
+                        <button class="preview-button close-btn">
+                        <span class="icon">➡️</span> Proceed
+                        </button>
                         <button class="preview-button retake-btn">
                             <span class="icon">📸</span> Retake
-                        </button>
-                        <button class="preview-button close-btn">
-                            <span class="icon">➡️</span> Proceed
                         </button>
                     </div>
                 </div>
