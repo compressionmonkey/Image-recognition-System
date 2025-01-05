@@ -622,6 +622,7 @@ function checkCurrentUser(customerID) {
 
 // Function to update receipt data in customer's table
 async function updateReceiptData(receiptData) {
+    console.log('receiptData', receiptData);
     try {
         const tableName = checkCurrentUser(receiptData.customerID);
         if (!tableName) {
@@ -635,7 +636,8 @@ async function updateReceiptData(receiptData) {
                 'Amount': receiptData.amount,
                 'Recognized Text': receiptData['Recognized Text'],
                 'Payment Method': receiptData['Payment Method'],
-                'Bank': receiptData['Bank']
+                'Bank': receiptData['Bank'],
+                'Particulars': receiptData['Particulars']
             }
         };
         
@@ -797,7 +799,7 @@ app.post('/api/logs', async (req, res) => {
 
 // Add this new endpoint for recording cash transactions
 app.post('/record-cash', async (req, res) => {
-    const { amount, paymentMethod, customerID } = req.body;
+    const { amount, paymentMethod, customerID, particulars } = req.body;
     
     try {
         // Basic validation
@@ -818,7 +820,8 @@ app.post('/record-cash', async (req, res) => {
         const record = {
             fields: {
                 'Amount': parseFloat(amount).toFixed(2),
-                'Payment Method': paymentMethod
+                'Payment Method': paymentMethod,
+                'Particulars': particulars
             }
         };
 
@@ -832,6 +835,7 @@ app.post('/record-cash', async (req, res) => {
             data: {
                 amount,
                 paymentMethod,
+                particulars,
                 timestamp: formatDate(new Date())
             }
         });

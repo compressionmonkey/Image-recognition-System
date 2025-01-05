@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Receipt Recognition</title>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/style.css?v=m5e0hwg4vyqwa?v=m5e0alny1wi7i?v=m5e04zumfkbak">
+    <link rel="stylesheet" href="/style.css?v=m5jbtqbgtocnl?v=m5jbdt6cedgsb?v=m5jb67ibdsaoc?v=m5jb5p1m5ys4h?v=m5e0hwg4vyqwa?v=m5e0alny1wi7i?v=m5e04zumfkbak">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -15,7 +15,7 @@
     <!-- Load the coco-ssd model to use to recognize things in images -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
-    <script src="/index.js?v=m5e0hwg4vyqwa?v=m5e0alny1wi7i?v=m5e04zumfkbak" defer></script>
+    <script src="/index.js?v=m5jbtqbgtocnl?v=m5jbdt6cedgsb?v=m5jb67ibdsaoc?v=m5jb5p1m5ys4h?v=m5e0hwg4vyqwa?v=m5e0alny1wi7i?v=m5e04zumfkbak" defer></script>
 
     <link rel="icon" href="data:,">
 </head>
@@ -104,6 +104,13 @@
                            required>
                 </div>
                 <div class="form-group">
+                    <label>Particulars</label>
+                    <input type="text" 
+                           id="confirmParticulars" 
+                           placeholder="Enter Particulars"
+                           required>
+                </div>
+                <div class="form-group">
                     <label>Date of Receipt</label>
                     <input type="date" 
                            id="confirmDate" 
@@ -156,6 +163,15 @@
                            min="0" 
                            required 
                            placeholder="Enter amount">
+                </div>
+                <div class="form-group">
+                    <label for="particulars">Particulars</label>
+                    <input type="text" 
+                           id="particulars" 
+                           name="particulars" 
+                           required 
+                           placeholder="Enter Particulars"
+                           style="box-sizing: border-box;">
                 </div>
 
                 <button type="button" class="photo-option-btn" style="background: #000 !important; color: white !important;" onclick="handleManualSubmit()">

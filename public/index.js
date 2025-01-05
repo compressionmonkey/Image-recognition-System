@@ -31,11 +31,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function handleManualSubmit() {
         const amount = parseFloat(document.getElementById('amount').value);
+        const particulars = document.getElementById('particulars').value;
         const customerID = sessionStorage.getItem('customerID');
         
         // Validate amount
         if (!amount || isNaN(amount) || amount <= 0) {
             showToast('Please enter a valid amount', 'error');
+            return;
+        }
+
+        if (!particulars) {
+            showToast('Please enter a valid particulars', 'error');
             return;
         }
         
@@ -49,7 +55,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     amount: amount,
                     paymentMethod: 'Cash',
-                    customerID: customerID
+                    customerID: customerID,
+                    particulars: particulars
                 })
             });
 
@@ -612,6 +619,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('confirmationModal');
         const amountInput = document.getElementById('confirmAmount');
         const referenceInput = document.getElementById('confirmReference');
+        const ParticularsInput = document.getElementById('confirmParticulars');
         const dateInput = document.getElementById('confirmDate');
         currentConfirmationData = data;
 
@@ -620,6 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.referenceNo || '';
+        if (ParticularsInput) ParticularsInput.value = data.Particulars || '';
         if (dateInput) dateInput.value = data.Date || '';
 
         // Add view image button if not exists
@@ -657,10 +666,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleConfirmDetails() {
         const amount = document.getElementById('confirmAmount').value;
         const referenceNo = document.getElementById('confirmReference').value;
+        const Particulars = document.getElementById('confirmParticulars').value;
         const date = document.getElementById('confirmDate').value;
 
         // Validate inputs
-        if (!amount || !referenceNo || !date) {
+        if (!amount || !referenceNo || !Particulars || !date) {
             showToast('Please fill in all fields', 'error');
             return;
         }
@@ -673,13 +683,14 @@ document.addEventListener('DOMContentLoaded', function() {
             customerID,
             amount,
             referenceNo,
+            Particulars,
             'OCR Timestamp': date,
             'Time': currentConfirmationData.Time,
             'Payment Method': currentConfirmationData.PaymentMethod,
             'Bank': currentConfirmationData.Bank,
             'Recognized Text': currentConfirmationData.recognizedText 
         };
-
+        console.log('confirmationData', confirmationData);
         // Send confirmation to server
         fetch('/confirm-receipt', {
             method: 'POST',
@@ -1158,6 +1169,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear any existing values
         document.getElementById('confirmAmount').value = '';
         document.getElementById('confirmReference').value = '';
+        document.getElementById('confirmParticulars').value = '';
         
         // Set default date to today
         const today = new Date();
