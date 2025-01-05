@@ -664,6 +664,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add this function to handle confirmation
     function handleConfirmDetails() {
+        const confirmButton = document.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
+        confirmButton.disabled = true;
+        confirmButton.style.opacity = '0.5';
+        confirmButton.style.cursor = 'not-allowed';
+
         const amount = document.getElementById('confirmAmount').value;
         const referenceNo = document.getElementById('confirmReference').value;
         const Particulars = document.getElementById('confirmParticulars').value;
@@ -672,6 +677,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Validate inputs
         if (!amount || !referenceNo || !Particulars || !date) {
             showToast('Please fill in all fields', 'error');
+            // Re-enable button if validation fails
+            confirmButton.disabled = false;
+            confirmButton.style.opacity = '1';
+            confirmButton.style.cursor = 'pointer';
             return;
         }
 
@@ -707,11 +716,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 closeConfirmationModal();
                 showConfetti();
             } else {
+                // Re-enable button if API call fails
+                confirmButton.disabled = false;
+                confirmButton.style.opacity = '1';
+                confirmButton.style.cursor = 'pointer';
                 showToast(data.error || 'Failed to confirm receipt', 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
+            // Re-enable button if API call errors
+            confirmButton.disabled = false;
+            confirmButton.style.opacity = '1';
+            confirmButton.style.cursor = 'pointer';
             showToast('Failed to confirm receipt', 'error');
         });
     }
@@ -719,6 +736,13 @@ document.addEventListener('DOMContentLoaded', function() {
     function closeConfirmationModal() {
         const modal = document.getElementById('confirmationModal');
         if (modal) {
+            // Re-enable the confirm button
+            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.style.opacity = '1';
+                confirmButton.style.cursor = 'pointer';
+            }
             modal.style.display = 'none';
         }
     }
