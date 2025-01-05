@@ -442,12 +442,6 @@ function parseBankSpecificData(text, bankKey) {
             const rrnMatch = text.match(/\b43\d{10}\b/);
             if (rrnMatch) {
                 result.reference = rrnMatch[0];
-            } else {
-                // Try the new Reference No pattern
-                const refNoMatch = text.match(/Reference No:\s*(\w+)/);
-                if (refNoMatch) {
-                    result.reference = refNoMatch[1];  // This will extract '000MFTB243630120'
-                }
             }
             break;
 
@@ -461,16 +455,17 @@ function parseBankSpecificData(text, bankKey) {
 
         case 'goBOB':
             // Transaction ID - matches specific patterns for goBOB transaction numbers
-            const goBOBtransactionIDMatch = text.match(/(4[0-2]\d{14,20})\n(?:.*?(\d{4,6})\n)?/s);
-            if (goBOBtransactionIDMatch) {
-                const firstPart = goBOBtransactionIDMatch[1].replace(/\D/g, '');  // Remove all non-digits
-                const secondPart = (goBOBtransactionIDMatch[2] || '').replace(/\D/g, ''); // Remove all non-digits, handle null case
+            // const goBOBtransactionIDMatch = text.match(/(4[0-2]\d{14,20})\n(?:.*?(\d{4,6})\n)?/s);
+            // if (goBOBtransactionIDMatch) {
+            //     const firstPart = goBOBtransactionIDMatch[1].replace(/\D/g, '');  // Remove all non-digits
+            //     const secondPart = (goBOBtransactionIDMatch[2] || '').replace(/\D/g, ''); // Remove all non-digits, handle null case
                 
-                // Only combine if total length is 21 digits and first part starts with 4
-                if ((firstPart.length + secondPart.length) === 21 && /^4/.test(firstPart)) {
-                    result.reference = firstPart + secondPart;
-                }
-            }
+            //     // Only combine if total length is 21 digits and first part starts with 4
+            //     if ((firstPart.length + secondPart.length) === 21 && /^4/.test(firstPart)) {
+            //         result.reference = firstPart + secondPart;
+            //     }
+            // }
+            result.reference = '';
             break;
 
         case 'BOB':
