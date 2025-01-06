@@ -1173,18 +1173,12 @@ header {
 }
 
 .preview-button.retake-btn {
-    background: #fff;
-    color: #000;
-    border: 1px solid #e0e0e0;
+    background: #dc3545;
+    color: white;
 }
 
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-    .preview-button.retake-btn {
-        background: #1a1a1a;
-        color: #fff;
-        border-color: #333;
-    }
+.preview-button.retake-btn:hover {
+    background-color: #c82333;  /* Darker red on hover */
 }
 
 .preview-button .icon {
@@ -1240,15 +1234,6 @@ header {
         background: #1a1a1a;
         border-top-color: #333;
     }
-
-    .preview-button.close-btn {
-        background: #333;
-        color: #fff;
-    }
-
-    .preview-button.close-btn:hover {
-        background: #444;
-    }
 }
 
 .share-btn {
@@ -1256,7 +1241,11 @@ header {
 }
 
 .close-btn {
-    background: #666;
+    background: #28a745;
+}
+
+close-btn:hover {
+    background-color: #218838;  /* Darker green on hover */
 }
 
 .recent-files-grid {
