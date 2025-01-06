@@ -101,8 +101,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
     
     document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
-     // Add manual entry button handler
-     document.getElementById('addManualBtn').addEventListener('click', showEmptyConfirmationModal);
 
     // Load COCO-SSD model when page loads
     cocoSsd.load().then(function(loadedModel) {
@@ -401,46 +399,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error:', error);
             showToast('Failed to handle image', 'error');
-        }
-    }
-
-    // Helper functions for saving and sharing
-    async function handleSave(imageData, filename) {
-        try {
-            const base64Response = await fetch(`data:image/jpeg;base64,${imageData}`);
-            const blob = await base64Response.blob();
-            
-            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = filename;
-                link.click();
-                URL.revokeObjectURL(link.href);
-                showToast('Image saved to downloads', 'success');
-            } else {
-                try {
-                    const handle = await window.showSaveFilePicker({
-                        suggestedName: filename,
-                        types: [{
-                            description: 'JPEG Image',
-                            accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
-                        }]
-                    });
-                    const writable = await handle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                    showToast('Image saved successfully!', 'success');
-                } catch (err) {
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = filename;
-                    link.click();
-                    URL.revokeObjectURL(link.href);
-                    showToast('Image downloaded successfully', 'success');
-                }
-            }
-        } catch (error) {
-            showToast('Failed to save image', 'error');
         }
     }
 
@@ -819,17 +777,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error:', error);
             showToast('Processing failed. Please try again.', 'error');
-        }
-    }
-
-    // Add dynamic range compression helper
-    function compressDynamicRange(imageData) {
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-            // Apply logarithmic transformation to compress dynamic range
-            data[i] = Math.log(1 + data[i]) * 255 / Math.log(256);
-            data[i+1] = Math.log(1 + data[i+1]) * 255 / Math.log(256);
-            data[i+2] = Math.log(1 + data[i+2]) * 255 / Math.log(256);
         }
     }
 
@@ -1217,30 +1164,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Add new function to show empty confirmation modal
-    function showEmptyConfirmationModal() {
-        const modal = document.getElementById('confirmationModal');
-        
-        // Clear any existing values
-        document.getElementById('confirmAmount').value = '';
-        document.getElementById('confirmReference').value = '';
-        document.getElementById('confirmParticulars').value = '';
-        
-        // Set default date to today
-        const today = new Date();
-        const dateValue = today.toISOString().split('T')[0];
-        const dateInput = document.getElementById('confirmDate');
-        dateInput.value = dateValue;
-        
-        // Add event listener for date changes and perform initial validation
-        dateInput.removeEventListener('change', validateDate); // Remove any existing listener
-        dateInput.addEventListener('change', () => validateDate(dateInput.value));
-        validateDate(dateInput.value); // Perform initial validation
-        
-        // Show the modal
-        modal.style.display = 'flex';
-    }
-
     function isToday(dateString) {
         try {
             // Parse the input date string
@@ -1359,6 +1282,5 @@ document.addEventListener('DOMContentLoaded', function() {
     window.handleConfirmDetails = handleConfirmDetails;
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
-    window.showEmptyConfirmationModal = showEmptyConfirmationModal;
     window.showRecentFiles = showRecentFiles;
 });
