@@ -30,6 +30,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     async function handleManualSubmit() {
+        // Get and disable the submit button
+        const submitButton = document.querySelector('.photo-option-btn[onclick="handleManualSubmit()"]');
+        submitButton.disabled = true;
+        submitButton.style.opacity = '0.5';
+        submitButton.style.cursor = 'not-allowed';
+
         const amount = parseFloat(document.getElementById('amount').value);
         const particulars = document.getElementById('particulars').value;
         const customerID = sessionStorage.getItem('customerID');
@@ -37,11 +43,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Validate amount
         if (!amount || isNaN(amount) || amount <= 0) {
             showToast('Please enter a valid amount', 'error');
+            // Re-enable button if validation fails
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
             return;
         }
 
         if (!particulars) {
-            showToast('Please enter a valid particulars', 'error');
+            showToast('Please enter valid particulars', 'error');
+            // Re-enable button if validation fails
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
             return;
         }
         
@@ -67,10 +81,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('Receipt added successfully', 'success');
                 showConfetti();
             } else {
+                // Re-enable button if API returns error
+                submitButton.disabled = false;
+                submitButton.style.opacity = '1';
+                submitButton.style.cursor = 'pointer';
                 showToast(data.error || 'Failed to add receipt', 'error');
             }
         } catch (error) {
             console.error('Error:', error);
+            // Re-enable button if API call fails
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
             showToast('Failed to add receipt', 'error');
         }
     }
@@ -177,12 +199,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function closeManualEntryModal() {
         const modal = document.getElementById('manualEntryModal');
-        modal.classList.add('fade-out');
-        setTimeout(() => {
-            modal.style.display = 'none';
-            modal.classList.remove('fade-out');
-            document.getElementById('manualReceiptForm').reset();
-        }, 300);
+        if (modal) {
+            // Re-enable the submit button
+            const submitButton = modal.querySelector('.photo-option-btn[onclick="handleManualSubmit()"]');
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.style.opacity = '1';
+                submitButton.style.cursor = 'pointer';
+            }
+            modal.classList.add('fade-out');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.classList.remove('fade-out');
+                document.getElementById('manualReceiptForm').reset();
+            }, 300);
+        }
     }
 
     // Add toast functionality
