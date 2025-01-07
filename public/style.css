@@ -1511,4 +1511,70 @@ close-btn:hover {
     box-sizing: border-box;
 }
 
+.amount-group {
+    margin-bottom: 1.5rem;
+}
+
+.amount-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.label-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.label-hint {
+    display: block;
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 0.2rem;
+}
+
+.amount-input-wrapper {
+    position: relative;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.amount-input-wrapper:focus-within {
+    border-color: #2196F3;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.currency-prefix {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    font-weight: 500;
+}
+
+#confirmAmount {
+    width: 100%;
+    padding: 12px 12px 12px 45px;
+    font-size: 1.2rem;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-weight: 500;
+}
+
+#confirmAmount::-webkit-inner-spin-button,
+#confirmAmount::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Firefox */
+#confirmAmount {
+    -moz-appearance: textfield;
+}
+
 
