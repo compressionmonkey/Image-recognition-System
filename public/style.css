@@ -1511,4 +1511,7 @@ close-btn:hover {
     box-sizing: border-box;
 }
 
-
+#confirmAmount {
+    font-weight: 600;  /* Makes text bold (600 is semi-bold) */
+    /* or use font-weight: bold; for even bolder text */
+}

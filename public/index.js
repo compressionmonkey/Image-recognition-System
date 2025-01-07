@@ -663,9 +663,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const Particulars = document.getElementById('confirmParticulars').value;
         const date = document.getElementById('confirmDate').value;
 
-        // Validate inputs
+        // Basic validation for empty fields
         if (!amount || !referenceNo || !Particulars || !date) {
             showToast('Please fill in all fields', 'error');
+            // Re-enable button if validation fails
+            confirmButton.disabled = false;
+            confirmButton.style.opacity = '1';
+            confirmButton.style.cursor = 'pointer';
+            return;
+        }
+
+        // Specific validation for reference number
+        if (referenceNo.length < 4 || !/\d/.test(referenceNo)) {
+            showToast('This is not a reference number', 'error');
             // Re-enable button if validation fails
             confirmButton.disabled = false;
             confirmButton.style.opacity = '1';
