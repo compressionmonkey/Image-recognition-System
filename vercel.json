@@ -54,6 +54,12 @@
       "dest": "/server.js"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/daily-sum",
+      "schedule": "32 18 * * *"
+    }
+  ],
   "env": {
     "NODE_ENV": "production"
   }

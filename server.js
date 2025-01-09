@@ -632,7 +632,8 @@ async function updateReceiptData(receiptData) {
                 'Recognized Text': receiptData['Recognized Text'],
                 'Payment Method': receiptData['Payment Method'],
                 'Bank': receiptData['Bank'],
-                'Particulars': receiptData['Particulars']
+                'Particulars': receiptData['Particulars'],
+                'Sum': formatSumDate(new Date())
             }
         };
         
@@ -877,6 +878,14 @@ app.get('/api/dashboard-url', (req, res) => {
         res.status(404).json({ error: 'Dashboard URL not found' });
     }
 });
+
+// Add this new function
+function formatSumDate(date) {
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return `Sum ${day}/${month}/${year}`;
+}
 
 // Export a serverless function handler for Vercel
 export default function handler(req, res) {
