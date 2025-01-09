@@ -57,7 +57,7 @@
   "crons": [
     {
       "path": "/api/daily-sum",
-      "schedule": "32 18 * * *"
+      "schedule": "41 18 * * *"
     }
   ],
   "env": {
