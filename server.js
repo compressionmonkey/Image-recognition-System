@@ -16,6 +16,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+
 // Modify your static file serving
 app.use('/index.js', (req, res) => {
     if (process.env.NODE_ENV === 'development') {
@@ -615,6 +616,32 @@ function checkCurrentUser(customerID) {
     return tableName;
 }
 
+async function getSumId() {
+     // Format the current date for Sum field lookup
+     const currentDate = new Date(new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Dhaka'
+    }));
+
+     const formattedSumDate = `Sum ${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
+
+     // Log the table structure to debug field names
+     const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
+     
+     // First, find the Sum record ID from the Sum Logic table
+     const sumRecords = await base('Ambient Sum Logic')
+         .select({
+             filterByFormula: `{Name} = '${formattedSumDate}'`
+         })
+         .firstPage();
+
+     if (sumRecords && sumRecords.length > 0) {
+         return [sumRecords[0].id];
+     } else {
+         console.log('No matching Sum record found for date:', formattedSumDate);
+     }
+
+}
+
 // Function to update receipt data in customer's table
 async function updateReceiptData(receiptData) {
     console.log('receiptData', receiptData);
@@ -632,7 +659,8 @@ async function updateReceiptData(receiptData) {
                 'Recognized Text': receiptData['Recognized Text'],
                 'Payment Method': receiptData['Payment Method'],
                 'Bank': receiptData['Bank'],
-                'Particulars': receiptData['Particulars']
+                'Particulars': receiptData['Particulars'],
+                'Sum': await getSumId()
             }
         };
         
@@ -816,7 +844,8 @@ app.post('/record-cash', async (req, res) => {
             fields: {
                 'Amount': parseFloat(amount).toFixed(2),
                 'Payment Method': paymentMethod,
-                'Particulars': particulars
+                'Particulars': particulars,
+                'Sum': await getSumId()
             }
         };
 
