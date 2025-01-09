@@ -16,6 +16,23 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+function sendEmail() {
+const formData = require('form-data');
+  const Mailgun = require('mailgun.js');
+  const mailgun = new Mailgun(formData);
+  const mg = mailgun.client({username: 'api', key: process.env.MAILGUN_API_KEY || 'key-yourkeyhere'});
+
+  mg.messages.create('sandbox-123.mailgun.org', {
+  	from: "Tshong AI <mailgun@sandbox68dbebf9c2c94d92810d4cdb51d8d1c3.mailgun.org>",
+  	to: ["keldendraduldorji@gmail.com"],
+  	subject: "Hello",
+  	text: "Testing some Mailgun awesomeness!",
+  	html: "<h1>Testing some Mailgun awesomeness!</h1>"
+  })
+  .then(msg => console.log(msg)) // logs response data
+  .catch(err => console.log(err)); // logs any error
+}
+
 // Modify your static file serving
 app.use('/index.js', (req, res) => {
     if (process.env.NODE_ENV === 'development') {
@@ -617,7 +634,10 @@ function checkCurrentUser(customerID) {
 
 async function getSumId() {
      // Format the current date for Sum field lookup
-     const currentDate = new Date();
+     const currentDate = new Date(new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Dhaka'
+    }));
+
      const formattedSumDate = `Sum ${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
 
      // Log the table structure to debug field names
