@@ -1,7 +1,7 @@
 name: Run Scheduled Task
 on:
   schedule:
-    - cron: '*/2 * * * *' # Every 2 minutes
+    - cron: '5 9 * * *' # Every day at 15:05 Dhaka (09:05 UTC)
   workflow_dispatch: # Allows manual triggering
 
 jobs:
