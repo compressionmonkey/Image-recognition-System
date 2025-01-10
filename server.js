@@ -796,6 +796,12 @@ app.post('/vision-api', async (req, res) => {
     }
 });
 
+app.get('/test', (req, res) => {
+    res.json({
+        message: 'Hello, World!'
+    });
+});
+
 // Add this new endpoint for logging
 app.post('/api/logs', async (req, res) => {
     const { level, message, data, timestamp, customerID } = req.body;
