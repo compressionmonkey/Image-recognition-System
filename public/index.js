@@ -61,6 +61,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Send data to server
+            const test = await fetch('/test', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            const testdata = await test.json();
+            console.log(testdata);
             const response = await fetch('/record-cash', {
                 method: 'POST',
                 headers: {
