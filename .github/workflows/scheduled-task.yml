@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: Call Vercel API
         run: |
-          curl -X GET "$VERCEL_URL/api/test-cron" 
+          curl -X GET "https://image-recognition-system-git-test-cron-github-keldens-projects.vercel.app/api/test-cron" 
