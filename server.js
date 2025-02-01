@@ -60,13 +60,26 @@ const customerSheets = {
     '72d72': 'Customer5'     // CUSTOMER_5
 };
 
+function pickCustomerSheet(customerID) {
+    switch(customerID) {
+        case 'a8358':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_AMBIENT_ID;
+        case '0e702':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+        case '571b6':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+        case 'be566':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+        case '72d72':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+    }
+}
+
 // Modify the writeToSheet function to include more error handling
-async function writeToSheet(range, rowData) {
+async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     try {
         // Read and use service account credentials directly
         const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
-        // const credentials = JSON.parse(fs.readFileSync('credentials/hackthon-315919-40b1053172a7.json', 'utf8'));
-        const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         
         // Create JWT client using service account credentials
         const jwtClient = new google.auth.JWT(
@@ -85,14 +98,14 @@ async function writeToSheet(range, rowData) {
         const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
         // Add this before the fetch call
         console.log('Debug - Request details:', {
-            spreadsheetId,
+            spreadsheetCustomerID,
             range,
             rowData: JSON.stringify(rowData),
-            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`
+            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
         });
         // Make the request to Google Sheets API
         const response = await fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`,
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
             {
                 method: 'POST',
                 headers: {
@@ -102,7 +115,7 @@ async function writeToSheet(range, rowData) {
                 body: JSON.stringify({
                     majorDimension: "ROWS",
                     values: [[
-                        rowData['Reference No'] || '',
+                        rowData['Reference Number'] || '',
                         false, //checked
                         rowData['Particulars'] || '',
                         rowData['Amount'] || '',
@@ -708,7 +721,7 @@ async function updateReceiptData(receiptData) {
         if (!sheetId) {
             throw new Error('Invalid customer ID or sheet ID not found');
         }
-
+        const spreadsheetCustomerID = pickCustomerSheet(receiptData.customerID);
         // Format data for Google Sheets as an object
         const rowData = {
             'OCR Timestamp': receiptData['OCR Timestamp'],
@@ -720,7 +733,7 @@ async function updateReceiptData(receiptData) {
             'Particulars': receiptData['Particulars']
         };
 
-        await writeToSheet(`${sheetId}!A:H`, rowData);
+        await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
         return true;
     } catch (error) {
         console.error('Error updating receipt data:', error);
@@ -731,7 +744,6 @@ async function updateReceiptData(receiptData) {
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
-    const startTime = req.body.startTime;
 
     try {
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
@@ -758,16 +770,6 @@ app.post('/vision-api', async (req, res) => {
         });
 
         const data = await response.json();
-        
-        // Try to get processing time from Vision API response first
-        let totalProcessingTime;
-        if (data.responses[0]?.latencyInfo?.totalLatencyMillis) {
-            totalProcessingTime = data.responses[0].latencyInfo.totalLatencyMillis / 1000;
-        } else {
-            // Fallback to manual calculation
-            const endTime = Date.now();
-            totalProcessingTime = (endTime - startTime) / 1000;
-        }
 
         const textResult = data.responses[0]?.fullTextAnnotation;
         const recognizedText = textResult?.text || '';
@@ -814,7 +816,7 @@ app.post('/vision-api', async (req, res) => {
 // Add this new endpoint for recording cash transactions
 app.post('/record-cash', async (req, res) => {
     const { amount, paymentMethod, customerID, particulars } = req.body;
-    
+    const spreadsheetCustomerID = pickCustomerSheet(customerID);
     try {
         // Basic validation
         if (!amount || isNaN(amount) || amount <= 0) {
@@ -830,18 +832,14 @@ app.post('/record-cash', async (req, res) => {
             throw new Error('Invalid customer ID or table name not found');
         }
 
-        // Create record for Airtable
-        const record = {
-            fields: {
-                'Amount': parseFloat(amount).toFixed(2),
-                'Payment Method': paymentMethod,
-                'Particulars': particulars
-            }
+        // Create record for Google Sheets
+        const rowData = {
+            'Particulars': particulars,
+            'Amount': amount,
+            'Payment Method': paymentMethod,
         };
 
-        // Store in Airtable
-        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-        await base(tableName).create([record]);
+        await writeToSheet(`${sheetId}!A:I`, rowData, spreadsheetCustomerID);
 
         res.status(200).json({
             success: true,
@@ -850,7 +848,7 @@ app.post('/record-cash', async (req, res) => {
                 amount,
                 paymentMethod,
                 particulars,
-                timestamp: formatDate(new Date())
+                timestamp: formatCreatedTime()
             }
         });
 
