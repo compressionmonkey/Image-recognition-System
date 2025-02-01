@@ -5,7 +5,6 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
-import fs from 'fs';
 import { google } from 'googleapis';
 
 
@@ -52,13 +51,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-
-// Configure Google Sheets
-const auth = new google.auth.GoogleAuth({
-    keyFile: 'credentials/hackthon-315919-40b1053172a7.json',  // Direct path to credentials file
-    scopes: ['https://www.googleapis.com/auth/spreadsheets']
-});
-
 // Map customer IDs to their sheet names in the main spreadsheet
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
@@ -72,7 +64,8 @@ const customerSheets = {
 async function writeToSheet(range, rowData) {
     try {
         // Read and use service account credentials directly
-        const credentials = JSON.parse(fs.readFileSync('credentials/hackthon-315919-40b1053172a7.json', 'utf8'));
+        const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+        // const credentials = JSON.parse(fs.readFileSync('credentials/hackthon-315919-40b1053172a7.json', 'utf8'));
         const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         
         // Create JWT client using service account credentials
