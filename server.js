@@ -817,6 +817,7 @@ app.post('/vision-api', async (req, res) => {
 app.post('/record-cash', async (req, res) => {
     const { amount, paymentMethod, customerID, particulars } = req.body;
     const spreadsheetCustomerID = pickCustomerSheet(customerID);
+    const sheetId = customerSheets[customerID];
     try {
         // Basic validation
         if (!amount || isNaN(amount) || amount <= 0) {
