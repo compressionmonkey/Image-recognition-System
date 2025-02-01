@@ -83,6 +83,13 @@ async function writeToSheet(range, rowData) {
         const token = await jwtClient.getAccessToken();
 
         const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
+        // Add this before the fetch call
+        console.log('Debug - Request details:', {
+            spreadsheetId,
+            range,
+            rowData: JSON.stringify(rowData),
+            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`
+        });
         // Make the request to Google Sheets API
         const response = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`,
