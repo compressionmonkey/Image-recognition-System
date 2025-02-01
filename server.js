@@ -4,8 +4,10 @@ import cors from 'cors';
 import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Airtable from 'airtable';
 import nlp from 'compromise';
+import fs from 'fs';
+import { google } from 'googleapis';
+
 
 dotenv.config();
 
@@ -16,6 +18,19 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+function formatCreatedTime() {
+    const date = new Date();
+    const dhakaTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+    
+    const day = String(dhakaTime.getDate()).padStart(2, '0');
+    const month = String(dhakaTime.getMonth() + 1).padStart(2, '0');
+    const year = dhakaTime.getFullYear();
+    const hours = String(dhakaTime.getHours()).padStart(2, '0');
+    const minutes = String(dhakaTime.getMinutes()).padStart(2, '0');
+    const seconds = String(dhakaTime.getSeconds()).padStart(2, '0');
+
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
 
 // Modify your static file serving
 app.use('/index.js', (req, res) => {
@@ -38,18 +53,87 @@ app.get('/', (req, res) => {
 });
 
 
-// Configure Airtable
-const airtableApiKey = process.env.AIRTABLE_API_KEY;
-const baseId = 'apptAcEDVua80Ab5c'; // Replace with your Airtable base ID
+// Configure Google Sheets
+const auth = new google.auth.GoogleAuth({
+    keyFile: 'credentials/hackthon-315919-40b1053172a7.json',  // Direct path to credentials file
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+});
 
-// Map customer IDs to their table names
-const customerTables = {
-    'a8358': 'Ambient',
-    '0e702': 'Customer2',
-    '571b6': 'Customer3',
-    'be566': 'Customer4',
-    '72d72': 'Customer5'
+// Map customer IDs to their sheet names in the main spreadsheet
+const customerSheets = {
+    'a8358': 'Ambient',      // CUSTOMER_1
+    '0e702': 'Customer2',    // CUSTOMER_2
+    '571b6': 'Customer3',    // CUSTOMER_3
+    'be566': 'MeatShop',    // CUSTOMER_4
+    '72d72': 'Customer5'     // CUSTOMER_5
 };
+
+// Modify the writeToSheet function to include more error handling
+async function writeToSheet(range, rowData) {
+    try {
+        // Read and use service account credentials directly
+        const credentials = JSON.parse(fs.readFileSync('credentials/hackthon-315919-40b1053172a7.json', 'utf8'));
+        const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+        
+        // Create JWT client using service account credentials
+        const jwtClient = new google.auth.JWT(
+            credentials.client_email,
+            null,
+            credentials.private_key,
+            ['https://www.googleapis.com/auth/spreadsheets']
+        );
+
+        // Authorize the client
+        await jwtClient.authorize();
+
+        // Get the access token
+        const token = await jwtClient.getAccessToken();
+
+        const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
+        // Make the request to Google Sheets API
+        const response = await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    majorDimension: "ROWS",
+                    values: [[
+                        rowData['Reference No'],
+                        false, //checked
+                        rowData['Particulars'],
+                        rowData['Amount'],
+                        rowData['Bank'],
+                        createdAt,
+                        rowData['Payment Method'],
+                        rowData['OCR Timestamp'],
+                        rowData['Recognized Text'],
+                    ]]
+                })
+            }
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Sheets API error: ${errorData.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Write successful:', data);
+        return data;
+    } catch (error) {
+        console.error('Error writing to Google Sheets:', {
+            message: error.message,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            details: error.response?.data || error.stack
+        });
+        throw error;
+    }
+}
 
 export function determineBankKey(paragraph) {
     // Normalize and prepare text
@@ -609,94 +693,37 @@ const BANK_KEYS = {
 
 // Function to check and get current user's table name
 function checkCurrentUser(customerID) {
-    const tableName = customerTables[customerID];
+    const tableName = customerSheets[customerID];
     if (!tableName) {
-        throw new Error('Invalid customer ID or table name not found');
+        throw new Error('Invalid customer ID or sheet ID not found');
     }
     return tableName;
 }
 
-async function getSumId() {
-     // Format the current date for Sum field lookup
-     const currentDate = new Date(new Date().toLocaleString('en-US', {
-        timeZone: 'Asia/Dhaka'
-    }));
-
-     const formattedSumDate = `Sum ${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
-
-     // Log the table structure to debug field names
-     const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-     
-     // First, find the Sum record ID from the Sum Logic table
-     const sumRecords = await base('Ambient Sum Logic')
-         .select({
-             filterByFormula: `{Name} = '${formattedSumDate}'`
-         })
-         .firstPage();
-
-     if (sumRecords && sumRecords.length > 0) {
-         return [sumRecords[0].id];
-     } else {
-         console.log('No matching Sum record found for date:', formattedSumDate);
-     }
-
-}
-
-// Function to update receipt data in customer's table
+// Update receipt data function
 async function updateReceiptData(receiptData) {
     console.log('receiptData', receiptData);
     try {
-        const tableName = checkCurrentUser(receiptData.customerID);
-        if (!tableName) {
-            throw new Error('Invalid customer ID or table name not found');
+        const sheetId = customerSheets[receiptData.customerID];
+        if (!sheetId) {
+            throw new Error('Invalid customer ID or sheet ID not found');
         }
 
-        const record = {
-            fields: {
-                'OCR Timestamp': receiptData['OCR Timestamp'],
-                'Reference Number': receiptData.referenceNo,
-                'Amount': receiptData.amount,
-                'Recognized Text': receiptData['Recognized Text'],
-                'Payment Method': receiptData['Payment Method'],
-                'Bank': receiptData['Bank'],
-                'Particulars': receiptData['Particulars'],
-                'Sum': await getSumId()
-            }
+        // Format data for Google Sheets as an object
+        const rowData = {
+            'OCR Timestamp': receiptData['OCR Timestamp'],
+            'Reference Number': receiptData.referenceNo,
+            'Amount': receiptData.amount,
+            'Recognized Text': receiptData['Recognized Text'],
+            'Payment Method': receiptData['Payment Method'],
+            'Bank': receiptData['Bank'],
+            'Particulars': receiptData['Particulars']
         };
-        
-        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-        await base(tableName).create([record]);
+
+        await writeToSheet(`${sheetId}!A:H`, rowData);
         return true;
     } catch (error) {
         console.error('Error updating receipt data:', error);
-        return false;
-    }
-}
-
-// Function to update analytics data in analytics table
-async function updateAnalytics(customerID, analyticsData) {
-    try {
-        const tableName = `receipt analytics`; // Analytics
-        if (!tableName) {
-            throw new Error('Invalid customer ID or analytics table name not found');
-        }
-
-        const record = {
-            fields: {
-                'Timestamp': formatDate(new Date()),
-                'ProcessingTimeSeconds': parseFloat(analyticsData.ProcessingTimeSeconds.toFixed(2)),
-                'DeviceInfo': analyticsData.DeviceInfo,
-                'ImageSizeMb': analyticsData.ImageSizeMb.toString(),
-                'Success': analyticsData.Success.toString(),
-                'ErrorMessage': analyticsData.ErrorMessage || ''
-            }
-        };
-        
-        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-        await base(tableName).create([record]);
-        return true;
-    } catch (error) {
-        console.error('Error updating analytics:', error);
         return false;
     }
 }
@@ -705,7 +732,6 @@ app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
     const startTime = req.body.startTime;
-    const customerID = req.body.customerID;
 
     try {
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
@@ -780,43 +806,8 @@ app.post('/vision-api', async (req, res) => {
             return;
         }
     } catch (error) {
-        const errorTime = Date.now();
-        const totalErrorTime = (errorTime - startTime) / 1000;
         console.error('Error:', error);
-
-        await updateAnalytics(customerID, {
-            ProcessingTimeSeconds: totalErrorTime,
-            DeviceInfo: req.body.deviceInfo || req.headers['user-agent'],
-            ImageSizeMb: (req.body.imageSize / 1024 / 1024).toFixed(2),
-            Success: 'false',
-            ErrorMessage: error.message
-        });
-
         res.status(500).send('Error calling Vision API');
-    }
-});
-
-// Add this new endpoint for logging
-app.post('/api/logs', async (req, res) => {
-    const { level, message, data, timestamp, customerID } = req.body;
-    
-    try {
-        // Optionally store in Airtable
-        const base = new Airtable({ apiKey: airtableApiKey }).base(baseId);
-        await base('Logs').create([{
-            fields: {
-                'Timestamp': timestamp || formatDate(new Date()),
-                'Level': level,
-                'CustomerID': customerID,
-                'Message': message,
-                'Data': JSON.stringify(data, null, 2)
-            }
-        }]);
-
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error logging:', error);
-        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -844,8 +835,7 @@ app.post('/record-cash', async (req, res) => {
             fields: {
                 'Amount': parseFloat(amount).toFixed(2),
                 'Payment Method': paymentMethod,
-                'Particulars': particulars,
-                'Sum': await getSumId()
+                'Particulars': particulars
             }
         };
 
@@ -892,18 +882,6 @@ app.post('/confirm-receipt', async (req, res) => {
             success: false,
             error: error.message || 'Failed to confirm receipt'
         });
-    }
-});
-
-// Add this endpoint to server.js
-app.get('/api/dashboard-url', (req, res) => {
-    const customerID = req.query.customerID;
-    const dashboardUrl = process.env[`DASHBOARD_URL_${customerID}`];
-    
-    if (dashboardUrl) {
-        res.json({ url: dashboardUrl });
-    } else {
-        res.status(404).json({ error: 'Dashboard URL not found' });
     }
 });
 
