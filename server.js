@@ -95,15 +95,15 @@ async function writeToSheet(range, rowData) {
                 body: JSON.stringify({
                     majorDimension: "ROWS",
                     values: [[
-                        rowData['Reference No'],
+                        rowData['Reference No'] || '',
                         false, //checked
-                        rowData['Particulars'],
-                        rowData['Amount'],
-                        rowData['Bank'],
+                        rowData['Particulars'] || '',
+                        rowData['Amount'] || '',
+                        rowData['Bank'] || '',
                         createdAt,
-                        rowData['Payment Method'],
-                        rowData['OCR Timestamp'],
-                        rowData['Recognized Text'],
+                        rowData['Payment Method'] || '',
+                        rowData['OCR Timestamp'] || '',
+                        rowData['Recognized Text'] || '',
                     ]]
                 })
             }
