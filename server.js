@@ -104,8 +104,9 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}/append?valueInputOption=USER_ENTERED`
         });
         // Make the request to Google Sheets API
+        const encodedRange = encodeURIComponent(range);
         const response = await fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}/append?valueInputOption=USER_ENTERED`,
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${encodedRange}/append?valueInputOption=USER_ENTERED`,
             {
                 method: 'POST',
                 headers: {
