@@ -101,11 +101,11 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             spreadsheetCustomerID,
             range,
             rowData: JSON.stringify(rowData),
-            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
+            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
         });
         // Make the request to Google Sheets API
         const response = await fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
             {
                 method: 'POST',
                 headers: {
