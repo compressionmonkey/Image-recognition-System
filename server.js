@@ -78,10 +78,7 @@ function pickCustomerSheet(customerID) {
 // Modify the writeToSheet function to include more error handling
 async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     try {
-        // Read and use service account credentials directly
         const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
-        
-        // Create JWT client using service account credentials
         const jwtClient = new google.auth.JWT(
             credentials.client_email,
             null,
@@ -89,26 +86,41 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             ['https://www.googleapis.com/auth/spreadsheets']
         );
 
-        // Authorize the client
         await jwtClient.authorize();
-
-        // Get the access token
         const token = await jwtClient.getAccessToken();
 
-        const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
-        // Add this before the fetch call
-        console.log('Debug - Request details:', {
-            spreadsheetCustomerID,
-            range,
-            rowData: JSON.stringify(rowData),
-            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
-        });
-        // Make the request to Google Sheets API
+        // First, get the current data to find last row
         const encodedRange = encodeURIComponent(range);
-        const response = await fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${encodedRange}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        const getResponse = await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${encodedRange}`,
             {
-                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`
+                }
+            }
+        );
+
+        if (!getResponse.ok) {
+            const text = await getResponse.text();
+            console.error('Query error:', {
+                status: getResponse.status,
+                statusText: getResponse.statusText,
+                body: text
+            });
+            throw new Error(`Failed to query sheet: ${getResponse.status} ${getResponse.statusText}`);
+        }
+
+        const sheetData = await getResponse.json();
+        const lastRow = sheetData.values ? sheetData.values.length + 1 : 1;
+        console.log('Debug - Last row found:', lastRow);
+
+        const createdAt = formatCreatedTime();
+        
+        // Now write to the specific row using PUT
+        const response = await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/Ambient!A${lastRow}:I${lastRow}?valueInputOption=USER_ENTERED`,
+            {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token.token}`,
                     'Content-Type': 'application/json',
@@ -130,16 +142,14 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             }
         );
 
-        // Add this error handling
         if (!response.ok) {
-            const text = await response.text(); // Get raw response text instead of trying to parse JSON
-            console.error('Full error response:', {
+            const text = await response.text();
+            console.error('Write error:', {
                 status: response.status,
                 statusText: response.statusText,
-                body: text,
-                headers: Object.fromEntries(response.headers.entries())
+                body: text
             });
-            throw new Error(`Sheets API error: ${response.status} ${response.statusText}`);
+            throw new Error(`Failed to write: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -148,9 +158,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     } catch (error) {
         console.error('Error writing to Google Sheets:', {
             message: error.message,
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            details: error.response?.data || error.stack
+            details: error.stack
         });
         throw error;
     }
