@@ -129,9 +129,16 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             }
         );
 
+        // Add this error handling
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Sheets API error: ${errorData.error?.message || response.statusText}`);
+            const text = await response.text(); // Get raw response text instead of trying to parse JSON
+            console.error('Full error response:', {
+                status: response.status,
+                statusText: response.statusText,
+                body: text,
+                headers: Object.fromEntries(response.headers.entries())
+            });
+            throw new Error(`Sheets API error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
