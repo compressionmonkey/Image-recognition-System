@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
 import { google } from 'googleapis';
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 
 dotenv.config();
@@ -16,6 +18,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+});
 
 function formatCreatedTime() {
     const date = new Date();
@@ -895,6 +905,89 @@ app.get('/api/dashboard-url', (req, res) => {
         res.status(404).json({ error: 'Dashboard URL not found' });
     }
 });
+
+app.post('/upload-receipt', async (req, res) => {
+    try {
+        const { imageData, filename } = req.body;
+        
+        // Convert base64 to buffer
+        const buffer = Buffer.from(imageData, 'base64');
+        
+        // Generate unique filename
+        const timestamp = Date.now();
+        const uniqueFilename = `receipts/${timestamp}_${filename}`;
+        
+        // Set up S3 upload parameters
+        const uploadParams = {
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: uniqueFilename,
+            Body: buffer,
+            ContentType: 'image/jpeg'
+        };
+
+        // Upload to S3
+        const command = new PutObjectCommand(uploadParams);
+        await s3Client.send(command);
+
+        // Generate pre-signed URL
+        const getObjectCommand = new GetObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: uniqueFilename
+        });
+        
+        const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+            expiresIn: 3600 // URL valid for 1 hour
+        });
+
+        res.json({
+            success: true,
+            url: signedUrl,
+            key: uniqueFilename // Store this if you need to generate new URLs later
+        });
+
+        // Generate URL
+        // const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFilename}`;
+
+        // res.json({
+        //     success: true,
+        //     url: imageUrl
+        // });
+
+    } catch (error) {
+        console.error('S3 upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to upload image'
+        });
+    }
+});
+
+// Optional: Add endpoint to regenerate signed URL for existing images
+// app.get('/get-image-url', async (req, res) => {
+//     try {
+//         const { key } = req.query;
+        
+//         const command = new GetObjectCommand({
+//             Bucket: process.env.AWS_BUCKET_NAME,
+//             Key: key
+//         });
+        
+//         const signedUrl = await getSignedUrl(s3Client, command, { 
+//             expiresIn: 3600 
+//         });
+
+//         res.json({
+//             success: true,
+//             url: signedUrl
+//         });
+//     } catch (error) {
+//         console.error('Error generating signed URL:', error);
+//         res.status(500).json({
+//             success: false,
+//             error: 'Failed to generate URL'
+//         });
+//     }
+// });
 
 // Export a serverless function handler for Vercel
 export default function handler(req, res) {
