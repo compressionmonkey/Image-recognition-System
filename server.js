@@ -134,6 +134,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                         rowData['Payment Method'] || '',
                         rowData['OCR Timestamp'] || '',
                         rowData['Recognized Text'] || '',
+                        rowData['Receipt URL'] || ''
                     ]]
                 })
             }
@@ -740,7 +741,8 @@ async function updateReceiptData(receiptData) {
             'Recognized Text': receiptData['Recognized Text'],
             'Payment Method': receiptData['Payment Method'],
             'Bank': receiptData['Bank'],
-            'Particulars': receiptData['Particulars']
+            'Particulars': receiptData['Particulars'],
+            'Receipt URL': receiptData['Receipt URL']
         };
 
         await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);

@@ -707,7 +707,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'Time': currentConfirmationData.Time,
             'Payment Method': currentConfirmationData.PaymentMethod,
             'Bank': currentConfirmationData.Bank,
-            'Recognized Text': currentConfirmationData.recognizedText 
+            'Recognized Text': currentConfirmationData.recognizedText,
+            'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
         console.log('confirmationData', confirmationData);
         // Send confirmation to server
