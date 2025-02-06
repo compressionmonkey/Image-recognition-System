@@ -64,7 +64,7 @@ app.get('/', (req, res) => {
 // Map customer IDs to their sheet names in the main spreadsheet
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
-    '0e702': 'Customer2',    // CUSTOMER_2
+    '0e702': 'Dhapa',    // CUSTOMER_2
     '571b6': 'Customer3',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
     '72d72': 'Customer5'     // CUSTOMER_5
@@ -75,7 +75,7 @@ function pickCustomerSheet(customerID) {
         case 'a8358':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_AMBIENT_ID;
         case '0e702':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_DHAPA_ID;
         case '571b6':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         case 'be566':
@@ -910,14 +910,15 @@ app.get('/api/dashboard-url', (req, res) => {
 
 app.post('/upload-receipt', async (req, res) => {
     try {
-        const { imageData, filename } = req.body;
+        const { imageData, filename, customerID } = req.body;
         
         // Convert base64 to buffer
         const buffer = Buffer.from(imageData, 'base64');
         
         // Generate unique filename
         const timestamp = Date.now();
-        const uniqueFilename = `receipts/${timestamp}_${filename}`;
+        const tableName = checkCurrentUser(customerID);
+        const uniqueFilename = `receipts/${tableName}/${timestamp}_${filename}`;
         
         // Set up S3 upload parameters
         const uploadParams = {

@@ -248,7 +248,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     imageData,
-                    filename
+                    filename,
+                    customerID: sessionStorage.getItem('customerID')
                 })
             });
 
