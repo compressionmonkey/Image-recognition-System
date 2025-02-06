@@ -240,7 +240,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update the saveImageToDevice function
     async function saveImageToDevice(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
         try {
-            // Create and show preview modal
+            // First upload to S3
+            const response = await fetch('/upload-receipt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    imageData,
+                    filename,
+                    customerID: sessionStorage.getItem('customerID')
+                })
+            });
+
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            // Create and show preview modal with the S3 URL
             const previewModal = document.createElement('div');
             previewModal.className = 'image-preview-modal';
             previewModal.innerHTML = `
@@ -249,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <h3>Receipt Preview</h3>
                     </div>
                     <div class="image-container">
-                        <img src="data:image/jpeg;base64,${imageData}" 
+                        <img src="${data.url}" 
                              alt="Receipt Preview" 
                              loading="lazy" 
                              decoding="async">
@@ -277,15 +296,8 @@ document.addEventListener('DOMContentLoaded', function() {
             previewModal.offsetHeight;
             previewModal.classList.add('show');
 
-            // Auto-download if flag is true
-            if (shouldAutoDownload) {
-                const link = document.createElement('a');
-                link.href = `data:image/jpeg;base64,${imageData}`;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
+            // Store URL in session storage for later use
+            sessionStorage.setItem('lastReceiptUrl', data.url);
 
             // Setup touch handling for mobile
             let touchStartY = 0;
@@ -398,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         } catch (error) {
             console.error('Error:', error);
-            showToast('Failed to handle image', 'error');
+            showToast('Failed to upload receipt', 'error');
         }
     }
 
@@ -696,7 +708,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'Time': currentConfirmationData.Time,
             'Payment Method': currentConfirmationData.PaymentMethod,
             'Bank': currentConfirmationData.Bank,
-            'Recognized Text': currentConfirmationData.recognizedText 
+            'Recognized Text': currentConfirmationData.recognizedText,
+            'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
         console.log('confirmationData', confirmationData);
         // Send confirmation to server

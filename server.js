@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
 import { google } from 'googleapis';
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 
 dotenv.config();
@@ -16,6 +18,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+});
 
 function formatCreatedTime() {
     const date = new Date();
@@ -54,7 +64,7 @@ app.get('/', (req, res) => {
 // Map customer IDs to their sheet names in the main spreadsheet
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
-    '0e702': 'Customer2',    // CUSTOMER_2
+    '0e702': 'Dhapa',    // CUSTOMER_2
     '571b6': 'Customer3',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
     '72d72': 'Customer5'     // CUSTOMER_5
@@ -65,7 +75,7 @@ function pickCustomerSheet(customerID) {
         case 'a8358':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_AMBIENT_ID;
         case '0e702':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_DHAPA_ID;
         case '571b6':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         case 'be566':
@@ -124,6 +134,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                         rowData['Payment Method'] || '',
                         rowData['OCR Timestamp'] || '',
                         rowData['Recognized Text'] || '',
+                        rowData['Receipt URL'] || ''
                     ]]
                 })
             }
@@ -730,7 +741,8 @@ async function updateReceiptData(receiptData) {
             'Recognized Text': receiptData['Recognized Text'],
             'Payment Method': receiptData['Payment Method'],
             'Bank': receiptData['Bank'],
-            'Particulars': receiptData['Particulars']
+            'Particulars': receiptData['Particulars'],
+            'Receipt URL': receiptData['Receipt URL']
         };
 
         await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
@@ -883,6 +895,102 @@ app.post('/confirm-receipt', async (req, res) => {
         });
     }
 });
+
+// Add this endpoint to server.js
+app.get('/api/dashboard-url', (req, res) => {
+    const customerID = req.query.customerID;
+    const dashboardUrl = process.env[`DASHBOARD_URL_${customerID}`];
+
+    if (dashboardUrl) {
+        res.json({ url: dashboardUrl });
+    } else {
+        res.status(404).json({ error: 'Dashboard URL not found' });
+    }
+});
+
+app.post('/upload-receipt', async (req, res) => {
+    try {
+        const { imageData, filename, customerID } = req.body;
+        
+        // Convert base64 to buffer
+        const buffer = Buffer.from(imageData, 'base64');
+        
+        // Generate unique filename
+        const timestamp = Date.now();
+        const tableName = checkCurrentUser(customerID);
+        const uniqueFilename = `receipts/${tableName}/${timestamp}_${filename}`;
+        
+        // Set up S3 upload parameters
+        const uploadParams = {
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: uniqueFilename,
+            Body: buffer,
+            ContentType: 'image/jpeg'
+        };
+
+        // Upload to S3
+        const command = new PutObjectCommand(uploadParams);
+        await s3Client.send(command);
+
+        // Generate pre-signed URL
+        const getObjectCommand = new GetObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: uniqueFilename
+        });
+        
+        const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+            expiresIn: 3600 // URL valid for 1 hour
+        });
+
+        res.json({
+            success: true,
+            url: signedUrl,
+            key: uniqueFilename // Store this if you need to generate new URLs later
+        });
+
+        // Generate URL
+        // const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFilename}`;
+
+        // res.json({
+        //     success: true,
+        //     url: imageUrl
+        // });
+
+    } catch (error) {
+        console.error('S3 upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to upload image'
+        });
+    }
+});
+
+// Optional: Add endpoint to regenerate signed URL for existing images
+// app.get('/get-image-url', async (req, res) => {
+//     try {
+//         const { key } = req.query;
+        
+//         const command = new GetObjectCommand({
+//             Bucket: process.env.AWS_BUCKET_NAME,
+//             Key: key
+//         });
+        
+//         const signedUrl = await getSignedUrl(s3Client, command, { 
+//             expiresIn: 3600 
+//         });
+
+//         res.json({
+//             success: true,
+//             url: signedUrl
+//         });
+//     } catch (error) {
+//         console.error('Error generating signed URL:', error);
+//         res.status(500).json({
+//             success: false,
+//             error: 'Failed to generate URL'
+//         });
+//     }
+// });
 
 // Export a serverless function handler for Vercel
 export default function handler(req, res) {
