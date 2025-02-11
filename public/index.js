@@ -1,3 +1,5 @@
+import { inject } from '@vercel/analytics';
+
 document.addEventListener('DOMContentLoaded', function() {
 
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
@@ -1307,3 +1309,5 @@ document.addEventListener('DOMContentLoaded', function() {
     window.routeUser = routeUser;
     window.showRecentFiles = showRecentFiles;
 });
+
+inject();
