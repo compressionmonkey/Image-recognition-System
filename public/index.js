@@ -1032,14 +1032,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (video.srcObject && isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 200);
+                }, 1000);
             }
         } catch (error) {
             console.error('Prediction error:', error);
             if (isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 200);
+                }, 1000);
             }
         }
     }
