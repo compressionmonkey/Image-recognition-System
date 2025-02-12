@@ -7,10 +7,28 @@
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <!-- Import TensorFlow.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js" type="text/javascript"></script>
     
-    <!-- Load the coco-ssd model to use to recognize things in images -->
+    <!-- TensorFlow.js and WebGL backend -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    
+    <!-- Initialize WebGL backend before other TF.js operations -->
+    <script>
+        async function initTensorFlow() {
+            try {
+                await tf.setBackend('webgl');
+                console.log('Successfully initialized WebGL backend');
+                console.log('Current backend:', tf.getBackend());
+            } catch (error) {
+                console.error('Failed to initialize WebGL backend:', error);
+                // Fallback to default backend if WebGL fails
+                console.log('Falling back to default backend:', tf.getBackend());
+            }
+        }
+        initTensorFlow();
+    </script>
+    
+    <!-- Load the coco-ssd model after WebGL initialization -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
     <!-- Add Vercel Analytics before your main script -->
