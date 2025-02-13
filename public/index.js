@@ -884,230 +884,140 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-     // Add these variables at the top level
-     let previousPhoneBox = null;
-     let lastFrameTime = null;
-     const SPEED_THRESHOLD = 50; // Adjust based on testing
-     const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
-     const MOTION_MEMORY = 5; // Number of recent motion measurements to track
-     const recentMotions = [];
-    // Add this function to create and animate the countdown timer
+    // Constants for detection
+    const PHONE_CONFIDENCE_THRESHOLD = 0.7;
+    const FRAME_SKIP = 10; // Process every 10th frame
+    const MIN_STABLE_DETECTIONS = 3; // Number of consecutive detections needed
 
-    function showCountdownTimer() {
-        return new Promise((resolve) => {
-            const liveView = document.getElementById('liveView');
-            const video = document.getElementById('camera-preview');
-            const timer = document.createElement('div');
-            timer.className = 'countdown-timer';
-            liveView.appendChild(timer);
-            let count = 3;
+    // Add state tracking
+    let stableDetectionCount = 0;
+    let previousPhoneBox = null;
+    let lastProcessedTime = 0;
 
-            // Try to focus camera if available
-            if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
-                const track = video.srcObject.getVideoTracks()[0];
-                logEvent(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
-                logEvent(`track focusMode' ${track.getCapabilities().focusMode}`);
-                // Check if camera supports focus mode
-                if (track.getCapabilities && track.getCapabilities().focusMode) {
-                    // Apply focus settings
-                    track.applyConstraints({
-                        advanced: [
-                            { focusMode: "continuous" },  // Continuous auto-focus
-                            { focusDistance: 0.33 }      // Focus at about 30cm distance
-                        ]
-                    }).catch(err => console.log('Focus error:', err));
-                }
-            }
-
-            function updateTimer() {
-                timer.textContent = count;
-                timer.classList.remove('countdown-animation');
-                void timer.offsetWidth; // Trigger reflow
-                timer.classList.add('countdown-animation');           
-
-                if (count > 1) {
-                    count--;
-                    setTimeout(updateTimer, 1000);
-                } else {
-                    setTimeout(() => {
-                        timer.remove();
-                        resolve();
-                    }, 1000);
-                }
-            }
-
-            updateTimer();
-        });
-    }
-
-    // Update the predictWebcam function to include the countdown
-     async function predictWebcam(video, liveView) {
+    async function predictWebcam(video, liveView) {
         if (!isPredicting) return;
 
-        children.forEach(child => liveView.removeChild(child));
-        children = [];
-
-        const guidanceText = document.getElementById('guidanceText');
-        const currentTime = performance.now();
-        
         try {
-            const predictions = await model.detect(video, 1, 0.7);
+            // Skip frames to reduce processing load
+            if (!window.frameCount) window.frameCount = 0;
+            window.frameCount++;
             
-            if (!isPredicting) return;
-            
-            const phoneDetection = predictions.find(p => p.class === 'cell phone' && p.score > 0.7);
-            
-            if (phoneDetection) {
-                // Calculate scale factors and create current phone box
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-                const liveViewWidth = liveView.offsetWidth;
-                const liveViewHeight = liveView.offsetHeight;
-                
-                const scaleX = liveViewWidth / videoWidth;
-                const scaleY = liveViewHeight / videoHeight;
+            if (window.frameCount % FRAME_SKIP !== 0) {
+                requestAnimationFrame(() => predictWebcam(video, liveView));
+                return;
+            }
 
+            // Throttle processing to maximum 3 FPS
+            const now = Date.now();
+            if (now - lastProcessedTime < 333) { // 333ms = ~3 FPS
+                requestAnimationFrame(() => predictWebcam(video, liveView));
+                return;
+            }
+            lastProcessedTime = now;
+
+            // Clear previous highlights
+            children.forEach(child => liveView.removeChild(child));
+            children = [];
+
+            // Use COCO-SSD for phone detection
+            const predictions = await model.detect(video);
+            
+            // Find phone in predictions
+            const phoneDetection = predictions.find(p => 
+                p.class === 'cell phone' && 
+                p.score > PHONE_CONFIDENCE_THRESHOLD
+            );
+
+            const guidanceText = document.getElementById('guidanceText');
+
+            if (phoneDetection) {
+                // Create current phone box
                 const currentPhoneBox = {
-                    x: phoneDetection.bbox[0] * scaleX,
-                    y: phoneDetection.bbox[1] * scaleY,
-                    width: phoneDetection.bbox[2] * scaleX * 2,
-                    height: phoneDetection.bbox[3] * scaleY * 1.5
+                    x: phoneDetection.bbox[0],
+                    y: phoneDetection.bbox[1],
+                    width: phoneDetection.bbox[2],
+                    height: phoneDetection.bbox[3]
                 };
 
-                // Calculate motion and quality metrics
-                const qualityMetrics = analyzeFrameQuality(
-                    currentPhoneBox, 
-                    previousPhoneBox, 
-                    lastFrameTime ? (currentTime - lastFrameTime) : 16.67 // Default to 60fps if no previous frame
-                );
+                // Check if phone is stable
+                const isStable = checkStability(currentPhoneBox, previousPhoneBox);
+                previousPhoneBox = currentPhoneBox;
 
-                // Create and style highlighter
+                // Create highlighter
                 const highlighter = document.createElement('div');
                 highlighter.classList.add('highlighter');
                 highlighter.style.left = `${currentPhoneBox.x}px`;
-                highlighter.style.top = `${currentPhoneBox.y}px`;
+                highlighter.style.top = `${currentPhoneBox.y}px`;  
                 highlighter.style.width = `${currentPhoneBox.width}px`;
                 highlighter.style.height = `${currentPhoneBox.height}px`;
-
-                // Calculate area ratio
-                const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
-                const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                const minRatio = isMobileOrTablet ? 0.4 : 0.1;
-                const maxRatio = 1;
-                const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
-                
-                // Update UI with all metrics
-                guidanceText.innerHTML = `
-                    <div class="detection-stats">
-                        ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
-                    </div>
-                `;
-
-                // Only capture if all conditions are met
-                if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
-                    isPredicting = false; // Stop predictions during countdown    
-
-                    try {
-                        // Show countdown timer
-                        await showCountdownTimer();
-
-                        // Take the photo after countdown
-                        await handlePhotoCapture(video, video.srcObject);
-                        return;
-                    } catch (error) {
-                        console.error('Error during countdown/capture:', error);
-                        isPredicting = true; // Resume predictions if there's an error
-                    }
-                }
-
-                // Update state for next frame
-                previousPhoneBox = currentPhoneBox;
-                lastFrameTime = currentTime;
 
                 // Add highlighter to view
                 liveView.appendChild(highlighter);
                 children.push(highlighter);
+
+                // Update stability counter
+                if (isStable) {
+                    stableDetectionCount++;
+                    if (stableDetectionCount >= MIN_STABLE_DETECTIONS) {
+                        guidanceText.innerHTML = '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
+                        // Trigger capture
+                        if (!window.captureTimeout) {
+                            window.captureTimeout = setTimeout(() => {
+                                handlePhotoCapture(video, video.srcObject);
+                                window.captureTimeout = null;
+                            }, 1500);
+                        }
+                    } else {
+                        guidanceText.innerHTML = '<p style="color: #FFA500">Almost there... keep steady</p>';
+                    }
+                } else {
+                    stableDetectionCount = 0;
+                    guidanceText.innerHTML = '<p style="color: #FFA500">Hold phone more steady</p>';
+                }
+            } else {
+                stableDetectionCount = 0;
+                previousPhoneBox = null;
+                guidanceText.innerHTML = '<p style="color: #FFA500">Position phone in frame</p>';
             }
 
-            if (video.srcObject && isPredicting) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 1000);
-            }
         } catch (error) {
-            console.error('Prediction error:', error);
-            if (isPredicting) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 1000);
-            }
+            console.error('Detection error:', error);
+            stableDetectionCount = 0;
+            previousPhoneBox = null;
+        }
+
+        // Request next frame with delay
+        if (isPredicting) {
+            setTimeout(() => {
+                requestAnimationFrame(() => predictWebcam(video, liveView));
+            }, 200); // ~5 FPS maximum
         }
     }
 
-    function analyzeFrameQuality(currentBox, previousBox, timeDelta) {
-        const metrics = {
-            movement: 0,
-            sharpness: 100, // Default to perfect sharpness
-            isBlurred: false,
-            isStable: true,
-            isSharp: true
+    // Helper function to check if phone position is stable
+    function checkStability(currentBox, previousBox) {
+        if (!previousBox) return false;
+
+        // Calculate center points
+        const currentCenter = {
+            x: currentBox.x + (currentBox.width / 2),
+            y: currentBox.y + (currentBox.height / 2)
+        };
+        
+        const previousCenter = {
+            x: previousBox.x + (previousBox.width / 2),
+            y: previousBox.y + (previousBox.height / 2)
         };
 
-        // Calculate movement if we have previous frame data
-        if (previousBox) {
-            const prevCenter = {
-                x: previousBox.x + (previousBox.width / 2),
-                y: previousBox.y + (previousBox.height / 2)
-            };
-            
-            const currentCenter = {
-                x: currentBox.x + (currentBox.width / 2),
-                y: currentBox.y + (currentBox.height / 2)
-            };
-            
-            // Calculate movement speed (pixels per second)
-            const distance = Math.sqrt(
-                Math.pow(currentCenter.x - prevCenter.x, 2) + 
-                Math.pow(currentCenter.y - prevCenter.y, 2)
-            );
-            
-            const speed = distance / (timeDelta / 1000); // Convert to pixels per second
-            
-            // Add to recent motions array
-            recentMotions.push(speed);
-            if (recentMotions.length > MOTION_MEMORY) {
-                recentMotions.shift();
-            }
-            
-            // Calculate average recent motion
-            metrics.movement = recentMotions.reduce((a, b) => a + b, 0) / recentMotions.length;
-            metrics.isStable = metrics.movement < SPEED_THRESHOLD;
-        }
+        // Calculate movement distance
+        const distance = Math.sqrt(
+            Math.pow(currentCenter.x - previousCenter.x, 2) + 
+            Math.pow(currentCenter.y - previousCenter.y, 2)
+        );
 
-        // Estimate sharpness based on movement
-        // This is a simple approximation - could be enhanced with actual image analysis
-        metrics.sharpness = Math.max(0, 100 - (metrics.movement / 2));
-        metrics.isSharp = metrics.sharpness > SHARPNESS_THRESHOLD;
-        
-        // Determine if image is too blurred
-        metrics.isBlurred = !metrics.isSharp || !metrics.isStable;
-
-        return metrics;
+        // Check if movement is within threshold (20 pixels)
+        return distance < 20;
     }
-
-    function getGuidanceMessage(metrics, isGoodRatio, areaRatio, minRatio) {
-        if (!isGoodRatio) {
-            return `<p style="color: #FFA500">${areaRatio < minRatio ? 'Move closer' : 'Move further'}</p>`;
-        }
-        if (!metrics.isStable) {
-            return '<p style="color: #FFA500">Hold phone more steady</p>';
-        }
-        if (!metrics.isSharp) {
-            return '<p style="color: #FFA500">Image too blurry</p>';
-        }
-        return '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
-    }
-
 
     // Modify your camera modal HTML to include the highlighter container
     function createCameraModal() {
