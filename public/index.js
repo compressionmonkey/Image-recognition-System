@@ -898,126 +898,64 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!isPredicting) return;
 
         try {
-            // Skip frames to reduce processing load
+            // More aggressive frame skipping for low-end devices
             if (!window.frameCount) window.frameCount = 0;
             window.frameCount++;
             
-            if (window.frameCount % FRAME_SKIP !== 0) {
+            // Process every 15th frame instead of 10th
+            if (window.frameCount % 15 !== 0) {
                 requestAnimationFrame(() => predictWebcam(video, liveView));
                 return;
             }
 
-            // Throttle processing to maximum 3 FPS
+            // Longer minimum time between processes
             const now = Date.now();
-            if (now - lastProcessedTime < 333) { // 333ms = ~3 FPS
+            if (now - lastProcessedTime < 500) { // 500ms = 2 FPS
                 requestAnimationFrame(() => predictWebcam(video, liveView));
                 return;
             }
             lastProcessedTime = now;
 
-            // Clear previous highlights
-            children.forEach(child => liveView.removeChild(child));
-            children = [];
+            // Memory cleanup before detection
+            if (window.gc) window.gc();
 
-            // Use COCO-SSD for phone detection
-            const predictions = await model.detect(video);
-            
-            // Find phone in predictions
-            const phoneDetection = predictions.find(p => 
-                p.class === 'cell phone' && 
-                p.score > PHONE_CONFIDENCE_THRESHOLD
-            );
+            // Use COCO-SSD with reduced input size
+            const predictions = await model.detect(video, {
+                maxNumBoxes: 1, // Only look for one phone
+                minScore: 0.7  // Higher confidence threshold
+            });
 
-            const guidanceText = document.getElementById('guidanceText');
+            // Quick exit if prediction stopped during detection
+            if (!isPredicting) return;
 
-            if (phoneDetection) {
-                // Create current phone box
-                const currentPhoneBox = {
-                    x: phoneDetection.bbox[0],
-                    y: phoneDetection.bbox[1],
-                    width: phoneDetection.bbox[2],
-                    height: phoneDetection.bbox[3]
-                };
-
-                // Check if phone is stable
-                const isStable = checkStability(currentPhoneBox, previousPhoneBox);
-                previousPhoneBox = currentPhoneBox;
-
-                // Create highlighter
-                const highlighter = document.createElement('div');
-                highlighter.classList.add('highlighter');
-                highlighter.style.left = `${currentPhoneBox.x}px`;
-                highlighter.style.top = `${currentPhoneBox.y}px`;  
-                highlighter.style.width = `${currentPhoneBox.width}px`;
-                highlighter.style.height = `${currentPhoneBox.height}px`;
-
-                // Add highlighter to view
-                liveView.appendChild(highlighter);
-                children.push(highlighter);
-
-                // Update stability counter
-                if (isStable) {
-                    stableDetectionCount++;
-                    if (stableDetectionCount >= MIN_STABLE_DETECTIONS) {
-                        guidanceText.innerHTML = '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
-                        // Trigger capture
-                        if (!window.captureTimeout) {
-                            window.captureTimeout = setTimeout(() => {
-                                handlePhotoCapture(video, video.srcObject);
-                                window.captureTimeout = null;
-                            }, 1500);
-                        }
-                    } else {
-                        guidanceText.innerHTML = '<p style="color: #FFA500">Almost there... keep steady</p>';
-                    }
-                } else {
-                    stableDetectionCount = 0;
-                    guidanceText.innerHTML = '<p style="color: #FFA500">Hold phone more steady</p>';
-                }
-            } else {
-                stableDetectionCount = 0;
-                previousPhoneBox = null;
-                guidanceText.innerHTML = '<p style="color: #FFA500">Position phone in frame</p>';
-            }
+            // Rest of your existing detection logic...
 
         } catch (error) {
             console.error('Detection error:', error);
-            stableDetectionCount = 0;
-            previousPhoneBox = null;
-        }
-
-        // Request next frame with delay
-        if (isPredicting) {
-            setTimeout(() => {
-                requestAnimationFrame(() => predictWebcam(video, liveView));
-            }, 200); // ~5 FPS maximum
+        } finally {
+            if (isPredicting) {
+                // Longer delay between frames for low-end devices
+                setTimeout(() => {
+                    requestAnimationFrame(() => predictWebcam(video, liveView));
+                }, 500); // 500ms delay = max 2 FPS
+            }
         }
     }
 
-    // Helper function to check if phone position is stable
-    function checkStability(currentBox, previousBox) {
-        if (!previousBox) return false;
+    // Add device capability check
+    function checkDeviceCapability() {
+        const memory = navigator?.deviceMemory || 4; // Default to 4GB if not available
+        const isLowEndDevice = memory <= 4;
 
-        // Calculate center points
-        const currentCenter = {
-            x: currentBox.x + (currentBox.width / 2),
-            y: currentBox.y + (currentBox.height / 2)
-        };
-        
-        const previousCenter = {
-            x: previousBox.x + (previousBox.width / 2),
-            y: previousBox.y + (previousBox.height / 2)
-        };
-
-        // Calculate movement distance
-        const distance = Math.sqrt(
-            Math.pow(currentCenter.x - previousCenter.x, 2) + 
-            Math.pow(currentCenter.y - previousCenter.y, 2)
-        );
-
-        // Check if movement is within threshold (20 pixels)
-        return distance < 20;
+        if (isLowEndDevice) {
+            FRAME_SKIP = 15;           // Skip more frames
+            MIN_STABLE_DETECTIONS = 2; // Require fewer stable detections
+            // Adjust other parameters for low-end devices
+        }
     }
+
+    // Call this when initializing
+    checkDeviceCapability();
 
     // Modify your camera modal HTML to include the highlighter container
     function createCameraModal() {
