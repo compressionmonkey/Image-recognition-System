@@ -5,17 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Receipt Recognition</title>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/style.css?v=m5jbtqbgtocnl?v=m5jbdt6cedgsb?v=m5jb67ibdsaoc?v=m5jb5p1m5ys4h?v=m5e0hwg4vyqwa?v=m5e0alny1wi7i?v=m5e04zumfkbak">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.0/dist/tesseract.min.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <!-- Import TensorFlow.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js" type="text/javascript"></script>
     
-    <!-- Load the coco-ssd model to use to recognize things in images -->
+    <!-- TensorFlow.js and WebGL backend -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    
+    <!-- Initialize WebGL backend before other TF.js operations -->
+    <script>
+        async function initTensorFlow() {
+            try {
+                await tf.setBackend('webgl');
+                console.log('Successfully initialized WebGL backend');
+                console.log('Current backend:', tf.getBackend());
+            } catch (error) {
+                console.error('Failed to initialize WebGL backend:', error);
+                // Fallback to default backend if WebGL fails
+                console.log('Falling back to default backend:', tf.getBackend());
+            }
+        }
+        initTensorFlow();
+    </script>
+    
+    <!-- Load the coco-ssd model after WebGL initialization -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
-    <script src="/index.js?v=m5jbtqbgtocnl?v=m5jbdt6cedgsb?v=m5jb67ibdsaoc?v=m5jb5p1m5ys4h?v=m5e0hwg4vyqwa?v=m5e0alny1wi7i?v=m5e04zumfkbak" defer></script>
+    <!-- Add Vercel Analytics before your main script -->
+    <script defer src="/_vercel/insights/script.js"></script>
+
+    <!-- Add Vercel Speed Insights -->
+    <script defer src="/_vercel/speed-insights/script.js"></script>
+
+    <script src="/index.js" defer></script>
 
     <link rel="icon" href="data:,">
 </head>
