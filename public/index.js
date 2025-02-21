@@ -103,10 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
 
     // Load COCO-SSD model when page loads
-    cocoSsd.load().then(function(loadedModel) {
-        model = loadedModel;
-        console.log('COCO-SSD model loaded');
-    });
+    // cocoSsd.load().then(function(loadedModel) {
+    //     model = loadedModel;
+    //     console.log('COCO-SSD model loaded');
+    // });
 
     function showPhotoOptions() {
         const modal = document.getElementById('photoOptionsModal');
@@ -807,10 +807,10 @@ document.addEventListener('DOMContentLoaded', function() {
     async function handlePhotoOption(source) {
         if (source === 'camera') {
             try {
-                if (!model) {
-                    showToast('Please wait, AI model is loading...', 'info');
-                    return;
-                }
+                // if (!model) {
+                //     showToast('Please wait, AI model is loading...', 'info');
+                //     return;
+                // }
 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
@@ -951,34 +951,50 @@ document.addEventListener('DOMContentLoaded', function() {
         const currentTime = performance.now();
         
         try {
-            const predictions = await model.detect(video, 1, 0.7);
+            // Capture current frame from video
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
             
+            // Convert canvas to blob
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('image', blob);
+
+            // Call phone-detector API
+            const response = await fetch('http://128.199.148.77:3000/detect', {
+                method: 'POST',
+                body: formData
+            });
+
             if (!isPredicting) return;
+
+            const result = await response.json();
             
-            const phoneDetection = predictions.find(p => p.class === 'cell phone' && p.score > 0.7);
-            
-            if (phoneDetection) {
+            if (result.phoneDetected) {
                 // Calculate scale factors and create current phone box
                 const videoWidth = video.videoWidth;
                 const videoHeight = video.videoHeight;
                 const liveViewWidth = liveView.offsetWidth;
                 const liveViewHeight = liveView.offsetHeight;
                 
-                const scaleX = liveViewWidth / videoWidth;
-                const scaleY = liveViewHeight / videoHeight;
-
+                // Create a default bounding box in the center
                 const currentPhoneBox = {
-                    x: phoneDetection.bbox[0] * scaleX,
-                    y: phoneDetection.bbox[1] * scaleY,
-                    width: phoneDetection.bbox[2] * scaleX * 2,
-                    height: phoneDetection.bbox[3] * scaleY * 1.5
+                    x: liveViewWidth * 0.2,
+                    y: liveViewHeight * 0.2,
+                    width: liveViewWidth * 0.6,
+                    height: liveViewHeight * 0.6
                 };
 
-                // Calculate motion and quality metrics
+                // Calculate quality metrics
                 const qualityMetrics = analyzeFrameQuality(
                     currentPhoneBox, 
                     previousPhoneBox, 
-                    lastFrameTime ? (currentTime - lastFrameTime) : 16.67 // Default to 60fps if no previous frame
+                    lastFrameTime ? (currentTime - lastFrameTime) : 16.67
                 );
 
                 // Create and style highlighter
@@ -996,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const maxRatio = 1;
                 const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
                 
-                // Update UI with all metrics
+                // Update UI with metrics
                 guidanceText.innerHTML = `
                     <div class="detection-stats">
                         ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
@@ -1005,18 +1021,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Only capture if all conditions are met
                 if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
-                    isPredicting = false; // Stop predictions during countdown    
+                    isPredicting = false;
 
                     try {
-                        // Show countdown timer
                         await showCountdownTimer();
-
-                        // Take the photo after countdown
                         await handlePhotoCapture(video, video.srcObject);
                         return;
                     } catch (error) {
                         console.error('Error during countdown/capture:', error);
-                        isPredicting = true; // Resume predictions if there's an error
+                        isPredicting = true;
                     }
                 }
 
@@ -1029,6 +1042,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 children.push(highlighter);
             }
 
+            // Continue prediction loop
             if (video.srcObject && isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
