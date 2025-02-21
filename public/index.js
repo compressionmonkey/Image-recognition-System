@@ -974,6 +974,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!isPredicting) return;
 
             const result = await response.json();
+
+            // Log relevant response details
+            logEvent(`Phone Detected: ${JSON.stringify(result)}`);
             
             if (result.phoneDetected) {
                 // Calculate scale factors and create current phone box
