@@ -73,7 +73,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
-    let model = undefined;
     let children = [];
     let currentConfirmationData = null;
 
@@ -83,10 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
         const loginOverlay = document.getElementById('loginOverlay');
-        // const userNav = document.getElementById('userNav');
         const mainContent = document.getElementById('mainContent');
-        // const heroSection = document.querySelector('.hero-section');
-        // const cameraContainer = document.getElementById('camera-container');
         
         if (sessionStorage.getItem('isLoggedIn') === 'true') {
             isLoggedIn = true;
@@ -95,8 +91,6 @@ document.addEventListener('DOMContentLoaded', function() {
             mainContent.style.display = 'block';
             
             // // Hide initial content
-            // if (heroSection) heroSection.style.display = 'none';
-            // if (cameraContainer) cameraContainer.style.display = 'none';
         }
     });
 
@@ -172,12 +166,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
     
     document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
-
-    // Load COCO-SSD model when page loads
-    // cocoSsd.load().then(function(loadedModel) {
-    //     model = loadedModel;
-    //     console.log('COCO-SSD model loaded');
-    // });
 
     function showPhotoOptions() {
         const modal = document.getElementById('photoOptionsModal');
@@ -285,8 +273,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Update the saveImageToDevice function
-    async function saveImageToDevice(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
+    // Update the saveImageToBucket function
+    async function saveImageToBucket(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
         try {
             // First upload to S3
             const response = await fetch('/upload-receipt', {
@@ -518,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
-                    saveImageToDevice(file.imageData, file.filename, false);
+                    saveImageToBucket(file.imageData, file.filename, false);
                     modal.remove();
                 };
             });
@@ -690,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
             viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
             viewImageBtn.onclick = (e) => {
                 e.preventDefault();
-                saveImageToDevice(currentImageData, 'receipt.jpg', false);
+                saveImageToBucket(currentImageData, 'receipt.jpg', false);
             };
             form.insertBefore(viewImageBtn, form.firstChild);
         }
@@ -918,7 +906,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         reader.onload = async function(event) {
                             const base64Image = event.target.result.split(',')[1];
                             currentImageData = base64Image; // Store the image data
-                            await saveImageToDevice(base64Image, file.name, true);
+                            await saveImageToBucket(base64Image, file.name, true);
                             await processImage(file);
                         };
                         reader.readAsDataURL(file);
@@ -1078,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 await handlePhotoCapture(video, video.srcObject);
                                 return;
                             } catch (error) {
-                                logEvent(`Error during countdown/capture: ${error}`);
+                                console.error('Error during countdown/capture:', error);
                                 isPredicting = true; // Resume predictions if there's an error
                             }
                         }
@@ -1097,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
         } catch (error) {
-            logEvent(`Prediction error: ${error}`);
+            console.error('Prediction error:', error);
         }
 
         // Continue predictions if no capture occurred
@@ -1274,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
-                        await saveImageToDevice(base64Image, filename, true);
+                        await saveImageToBucket(base64Image, filename, true);
                         
                         // Continue with normal flow
                         closeCameraModal();
