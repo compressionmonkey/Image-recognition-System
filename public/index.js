@@ -980,7 +980,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('https://keldendraduldorji.com/detect', {
                         method: 'POST',
                         body: formData,
-                        timeout: 2000 // 2 second timeout
+                        timeout: 2000
                     });
 
                     if (!response.ok) {
@@ -1013,6 +1013,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
 
+                        // Check if conditions are good for automatic capture
+                        if (qualityMetrics.isStable && 
+                            qualityMetrics.isSharp && 
+                            qualityMetrics.isGoodRatio && 
+                            qualityMetrics.confidence > 0.8) {
+                            
+                            // Pause predictions during countdown and capture
+                            isPredicting = false;
+
+                            try {
+                                // Show countdown timer
+                                await showCountdownTimer();
+
+                                // Take the photo after countdown
+                                await handlePhotoCapture(video, video.srcObject);
+                                return;
+                            } catch (error) {
+                                logEvent(`Error during countdown/capture: ${error}`);
+                                isPredicting = true; // Resume predictions if there's an error
+                            }
+                        }
+
                         previousPhoneBox = currentPhoneBox;
                         lastFrameTime = currentTime;
                     }
@@ -1030,9 +1052,9 @@ document.addEventListener('DOMContentLoaded', function() {
             logEvent(`Prediction error: ${error}`);
         }
 
-        // Adaptive polling rate based on device performance
-        const nextDelay = determineNextDelay(currentTime);
+        // Continue predictions if no capture occurred
         if (isPredicting) {
+            const nextDelay = determineNextDelay(currentTime);
             setTimeout(() => requestAnimationFrame(() => predictWebcam(video, liveView)), nextDelay);
         }
     }
@@ -1048,6 +1070,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add function to update detection UI
     async function updateDetectionUI(metrics, box, liveView) {
+        const video = document.getElementById('camera-preview');
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+
+        // Calculate area ratio
+        const areaRatio = (box.width / videoWidth) * (box.height / videoHeight);
+        const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const minRatio = isMobileOrTablet ? 0.4 : 0.1;
+        const maxRatio = 1;
+        const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
+
+        // Add ratio info to metrics
+        metrics.areaRatio = areaRatio;
+        metrics.isGoodRatio = isGoodRatio;
+        metrics.minRatio = minRatio;
+
+        // Create highlighter with color based on all metrics
         const highlighter = document.createElement('div');
         highlighter.classList.add('highlighter');
         Object.assign(highlighter.style, {
@@ -1055,16 +1094,16 @@ document.addEventListener('DOMContentLoaded', function() {
             top: `${box.y}px`,
             width: `${box.width}px`,
             height: `${box.height}px`,
-            borderColor: metrics.confidence > 0.8 ? '#4CAF50' : '#FFA500'
+            borderColor: metrics.confidence > 0.8 && isGoodRatio ? '#4CAF50' : '#FFA500'
         });
 
         liveView.appendChild(highlighter);
         children.push(highlighter);
 
-        // Update guidance text
+        // Update guidance text with all metrics
         const guidanceText = document.getElementById('guidanceText');
         if (guidanceText) {
-            guidanceText.innerHTML = await getGuidanceMessage(metrics);
+            guidanceText.innerHTML = getGuidanceMessage(metrics);
         }
     }
 
@@ -1119,17 +1158,22 @@ document.addEventListener('DOMContentLoaded', function() {
         return metrics;
     }
 
-    async function getGuidanceMessage(metrics) {
+    function getGuidanceMessage(metrics) {
         if (!metrics.isStable) {
             return '<p style="color: #FFA500">Hold phone more steady</p>';
         }
         if (!metrics.isSharp) {
             return '<p style="color: #FFA500">Image too blurry</p>';
         }
-        // Show countdown timer before starting detection
-        await showCountdownTimer();
+        if (!metrics.isGoodRatio) {
+            if (metrics.areaRatio < metrics.minRatio) {
+                return '<p style="color: #FFA500">Move closer to the receipt</p>';
+            }
+            if (metrics.areaRatio >= 1) {
+                return '<p style="color: #FFA500">Move further from the receipt</p>';
+            }
+        }
         return '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
-
     }
 
 
