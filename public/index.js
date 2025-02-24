@@ -1014,7 +1014,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const minRatio = isMobileOrTablet ? 0.4 : 0.1;
                 const maxRatio = 1;
                 const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
-                
+
+                logEvent(`qualityMetrics ${qualityMetrics}, isGoodRatio ${isGoodRatio}, areaRatio ${areaRatio}, minRatio ${minRatio}, maxRatio ${maxRatio}`);
                 // Update UI with metrics
                 guidanceText.innerHTML = `
                     <div class="detection-stats">
@@ -1049,14 +1050,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (video.srcObject && isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 1000);
+                }, 500);
             }
         } catch (error) {
             console.error('Prediction error:', error);
             if (isPredicting) {
                 setTimeout(() => {
                     requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 1000);
+                }, 500);
             }
         }
     }
