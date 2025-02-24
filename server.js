@@ -798,7 +798,7 @@ app.post('/vision-api', async (req, res) => {
             const receiptData = parseReceiptData(recognizedText, bankKey);
             console.log('receiptData',receiptData);
             // Send only the essential data
-            const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Date || receiptData.Bank !== 'Unknown';
+            const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
             console.log('isReceipt', isReceipt);
             if(isReceipt) {
                 res.json({
