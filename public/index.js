@@ -1,4 +1,75 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+                // Check for updates every 5 minutes
+                setInterval(() => {
+                    registration.update();
+                }, 300000);
+
+                // Handle updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            showUpdateNotification();
+                        }
+                    });
+                });
+            })
+            .catch(error => logEvent(`ServiceWorker registration failed: ${error}`));
+    }
+
+    // Add update notification function
+    function showUpdateNotification() {
+        showToast('New version available! Tap to update', 'info', true)
+            .then(() => {
+                // Clear caches and reload
+                caches.keys().then(keys => {
+                    return Promise.all(
+                        keys.map(key => caches.delete(key))
+                    );
+                }).then(() => {
+                    window.location.reload(true);
+                });
+            });
+    }
+
+    // Modify your showToast function to handle taps
+    function showToast(message, type = 'info', isClickable = false) {
+        return new Promise((resolve) => {
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}${isClickable ? ' clickable' : ''}`;
+            toast.textContent = message;
+            
+            if (isClickable) {
+                toast.style.cursor = 'pointer';
+                toast.addEventListener('click', () => {
+                    toast.remove();
+                    resolve();
+                });
+            }
+
+            document.body.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 100);
+
+            if (!isClickable) {
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        toast.remove();
+                        resolve();
+                    }, 300);
+                }, 3000);
+            }
+        });
+    }
 
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
@@ -212,29 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('manualReceiptForm').reset();
             }, 300);
         }
-    }
-
-    // Add toast functionality
-    function showToast(message, type = 'info') {
-        // Remove existing toast if any
-        const existingToast = document.querySelector('.toast');
-        if (existingToast) {
-            existingToast.remove();
-        }
-
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-
-        // Trigger animation
-        setTimeout(() => toast.classList.add('show'), 100);
-
-        // Auto-remove after 3 seconds
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
     }
 
     // Update the saveImageToDevice function

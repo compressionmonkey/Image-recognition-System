@@ -18,6 +18,20 @@
     {
       "src": "api/**/*.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/service-worker.js",
+      "use": "@vercel/static",
+      "config": {
+        "zeroConfig": true
+      }
+    },
+    {
+      "src": "public/version.json",
+      "use": "@vercel/static",
+      "config": {
+        "zeroConfig": true
+      }
     }
   ],
   "routes": [
@@ -52,6 +66,21 @@
     {
       "src": "/(.*)",
       "dest": "/server.js"
+    },
+    {
+      "src": "/service-worker.js",
+      "dest": "/public/service-worker.js",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Service-Worker-Allowed": "/"
+      }
+    },
+    {
+      "src": "/version.json",
+      "dest": "/public/version.json",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
     }
   ],
   "env": {
