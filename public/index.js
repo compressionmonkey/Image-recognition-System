@@ -944,121 +944,122 @@ document.addEventListener('DOMContentLoaded', function() {
      async function predictWebcam(video, liveView) {
         if (!isPredicting) return;
 
+        // Show countdown timer before starting detection
+        await showCountdownTimer();
+
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
-        const guidanceText = document.getElementById('guidanceText');
+        // const guidanceText = document.getElementById('guidanceText');
         const currentTime = performance.now();
         
         try {
-            // Capture current frame from video
+            // Capture current frame with better quality
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0);
             
-            // Convert canvas to blob
-            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-            
-            // Create form data
-            const formData = new FormData();
-            formData.append('image', blob);
+            // Convert to blob with better quality
+            const blob = await new Promise(resolve => 
+                canvas.toBlob(resolve, 'image/jpeg', 0.85)
+            );
 
-            // Call phone-detector API
-            const response = await fetch('https://keldendraduldorji.com/detect', {
-                method: 'POST',
-                body: formData
-            });
+            // Add retry logic
+            const maxRetries = 3;
+            let retryCount = 0;
+            let success = false;
 
-            if (!isPredicting) return;
+            while (!success && retryCount < maxRetries) {
+                try {
+                    const formData = new FormData();
+                    formData.append('image', blob);
 
-            const result = await response.json();
+                    const response = await fetch('https://keldendraduldorji.com/detect', {
+                        method: 'POST',
+                        body: formData,
+                        timeout: 2000 // 2 second timeout
+                    });
 
-            // Log relevant response details
-            logEvent(`Phone Detected: ${JSON.stringify(result)}`);
-            
-            if (result.phoneDetected) {
-                // Calculate scale factors and create current phone box
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-                const liveViewWidth = liveView.offsetWidth;
-                const liveViewHeight = liveView.offsetHeight;
-                
-                // Create a default bounding box in the center
-                const currentPhoneBox = {
-                    x: liveViewWidth * 0.2,
-                    y: liveViewHeight * 0.2,
-                    width: liveViewWidth * 0.6,
-                    height: liveViewHeight * 0.6
-                };
-
-                // Calculate quality metrics
-                const qualityMetrics = analyzeFrameQuality(
-                    currentPhoneBox, 
-                    previousPhoneBox, 
-                    lastFrameTime ? (currentTime - lastFrameTime) : 16.67
-                );
-
-                // Create and style highlighter
-                const highlighter = document.createElement('div');
-                highlighter.classList.add('highlighter');
-                highlighter.style.left = `${currentPhoneBox.x}px`;
-                highlighter.style.top = `${currentPhoneBox.y}px`;
-                highlighter.style.width = `${currentPhoneBox.width}px`;
-                highlighter.style.height = `${currentPhoneBox.height}px`;
-
-                // Calculate area ratio
-                const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
-                const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                const minRatio = isMobileOrTablet ? 0.4 : 0.1;
-                const maxRatio = 1;
-                const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
-
-                logEvent(`qualityMetrics ${qualityMetrics}, isGoodRatio ${isGoodRatio}, areaRatio ${areaRatio}, minRatio ${minRatio}, maxRatio ${maxRatio}`);
-                // Update UI with metrics
-                guidanceText.innerHTML = `
-                    <div class="detection-stats">
-                        ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
-                    </div>
-                `;
-
-                // Only capture if all conditions are met
-                if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
-                    isPredicting = false;
-
-                    try {
-                        await showCountdownTimer();
-                        await handlePhotoCapture(video, video.srcObject);
-                        return;
-                    } catch (error) {
-                        console.error('Error during countdown/capture:', error);
-                        isPredicting = true;
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
+
+                    const result = await response.json();
+                    success = true;
+
+                    // Use the more detailed response
+                    if (result.phoneDetected) {
+                        const currentPhoneBox = {
+                            x: result.bbox ? result.bbox[0] : liveView.offsetWidth * 0.2,
+                            y: result.bbox ? result.bbox[1] : liveView.offsetHeight * 0.2,
+                            width: result.bbox ? result.bbox[2] : liveView.offsetWidth * 0.6,
+                            height: result.bbox ? result.bbox[3] : liveView.offsetHeight * 0.6
+                        };
+
+                        const qualityMetrics = analyzeFrameQuality(
+                            currentPhoneBox,
+                            previousPhoneBox,
+                            lastFrameTime ? (currentTime - lastFrameTime) : 16.67
+                        );
+
+                        // Update UI with confidence score
+                        qualityMetrics.confidence = result.confidence;
+                        updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
+
+                        previousPhoneBox = currentPhoneBox;
+                        lastFrameTime = currentTime;
+                    }
+
+                } catch (error) {
+                    retryCount++;
+                    if (retryCount === maxRetries) {
+                        logEvent(`Detection failed after retries: ${error}`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
                 }
-
-                // Update state for next frame
-                previousPhoneBox = currentPhoneBox;
-                lastFrameTime = currentTime;
-
-                // Add highlighter to view
-                liveView.appendChild(highlighter);
-                children.push(highlighter);
             }
 
-            // Continue prediction loop
-            if (video.srcObject && isPredicting) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 500);
-            }
         } catch (error) {
-            console.error('Prediction error:', error);
-            if (isPredicting) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 500);
-            }
+            logEvent(`Prediction error: ${error}`);
+        }
+
+        // Adaptive polling rate based on device performance
+        const nextDelay = determineNextDelay(currentTime);
+        if (isPredicting) {
+            setTimeout(() => requestAnimationFrame(() => predictWebcam(video, liveView)), nextDelay);
+        }
+    }
+
+    // Add adaptive polling rate function
+    function determineNextDelay(currentTime) {
+        const processingTime = performance.now() - currentTime;
+        // Adjust delay based on processing time
+        if (processingTime > 400) return 800; // Slower devices
+        if (processingTime > 200) return 600; // Medium devices
+        return 500; // Fast devices
+    }
+
+    // Add function to update detection UI
+    function updateDetectionUI(metrics, box, liveView) {
+        const highlighter = document.createElement('div');
+        highlighter.classList.add('highlighter');
+        Object.assign(highlighter.style, {
+            left: `${box.x}px`,
+            top: `${box.y}px`,
+            width: `${box.width}px`,
+            height: `${box.height}px`,
+            borderColor: metrics.confidence > 0.8 ? '#4CAF50' : '#FFA500'
+        });
+
+        liveView.appendChild(highlighter);
+        children.push(highlighter);
+
+        // Update guidance text
+        const guidanceText = document.getElementById('guidanceText');
+        if (guidanceText) {
+            guidanceText.innerHTML = getGuidanceMessage(metrics);
         }
     }
 
@@ -1113,10 +1114,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return metrics;
     }
 
-    function getGuidanceMessage(metrics, isGoodRatio, areaRatio, minRatio) {
-        if (!isGoodRatio) {
-            return `<p style="color: #FFA500">${areaRatio < minRatio ? 'Move closer' : 'Move further'}</p>`;
-        }
+    function getGuidanceMessage(metrics) {
         if (!metrics.isStable) {
             return '<p style="color: #FFA500">Hold phone more steady</p>';
         }
