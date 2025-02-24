@@ -798,16 +798,26 @@ app.post('/vision-api', async (req, res) => {
             const receiptData = parseReceiptData(recognizedText, bankKey);
             console.log('receiptData',receiptData);
             // Send only the essential data
-            res.json({
-                amount: receiptData.Amount,
-                referenceNo: receiptData.ReferenceNo,
-                Date: receiptData.Date,
-                Time: receiptData.Time,
-                PaymentMethod: receiptData.PaymentMethod,
-                Bank: receiptData.Bank,
-                recognizedText
-            });
-            return;
+            const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Date || receiptData.Bank !== 'Unknown';
+            console.log('isReceipt', isReceipt);
+            if(isReceipt) {
+                res.json({
+                    amount: receiptData.Amount,
+                    referenceNo: receiptData.ReferenceNo,
+                    Date: receiptData.Date,
+                    Time: receiptData.Time,
+                    PaymentMethod: receiptData.PaymentMethod,
+                    Bank: receiptData.Bank,
+                    recognizedText
+                    });
+                    return;
+            } else {
+                res.status(400).json({
+                    error: 'No receipt detected',
+                    message: 'Please try again with a clearer image.'
+                });
+                return;
+            }
         } else {
             res.status(400).json({
                 error: 'Text confidence score is below threshold',
