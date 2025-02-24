@@ -966,7 +966,7 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('image', blob);
 
             // Call phone-detector API
-            const response = await fetch('http://128.199.148.77:3000/detect', {
+            const response = await fetch('https://keldendraduldorji.com/detect', {
                 method: 'POST',
                 body: formData
             });
