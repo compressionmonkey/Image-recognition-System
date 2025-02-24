@@ -944,9 +944,6 @@ document.addEventListener('DOMContentLoaded', function() {
      async function predictWebcam(video, liveView) {
         if (!isPredicting) return;
 
-        // Show countdown timer before starting detection
-        await showCountdownTimer();
-
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
@@ -971,8 +968,12 @@ document.addEventListener('DOMContentLoaded', function() {
             let retryCount = 0;
             let success = false;
 
+            logEvent(`while loop ${!success && retryCount < maxRetries}`);
+            logEvent(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
+
             while (!success && retryCount < maxRetries) {
                 try {
+                    logEvent(`while loop inside ${!success && retryCount < maxRetries}`);
                     const formData = new FormData();
                     formData.append('image', blob);
 
@@ -1004,9 +1005,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             lastFrameTime ? (currentTime - lastFrameTime) : 16.67
                         );
 
+                        logEvent(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
+
                         // Update UI with confidence score
                         qualityMetrics.confidence = result.confidence;
-                        updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
+                        logEvent(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
+
+                        await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
 
                         previousPhoneBox = currentPhoneBox;
                         lastFrameTime = currentTime;
@@ -1042,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Add function to update detection UI
-    function updateDetectionUI(metrics, box, liveView) {
+    async function updateDetectionUI(metrics, box, liveView) {
         const highlighter = document.createElement('div');
         highlighter.classList.add('highlighter');
         Object.assign(highlighter.style, {
@@ -1059,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update guidance text
         const guidanceText = document.getElementById('guidanceText');
         if (guidanceText) {
-            guidanceText.innerHTML = getGuidanceMessage(metrics);
+            guidanceText.innerHTML = await getGuidanceMessage(metrics);
         }
     }
 
@@ -1114,14 +1119,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return metrics;
     }
 
-    function getGuidanceMessage(metrics) {
+    async function getGuidanceMessage(metrics) {
         if (!metrics.isStable) {
             return '<p style="color: #FFA500">Hold phone more steady</p>';
         }
         if (!metrics.isSharp) {
             return '<p style="color: #FFA500">Image too blurry</p>';
         }
+        // Show countdown timer before starting detection
+        await showCountdownTimer();
         return '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
+
     }
 
 
