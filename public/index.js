@@ -1,255 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Add these variables at the top of your script
-    let updateCheckInterval = null;
-    let updateTimer = null;
-    let forceUpdateTimer = null;
-    let lastUpdateCheck = 0;
-    
-    // Register service worker and setup update handling
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-                console.log('ServiceWorker registered successfully');
-                
-                // Setup update handling
-                setupUpdateHandling(registration);
-                
-                // Start update checking - 5 minute interval
-                updateCheckInterval = setInterval(() => checkForUpdates(registration), 5 * 60 * 1000);
-                
-                // Check for updates immediately
-                setTimeout(() => checkForUpdates(registration), 5000);
-            })
-            .catch(error => console.error('ServiceWorker registration failed:', error));
-    }
-    
-    // Setup update notification handling
-    function setupUpdateHandling(registration) {
-        // Listen for messages from service worker
-        navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-                console.log('Update available from service worker');
-                showUpdateNotification();
-            }
-        });
-    }
-    
-    // Check for updates
-    function checkForUpdates(registration) {
-        // Don't check too frequently
-        const now = Date.now();
-        if (now - lastUpdateCheck < 60000) return; // At least 1 minute between checks
-        lastUpdateCheck = now;
-
-        console.log('Checking for updates...');
-        
-        // Check the version directly
-        fetch('/version.txt?cache=' + Date.now())
-            .then(response => response.text())
-            .then(version => {
-                const currentVersion = localStorage.getItem('app-version');
-                console.log('Current version:', currentVersion, 'Server version:', version);
-                
-                if (!currentVersion) {
-                    localStorage.setItem('app-version', version);
-                } else if (version !== currentVersion) {
-                    console.log('New version available:', version);
-                    localStorage.setItem('app-version', version);
-                    showUpdateNotification();
-                }
-            })
-            .catch(error => console.error('Version check failed:', error));
-    }
-
-    // Show update notification
-    function showUpdateNotification() {
-        // Clear existing update notification
-        const existingNotification = document.getElementById('update-notification');
-        if (existingNotification) {
-            existingNotification.remove();
-        }
-        
-        // Clear existing timers
-        if (updateTimer) clearTimeout(updateTimer);
-        if (forceUpdateTimer) clearTimeout(forceUpdateTimer);
-        
-        // Create notification
-        const notification = document.createElement('div');
-        notification.id = 'update-notification';
-        notification.innerHTML = `
-            <div class="update-content">
-                <span>A new version is available!</span>
-                <button id="update-now">Update Now</button>
-            </div>
-        `;
-        document.body.appendChild(notification);
-        
-        // Add action
-        document.getElementById('update-now').addEventListener('click', () => {
-            notification.classList.add('update-loading');
-            notification.innerHTML = `
-                <div class="update-content">
-                    <span>Updating...</span>
-                    <div class="update-spinner"></div>
-                </div>
-            `;
-            
-            // Skip waiting and reload
-            if (navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'SKIP_WAITING'
-                });
-            }
-            
-            // Force reload after a short delay
-            setTimeout(() => {
-                sessionStorage.setItem('app_updating', 'true');
-                window.location.reload(true);
-            }, 1000);
-        });
-        
-        // Show notification with animation
-        setTimeout(() => notification.classList.add('show'), 100);
-        
-        // Auto-update after 1 hour (for really low engagement users)
-        forceUpdateTimer = setTimeout(() => {
-            document.getElementById('update-now').click();
-        }, 60 * 60 * 1000);
-    }
-    
-    // Add update notification styles
-    const updateStyles = document.createElement('style');
-    updateStyles.textContent = `
-        #update-notification {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            background: #323232;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 10000;
-            transition: transform 0.3s ease;
-        }
-        
-        #update-notification.show {
-            transform: translateX(-50%) translateY(0);
-        }
-        
-        .update-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-        }
-        
-        #update-notification button {
-            background: #2196F3;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        #update-notification button:hover {
-            background: #1976D2;
-        }
-        
-        .update-notification.update-loading {
-            background: #1976D2;
-        }
-        
-        .update-spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    `;
-    document.head.appendChild(updateStyles);
-
-    // Register service worker
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-                // Check for updates every 5 minutes
-                setInterval(() => {
-                    registration.update();
-                }, 300000);
-
-                // Handle updates
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            showUpdateNotification();
-                        }
-                    });
-                });
-            })
-            .catch(error => logEvent(`ServiceWorker registration failed: ${error}`));
-    }
-
-    // Add update notification function
-    function showUpdateNotification() {
-        showToast('New version available! Tap to update', 'info', true)
-            .then(() => {
-                // Clear caches and reload
-                caches.keys().then(keys => {
-                    return Promise.all(
-                        keys.map(key => caches.delete(key))
-                    );
-                }).then(() => {
-                    window.location.reload(true);
-                });
-            });
-    }
-
-    // Modify your showToast function to handle taps
-    function showToast(message, type = 'info', isClickable = false) {
-        return new Promise((resolve) => {
-            const existingToast = document.querySelector('.toast');
-            if (existingToast) {
-                existingToast.remove();
-            }
-
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}${isClickable ? ' clickable' : ''}`;
-            toast.textContent = message;
-            
-            if (isClickable) {
-                toast.style.cursor = 'pointer';
-                toast.addEventListener('click', () => {
-                    toast.remove();
-                    resolve();
-                });
-            }
-
-            document.body.appendChild(toast);
-            setTimeout(() => toast.classList.add('show'), 100);
-
-            if (!isClickable) {
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                    setTimeout(() => {
-                        toast.remove();
-                        resolve();
-                    }, 300);
-                }, 3000);
-            }
-        });
-    }
-
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
     let children = [];
@@ -450,6 +199,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('manualReceiptForm').reset();
             }, 300);
         }
+    }
+
+     // Add toast functionality
+     function showToast(message, type = 'info') {
+        // Remove existing toast if any
+        const existingToast = document.querySelector('.toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        // Trigger animation
+        setTimeout(() => toast.classList.add('show'), 100);
+
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
 
     // Update the saveImageToBucket function
@@ -1022,10 +794,6 @@ document.addEventListener('DOMContentLoaded', function() {
     async function handlePhotoOption(source) {
         if (source === 'camera') {
             try {
-                // if (!model) {
-                //     showToast('Please wait, AI model is loading...', 'info');
-                //     return;
-                // }
 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 

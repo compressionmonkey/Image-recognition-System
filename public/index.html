@@ -3,16 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2196F3">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="Tshong AI">
-    <meta name="description" content="Receipt scanning and financial tracking app">
-    
-    <!-- Add cache control headers -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
     
     <title>Receipt Recognition</title>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
@@ -22,56 +12,6 @@
     <script src="/index.js" defer></script>
 
     <link rel="icon" href="data:,">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="/icons/icon-152x152.png">
-    
-    <!-- Add update check script -->
-    <script>
-    // Check if this is a reload after update
-    if (sessionStorage.getItem('app_updating') === 'true') {
-        // Clear the flag
-        sessionStorage.removeItem('app_updating');
-        
-        // Show update success message when DOM is loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            const toast = document.createElement('div');
-            toast.className = 'update-toast';
-            toast.textContent = 'App updated successfully!';
-            document.body.appendChild(toast);
-            
-            // Show animation
-            setTimeout(() => toast.classList.add('show'), 100);
-            
-            // Remove after 3 seconds
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        });
-    }
-    </script>
-    
-    <style>
-    .update-toast {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%) translateY(-60px);
-        background: #4CAF50;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 50px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        z-index: 10000;
-        transition: transform 0.3s ease;
-        font-family: 'Open Sans', sans-serif;
-        font-weight: 600;
-    }
-    
-    .update-toast.show {
-        transform: translateX(-50%) translateY(0);
-    }
-    </style>
 </head>
 <body>
     <div id="loginOverlay" class="login-container">
