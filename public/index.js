@@ -1285,8 +1285,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add function to update detection UI
     async function updateDetectionUI(metrics, box, liveView) {
-        alert('check update');
-        logEvent('check update');
         const video = document.getElementById('camera-preview');
         const videoWidth = video.videoWidth;
         const videoHeight = video.videoHeight;
