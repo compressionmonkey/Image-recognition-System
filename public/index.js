@@ -1,8 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
-
     const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
     let isLoggedIn = false;
-    let model = undefined;
     let children = [];
     let currentConfirmationData = null;
 
@@ -12,10 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
         const loginOverlay = document.getElementById('loginOverlay');
-        // const userNav = document.getElementById('userNav');
         const mainContent = document.getElementById('mainContent');
-        // const heroSection = document.querySelector('.hero-section');
-        // const cameraContainer = document.getElementById('camera-container');
         
         if (sessionStorage.getItem('isLoggedIn') === 'true') {
             isLoggedIn = true;
@@ -24,8 +19,6 @@ document.addEventListener('DOMContentLoaded', function() {
             mainContent.style.display = 'block';
             
             // // Hide initial content
-            // if (heroSection) heroSection.style.display = 'none';
-            // if (cameraContainer) cameraContainer.style.display = 'none';
         }
     });
 
@@ -101,12 +94,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
     
     document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
-
-    // Load COCO-SSD model when page loads
-    cocoSsd.load().then(function(loadedModel) {
-        model = loadedModel;
-        console.log('COCO-SSD model loaded');
-    });
 
     function showPhotoOptions() {
         const modal = document.getElementById('photoOptionsModal');
@@ -214,8 +201,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add toast functionality
-    function showToast(message, type = 'info') {
+     // Add toast functionality
+     function showToast(message, type = 'info') {
         // Remove existing toast if any
         const existingToast = document.querySelector('.toast');
         if (existingToast) {
@@ -237,8 +224,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
 
-    // Update the saveImageToDevice function
-    async function saveImageToDevice(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
+    // Update the saveImageToBucket function
+    async function saveImageToBucket(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
         try {
             // First upload to S3
             const response = await fetch('/upload-receipt', {
@@ -470,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
-                    saveImageToDevice(file.imageData, file.filename, false);
+                    saveImageToBucket(file.imageData, file.filename, false);
                     modal.remove();
                 };
             });
@@ -642,7 +629,7 @@ document.addEventListener('DOMContentLoaded', function() {
             viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
             viewImageBtn.onclick = (e) => {
                 e.preventDefault();
-                saveImageToDevice(currentImageData, 'receipt.jpg', false);
+                saveImageToBucket(currentImageData, 'receipt.jpg', false);
             };
             form.insertBefore(viewImageBtn, form.firstChild);
         }
@@ -807,10 +794,6 @@ document.addEventListener('DOMContentLoaded', function() {
     async function handlePhotoOption(source) {
         if (source === 'camera') {
             try {
-                if (!model) {
-                    showToast('Please wait, AI model is loading...', 'info');
-                    return;
-                }
 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
@@ -870,7 +853,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         reader.onload = async function(event) {
                             const base64Image = event.target.result.split(',')[1];
                             currentImageData = base64Image; // Store the image data
-                            await saveImageToDevice(base64Image, file.name, true);
+                            await saveImageToBucket(base64Image, file.name, true);
                             await processImage(file);
                         };
                         reader.readAsDataURL(file);
@@ -947,100 +930,163 @@ document.addEventListener('DOMContentLoaded', function() {
         children.forEach(child => liveView.removeChild(child));
         children = [];
 
-        const guidanceText = document.getElementById('guidanceText');
+        // const guidanceText = document.getElementById('guidanceText');
         const currentTime = performance.now();
         
         try {
-            const predictions = await model.detect(video, 1, 0.7);
+            // Capture current frame with better quality
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
             
-            if (!isPredicting) return;
-            
-            const phoneDetection = predictions.find(p => p.class === 'cell phone' && p.score > 0.7);
-            
-            if (phoneDetection) {
-                // Calculate scale factors and create current phone box
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-                const liveViewWidth = liveView.offsetWidth;
-                const liveViewHeight = liveView.offsetHeight;
-                
-                const scaleX = liveViewWidth / videoWidth;
-                const scaleY = liveViewHeight / videoHeight;
+            // Convert to blob with better quality
+            const blob = await new Promise(resolve => 
+                canvas.toBlob(resolve, 'image/jpeg', 0.85)
+            );
 
-                const currentPhoneBox = {
-                    x: phoneDetection.bbox[0] * scaleX,
-                    y: phoneDetection.bbox[1] * scaleY,
-                    width: phoneDetection.bbox[2] * scaleX * 2,
-                    height: phoneDetection.bbox[3] * scaleY * 1.5
-                };
+            // Add retry logic
+            const maxRetries = 3;
+            let retryCount = 0;
+            let success = false;
 
-                // Calculate motion and quality metrics
-                const qualityMetrics = analyzeFrameQuality(
-                    currentPhoneBox, 
-                    previousPhoneBox, 
-                    lastFrameTime ? (currentTime - lastFrameTime) : 16.67 // Default to 60fps if no previous frame
-                );
+            logEvent(`while loop ${!success && retryCount < maxRetries}`);
+            logEvent(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
 
-                // Create and style highlighter
-                const highlighter = document.createElement('div');
-                highlighter.classList.add('highlighter');
-                highlighter.style.left = `${currentPhoneBox.x}px`;
-                highlighter.style.top = `${currentPhoneBox.y}px`;
-                highlighter.style.width = `${currentPhoneBox.width}px`;
-                highlighter.style.height = `${currentPhoneBox.height}px`;
+            while (!success && retryCount < maxRetries) {
+                try {
+                    logEvent(`while loop inside ${!success && retryCount < maxRetries}`);
+                    const formData = new FormData();
+                    formData.append('image', blob);
 
-                // Calculate area ratio
-                const areaRatio = (currentPhoneBox.width / videoWidth) * (currentPhoneBox.height / videoHeight);
-                const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                const minRatio = isMobileOrTablet ? 0.4 : 0.1;
-                const maxRatio = 1;
-                const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
-                
-                // Update UI with all metrics
-                guidanceText.innerHTML = `
-                    <div class="detection-stats">
-                        ${getGuidanceMessage(qualityMetrics, isGoodRatio, areaRatio, minRatio)}
-                    </div>
-                `;
+                    const response = await fetch('https://keldendraduldorji.com/detect', {
+                        method: 'POST',
+                        body: formData,
+                        timeout: 2000
+                    });
 
-                // Only capture if all conditions are met
-                if (isGoodRatio && !qualityMetrics.isBlurred && qualityMetrics.isStable) {
-                    isPredicting = false; // Stop predictions during countdown    
-
-                    try {
-                        // Show countdown timer
-                        await showCountdownTimer();
-
-                        // Take the photo after countdown
-                        await handlePhotoCapture(video, video.srcObject);
-                        return;
-                    } catch (error) {
-                        console.error('Error during countdown/capture:', error);
-                        isPredicting = true; // Resume predictions if there's an error
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
+
+                    const result = await response.json();
+                    success = true;
+
+                    // Use the more detailed response
+                    if (result.phoneDetected) {
+                        const currentPhoneBox = {
+                            x: result.bbox ? result.bbox[0] : liveView.offsetWidth * 0.2,
+                            y: result.bbox ? result.bbox[1] : liveView.offsetHeight * 0.2,
+                            width: result.bbox ? result.bbox[2] : liveView.offsetWidth * 0.6,
+                            height: result.bbox ? result.bbox[3] : liveView.offsetHeight * 0.6
+                        };
+
+                        const qualityMetrics = analyzeFrameQuality(
+                            currentPhoneBox,
+                            previousPhoneBox,
+                            lastFrameTime ? (currentTime - lastFrameTime) : 16.67
+                        );
+
+                        logEvent(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
+
+                        // Update UI with confidence score
+                        qualityMetrics.confidence = result.confidence;
+                        logEvent(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
+
+                        await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
+
+                        // Check if conditions are good for automatic capture
+                        if (qualityMetrics.isStable && 
+                            qualityMetrics.isSharp && 
+                            qualityMetrics.isGoodRatio && 
+                            qualityMetrics.confidence > 0.8) {
+                            
+                            // Pause predictions during countdown and capture
+                            isPredicting = false;
+
+                            try {
+                                // Show countdown timer
+                                await showCountdownTimer();
+
+                                // Take the photo after countdown
+                                await handlePhotoCapture(video, video.srcObject);
+                                return;
+                            } catch (error) {
+                                console.error('Error during countdown/capture:', error);
+                                isPredicting = true; // Resume predictions if there's an error
+                            }
+                        }
+
+                        previousPhoneBox = currentPhoneBox;
+                        lastFrameTime = currentTime;
+                    }
+
+                } catch (error) {
+                    retryCount++;
+                    if (retryCount === maxRetries) {
+                        logEvent(`Detection failed after retries: ${error}`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
                 }
-
-                // Update state for next frame
-                previousPhoneBox = currentPhoneBox;
-                lastFrameTime = currentTime;
-
-                // Add highlighter to view
-                liveView.appendChild(highlighter);
-                children.push(highlighter);
             }
 
-            if (video.srcObject && isPredicting) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 1000);
-            }
         } catch (error) {
             console.error('Prediction error:', error);
-            if (isPredicting) {
-                setTimeout(() => {
-                    requestAnimationFrame(() => predictWebcam(video, liveView));
-                }, 1000);
-            }
+        }
+
+        // Continue predictions if no capture occurred
+        if (isPredicting) {
+            const nextDelay = determineNextDelay(currentTime);
+            setTimeout(() => requestAnimationFrame(() => predictWebcam(video, liveView)), nextDelay);
+        }
+    }
+
+    // Add adaptive polling rate function
+    function determineNextDelay(currentTime) {
+        const processingTime = performance.now() - currentTime;
+        // Adjust delay based on processing time
+        if (processingTime > 400) return 800; // Slower devices
+        if (processingTime > 200) return 600; // Medium devices
+        return 500; // Fast devices
+    }
+
+    // Add function to update detection UI
+    async function updateDetectionUI(metrics, box, liveView) {
+        const video = document.getElementById('camera-preview');
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+
+        // Calculate area ratio
+        const areaRatio = (box.width / videoWidth) * (box.height / videoHeight);
+        const isMobileOrTablet = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const minRatio = isMobileOrTablet ? 0.4 : 0.1;
+        const maxRatio = 1;
+        const isGoodRatio = areaRatio >= minRatio && areaRatio < maxRatio;
+
+        // Add ratio info to metrics
+        metrics.areaRatio = areaRatio;
+        metrics.isGoodRatio = isGoodRatio;
+        metrics.minRatio = minRatio;
+
+        // Create highlighter with color based on all metrics
+        const highlighter = document.createElement('div');
+        highlighter.classList.add('highlighter');
+        Object.assign(highlighter.style, {
+            left: `${box.x}px`,
+            top: `${box.y}px`,
+            width: `${box.width}px`,
+            height: `${box.height}px`,
+            borderColor: metrics.confidence > 0.8 && isGoodRatio ? '#4CAF50' : '#FFA500'
+        });
+
+        liveView.appendChild(highlighter);
+        children.push(highlighter);
+
+        // Update guidance text with all metrics
+        const guidanceText = document.getElementById('guidanceText');
+        if (guidanceText) {
+            guidanceText.innerHTML = getGuidanceMessage(metrics);
         }
     }
 
@@ -1095,15 +1141,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return metrics;
     }
 
-    function getGuidanceMessage(metrics, isGoodRatio, areaRatio, minRatio) {
-        if (!isGoodRatio) {
-            return `<p style="color: #FFA500">${areaRatio < minRatio ? 'Move closer' : 'Move further'}</p>`;
-        }
+    function getGuidanceMessage(metrics) {
         if (!metrics.isStable) {
             return '<p style="color: #FFA500">Hold phone more steady</p>';
         }
         if (!metrics.isSharp) {
             return '<p style="color: #FFA500">Image too blurry</p>';
+        }
+        if (!metrics.isGoodRatio) {
+            if (metrics.areaRatio < metrics.minRatio) {
+                return '<p style="color: #FFA500">Move closer to the receipt</p>';
+            }
+            if (metrics.areaRatio >= 1) {
+                return '<p style="color: #FFA500">Move further from the receipt</p>';
+            }
         }
         return '<p style="color: #4CAF50">Perfect! Hold steady...</p>';
     }
@@ -1156,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
-                        await saveImageToDevice(base64Image, filename, true);
+                        await saveImageToBucket(base64Image, filename, true);
                         
                         // Continue with normal flow
                         closeCameraModal();
