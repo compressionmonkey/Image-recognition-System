@@ -547,10 +547,16 @@ function parseBankSpecificData(text, bankKey) {
     // Handle bank-specific logic
     switch (bankKey) {
         case 'BNB':
-            // Updated RRN pattern for BNB receipts
+            // Try to find RRN number first
             const rrnMatch = text.match(/RRN:?\s*(\d{12})/i);
             if (rrnMatch) {
                 result.reference = rrnMatch[1];
+            } else {
+                // If no RRN, try to find Reference Number
+                const refNoMatch = text.match(/Reference No:?\s*((?:\d{3}[A-Z]+\d+))/i);
+                if (refNoMatch) {
+                    result.reference = refNoMatch[1];
+                }
             }
             break;
 
@@ -563,18 +569,37 @@ function parseBankSpecificData(text, bankKey) {
             break;
 
         case 'goBOB':
-            // Transaction ID - matches specific patterns for goBOB transaction numbers
-            // const goBOBtransactionIDMatch = text.match(/(4[0-2]\d{14,20})\n(?:.*?(\d{4,6})\n)?/s);
-            // if (goBOBtransactionIDMatch) {
-            //     const firstPart = goBOBtransactionIDMatch[1].replace(/\D/g, '');  // Remove all non-digits
-            //     const secondPart = (goBOBtransactionIDMatch[2] || '').replace(/\D/g, ''); // Remove all non-digits, handle null case
+            // Reference number
+            const gobobRefMatch = text.match(/(\d{15,18}\d{5,6})/);
+            if (gobobRefMatch) {
+                result.reference = gobobRefMatch[1];
+            } else {
+                // Alternative pattern: Try to combine processed by number with transaction ID
+                const processedByMatch = text.match(/Processed By\s*(\d{8})/i);
+                const transactionIDMatch = text.match(/Transaction ID\s*(\d{5,6})/i);
                 
-            //     // Only combine if total length is 21 digits and first part starts with 4
-            //     if ((firstPart.length + secondPart.length) === 21 && /^4/.test(firstPart)) {
-            //         result.reference = firstPart + secondPart;
-            //     }
-            // }
-            result.reference = '';
+                if (processedByMatch && transactionIDMatch) {
+                    // Look for the full pattern that includes both parts
+                    const fullPattern = new RegExp(`(\\d{9,12}${processedByMatch[1]}\\d{1,3}${transactionIDMatch[1]})`);
+                    const fullMatch = text.match(fullPattern);
+                    
+                    if (fullMatch) {
+                        result.reference = fullMatch[1];
+                    } else {
+                        // If full pattern not found, construct the reference manually
+                        const merchantMatch = text.match(/Merchant Name\s*([^\n]+)/i);
+                        const amountMatch = text.match(/Amount\s*Nu\.\s*([0-9,.]+)/i);
+                        
+                        if (merchantMatch && amountMatch) {
+                            // Find the numeric part before the processed by number
+                            const numericPrefixMatch = text.match(/(\d{6,9})(?=\D*${processedByMatch[1]})/);
+                            if (numericPrefixMatch) {
+                                result.reference = `${numericPrefixMatch[1]}${processedByMatch[1]}${transactionIDMatch[1]}`;
+                            }
+                        }
+                    }
+                }
+            }
             break;
 
         case 'BOB':
