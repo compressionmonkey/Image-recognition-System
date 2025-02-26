@@ -547,10 +547,10 @@ function parseBankSpecificData(text, bankKey) {
     // Handle bank-specific logic
     switch (bankKey) {
         case 'BNB':
-            // First try the original RRN pattern
-            const rrnMatch = text.match(/\b43\d{10}\b/);
+            // Updated RRN pattern for BNB receipts
+            const rrnMatch = text.match(/RRN:?\s*(\d{12})/i);
             if (rrnMatch) {
-                result.reference = rrnMatch[0];
+                result.reference = rrnMatch[1];
             }
             break;
 
