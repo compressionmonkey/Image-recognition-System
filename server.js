@@ -571,69 +571,91 @@ function parseBankSpecificData(text, bankKey) {
         case 'goBOB':
             // Reference number - try multiple patterns
             const gobobPatterns = [
-                // Pattern 1: Direct match of full transaction ID (15-24 digits)
-                /(\d{15,24})/,
+                // Pattern 1: Transaction ID appearing directly after amount
+                /Amount\s*(?::|Nu\.|\n|)*\s*.*?(?:\d+|\d[\d,\.]*\d)(?:\s*|\n)(\d{15,22})\b/i,
                 
-                // Pattern 2: Transaction ID line with digits only
-                /Transaction ID\s*\n?\s*(\d{15,24})/i,
+                // Pattern 2: Transaction ID with explicit label
+                /Transaction ID\s*(?:\n|:|\s)*\s*(\d{5,6})/i,
                 
-                // Pattern 3: Transaction ID followed by digits
-                /Transaction ID\s*\n?\s*:?\s*(\d{9,15})(\d{5,6})/i,
-                
-                // Pattern 4: Processed By + Transaction ID combination
-                /Processed By\s*\n?\s*:?\s*(\d{8})[\s\S]*?Transaction ID\s*\n?\s*:?\s*(\d{5,6})/i
+                // Pattern 3: Processed By number pattern
+                /Processed By\s*(?:\n|:|\s)*\s*(\d{8})/i
             ];
             
-            // Try each pattern
-            let found = false;
-            for (const pattern of gobobPatterns) {
-                const match = text.match(pattern);
-                if (match) {
-                    if (pattern.toString().includes('Processed By')) {
-                        // For pattern 4, we need to find the prefix and combine parts
-                        const processedByNum = match[1];
-                        const transactionID = match[2];
-                        
-                        // Look for numeric sequence before the processed by number
-                        const prefixMatch = text.match(/(\d{6,9})(?=[\s\S]*?Processed By)/i);
-                        if (prefixMatch) {
-                            result.reference = `${prefixMatch[1]}${processedByNum}${transactionID}`;
-                            found = true;
+            // Variables to store components
+            let processedBy = null;
+            let transactionID = null;
+            let prefix = null;
+            
+            // Extract processed by number
+            const processedByMatch = text.match(gobobPatterns[2]);
+            if (processedByMatch) {
+                processedBy = processedByMatch[1];
+            }
+            
+            // Extract transaction ID (short number)
+            const transactionIDMatch = text.match(gobobPatterns[1]);
+            if (transactionIDMatch) {
+                transactionID = transactionIDMatch[1];
+            }
+            
+            // Check for full transaction ID directly after amount
+            const fullIDMatch = text.match(gobobPatterns[0]);
+            if (fullIDMatch) {
+                result.reference = fullIDMatch[1];
+            }
+            // If we have both processed by and transaction ID, construct the reference
+            else if (processedBy && transactionID) {
+                // Look for numeric sequence that could be the prefix
+                // Try several approaches to find the prefix
+                
+                // Approach 1: Look for digits preceding the processed by number
+                const prefixBeforeProcessedBy = text.match(new RegExp(`(\\d{6,9})(?:[^\\d]*?)${processedBy}`, 'i'));
+                if (prefixBeforeProcessedBy) {
+                    prefix = prefixBeforeProcessedBy[1];
+                } 
+                // Approach 2: Look for full ID pattern anywhere in text
+                else {
+                    const fullIDPatternAnywhere = text.match(new RegExp(`(\\d{6,9}${processedBy}\\d{5,6})`, 'i'));
+                    if (fullIDPatternAnywhere) {
+                        result.reference = fullIDPatternAnywhere[1];
+                        return result;
+                    }
+                }
+                
+                // Approach 3: Look for digits near "Transaction ID" that aren't the transaction ID itself
+                if (!prefix) {
+                    const possiblePrefixes = [...text.matchAll(/\b(\d{6,9})\b/g)];
+                    for (const possiblePrefix of possiblePrefixes) {
+                        // Skip if it's part of processed by or transaction ID
+                        if (possiblePrefix[1] !== processedBy && 
+                            possiblePrefix[1] !== transactionID && 
+                            !processedBy.includes(possiblePrefix[1]) && 
+                            !transactionID.includes(possiblePrefix[1])) {
+                            prefix = possiblePrefix[1];
                             break;
                         }
-                    } else if (match[2]) {
-                        // For pattern 3, combine the two captured groups
-                        result.reference = match[1] + match[2];
-                        found = true;
-                        break;
-                    } else {
-                        // For patterns 1 and 2, use the single captured group
-                        result.reference = match[1];
-                        found = true;
-                        break;
+                    }
+                }
+                
+                // Construct the reference if we found all components
+                if (prefix) {
+                    result.reference = `${prefix}${processedBy}${transactionID}`;
+                }
+                // Last resort: Search for any 21-23 digit number
+                else {
+                    const longNumberMatch = text.match(/\b(\d{21,23})\b/);
+                    if (longNumberMatch) {
+                        result.reference = longNumberMatch[1];
                     }
                 }
             }
             
-            // If no match found with the patterns, try constructing from components
-            if (!found) {
-                const processedByMatch = text.match(/Processed By\s*\n?\s*:?\s*(\d{8})/i);
-                const transactionIDMatch = text.match(/Transaction ID\s*\n?\s*:?\s*(\d{5,6})/i);
-                
-                if (processedByMatch && transactionIDMatch) {
-                    // Look for any sequence of 6-9 digits in the text
-                    const numericMatches = [...text.matchAll(/\b(\d{6,9})\b/g)];
-                    
-                    // Find the prefix that's not part of the processed by or transaction ID
-                    for (const numMatch of numericMatches) {
-                        const potentialPrefix = numMatch[1];
-                        if (!potentialPrefix.includes(processedByMatch[1]) && 
-                            !potentialPrefix.includes(transactionIDMatch[1])) {
-                            result.reference = `${potentialPrefix}${processedByMatch[1]}${transactionIDMatch[1]}`;
-                            found = true;
-                            break;
-                        }
-                    }
+            // If all approaches failed, try one more pattern for long string of digits
+            if (!result.reference) {
+                // Match any string of 21-23 digits that might be the full reference
+                const lastResortMatch = text.match(/\b(\d{21,23})\b/);
+                if (lastResortMatch) {
+                    result.reference = lastResortMatch[1];
                 }
             }
             break;
@@ -661,10 +683,34 @@ function parseBankSpecificData(text, bankKey) {
             }
             break;
         case 'DK':
-            // Transfer Number
-            const transferMatch = text.match(/(?:Transfer\s*No\.?:?\s*)(\d+)/i);
-            if (transferMatch) {
-                result.reference = transferMatch[1];
+            // Try multiple patterns for Transfer Number
+            const dkPatterns = [
+                // Original pattern: Transfer No followed by digits
+                /(?:Transfer\s*No\.?:?\s*)(\d{9,15})/i,
+                
+                // New pattern: Transfer na followed by digits 
+                /(?:Transfer\s*na\s*)(\d{9,15})/i,
+                
+                // Pattern with escaped newlines
+                /Transfer\s*(?:No|na)[\s\n]*(\d{9,15})/i,
+                
+                // Fallback pattern: just find a 12-digit number
+                /\b(\d{12})\b/
+            ];
+            
+            // Try each pattern until we find a match
+            let transferNumber = null;
+            for (const pattern of dkPatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    transferNumber = match[1];
+                    break;
+                }
+            }
+            
+            // If we found a match, use it
+            if (transferNumber) {
+                result.reference = transferNumber;
             }
             break;
         case 'TBank': {
