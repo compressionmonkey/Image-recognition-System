@@ -1002,18 +1002,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             qualityMetrics.isGoodRatio && 
                             qualityMetrics.confidence > 0.8) {
                             
-                            // Pause predictions during countdown and capture
+                            // Pause predictions during capture
                             isPredicting = false;
 
                             try {
-                                // Show countdown timer
-                                await showCountdownTimer();
-
-                                // Take the photo after countdown
+                                // Take the photo without countdown
                                 await handlePhotoCapture(video, video.srcObject);
                                 return;
                             } catch (error) {
-                                console.error('Error during countdown/capture:', error);
+                                console.error('Error during capture:', error);
                                 isPredicting = true; // Resume predictions if there's an error
                             }
                         }
@@ -1175,12 +1172,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="camera-controls">
-                    <button onclick="closeCameraModal()" class="camera-button retry" style="width: 100%;">
-                        Close
+                    <button id="capture-button" class="camera-button capture" style="width: 100%;">
+                        Capture
                     </button>
                 </div>
             </div>
         `;
+        
+        // Add event listener after the modal is created
+        setTimeout(() => {
+            const captureButton = document.getElementById('capture-button');
+            if (captureButton) {
+                captureButton.addEventListener('click', () => {
+                    const video = document.getElementById('camera-preview');
+                    if (video && video.srcObject) {
+                        handlePhotoCapture(video, video.srcObject);
+                    }
+                });
+            }
+        }, 100);
+        
         return cameraModal;
     }
 
