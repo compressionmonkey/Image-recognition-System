@@ -246,155 +246,84 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Upload failed');
             }
 
-            // Create and show preview modal with the S3 URL
-            const previewModal = document.createElement('div');
-            previewModal.className = 'image-preview-modal';
-            previewModal.innerHTML = `
-                <div class="preview-content">
-                    <div class="preview-header">
-                        <h3>Receipt Preview</h3>
-                    </div>
-                    <div class="image-container">
-                        <img src="${data.url}" 
-                             alt="Receipt Preview" 
-                             loading="lazy" 
-                             decoding="async">
-                        <div class="zoom-hint">
-                            <span class="icon">🔍</span>
-                            Pinch or scroll to zoom
-                        </div>
-                    </div>
-                    <div class="preview-controls">
-                        <button class="preview-button retake-btn">
-                            <span class="icon">📸</span> Retake
-                        </button>
-                        <button class="preview-button close-btn">
-                        <span class="icon">➡️</span> Proceed
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(previewModal);
-            
             // Add to recent files
             addToRecentFiles(imageData, filename);
 
-            // Force reflow then add show class for animation
-            previewModal.offsetHeight;
-            previewModal.classList.add('show');
+            // Only show preview modal if shouldAutoDownload is true (single file upload)
+            if (shouldAutoDownload) {
+                // Create and show preview modal with the S3 URL
+                const previewModal = document.createElement('div');
+                previewModal.className = 'image-preview-modal';
+                previewModal.innerHTML = `
+                    <div class="preview-content">
+                        <div class="preview-header">
+                            <h3>Receipt Preview</h3>
+                        </div>
+                        <div class="image-container">
+                            <img src="${data.url}" 
+                                 alt="Receipt Preview" 
+                                 loading="lazy" 
+                                 class="preview-image">
+                        </div>
+                        <div class="preview-actions">
+                            <button class="close-btn">Close</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(previewModal);
+                
+                // Force reflow then add show class for animation
+                previewModal.offsetHeight;
+                previewModal.classList.add('show');
+                
+                // Setup touch handling for mobile
+                const img = previewModal.querySelector('.preview-image');
+                const closeBtn = previewModal.querySelector('.close-btn');
+
+                closeBtn.onclick = closePreviewModal;
+
+                function closePreviewModal() {
+                    imageSaved = false;  // Reset flag on close
+                    previewModal.classList.remove('show');
+                    setTimeout(() => previewModal.remove(), 300);
+                }
+
+                // Add pinch-zoom support
+                let currentScale = 1;
+                let startDistance = 0;
+
+                img.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 2) {
+                        startDistance = Math.hypot(
+                            e.touches[0].pageX - e.touches[1].pageX,
+                            e.touches[0].pageY - e.touches[1].pageY
+                        );
+                    }
+                });
+
+                img.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const distance = Math.hypot(
+                            e.touches[0].pageX - e.touches[1].pageX,
+                            e.touches[0].pageY - e.touches[1].pageY
+                        );
+                        
+                        const scale = (distance / startDistance) * currentScale;
+                        img.style.transform = `scale(${Math.min(Math.max(scale, 1), 3)})`;
+                    }
+                });
+
+                img.addEventListener('touchend', () => {
+                    if (img.style.transform) {
+                        currentScale = parseFloat(img.style.transform.replace('scale(', '').replace(')', ''));
+                    }
+                });
+            }
 
             // Store URL in session storage for later use
             sessionStorage.setItem('lastReceiptUrl', data.url);
 
-            // Setup touch handling for mobile
-            let touchStartY = 0;
-            previewModal.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-            });
-
-            previewModal.addEventListener('touchmove', (e) => {
-                const deltaY = e.touches[0].clientY - touchStartY;
-                if (deltaY > 100) {
-                    closePreviewModal();
-                }
-            });
-
-            // Setup image zoom
-            const img = previewModal.querySelector('img');
-            let scale = 1;
-            let panning = false;
-            let pointX = 0;
-            let pointY = 0;
-            let start = { x: 0, y: 0 };
-
-            img.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const xs = (e.clientX - img.offsetLeft) / scale;
-                const ys = (e.clientY - img.offsetTop) / scale;
-                
-                scale += e.deltaY * -0.01;
-                scale = Math.min(Math.max(1, scale), 4);
-                
-                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-            });
-
-            img.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                start = { x: e.clientX - pointX, y: e.clientY - pointY };
-                panning = true;
-            });
-
-            img.addEventListener('mousemove', (e) => {
-                e.preventDefault();
-                if (!panning) return;
-                pointX = (e.clientX - start.x);
-                pointY = (e.clientY - start.y);
-                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-            });
-
-            img.addEventListener('mouseup', () => {
-                panning = false;
-            });
-
-            // Handle button clicks
-            const closeBtn = previewModal.querySelector('.close-btn');
-
-            closeBtn.onclick = closePreviewModal;
-
-            function closePreviewModal() {
-                imageSaved = false;  // Reset flag on close
-                previewModal.classList.remove('show');
-                setTimeout(() => previewModal.remove(), 300);
-            }
-
-            // Add pinch-zoom support
-            let currentScale = 1;
-            let startDistance = 0;
-
-            img.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 2) {
-                    startDistance = Math.hypot(
-                        e.touches[0].pageX - e.touches[1].pageX,
-                        e.touches[0].pageY - e.touches[1].pageY
-                    );
-                }
-            });
-
-            img.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    
-                    const currentDistance = Math.hypot(
-                        e.touches[0].pageX - e.touches[1].pageX,
-                        e.touches[0].pageY - e.touches[1].pageY
-                    );
-                    
-                    const scale = currentDistance / startDistance;
-                    currentScale = Math.min(Math.max(1, currentScale * scale), 4);
-                    
-                    img.style.transform = `scale(${currentScale})`;
-                    startDistance = currentDistance;
-                }
-            });
-
-            // Add a loading indicator
-            const loadingIndicator = document.createElement('div');
-            loadingIndicator.className = 'loading-indicator';
-            previewModal.querySelector('.image-container').appendChild(loadingIndicator);
-
-            img.onload = () => {
-                loadingIndicator.remove();
-            };
-
-            const retakeBtn = previewModal.querySelector('.retake-btn');
-            retakeBtn.onclick = () => {
-                closePreviewModal();
-                closeConfirmationModal();
-                const photoOptionsModal = document.getElementById('photoOptionsModal');
-                if (photoOptionsModal) {
-                    photoOptionsModal.style.display = 'flex';
-                }
-            };
         } catch (error) {
             console.error('Error:', error);
             showToast('Failed to upload receipt', 'error');
@@ -844,19 +773,34 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
+            input.multiple = true; // Enable multiple file selection
             input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (file) {
+                const files = e.target.files;
+                if (files && files.length > 0) {
                     closePhotoOptions();
                     if (isLoggedIn) {
-                        const reader = new FileReader();
-                        reader.onload = async function(event) {
-                            const base64Image = event.target.result.split(',')[1];
-                            currentImageData = base64Image; // Store the image data
-                            await saveImageToBucket(base64Image, file.name, true);
-                            await processImage(file);
-                        };
-                        reader.readAsDataURL(file);
+                        // Check if multiple files are selected
+                        if (files.length > 1) {
+                            // Limit to 10 files
+                            const filesToProcess = Array.from(files).slice(0, 10);
+                            if (files.length > 10) {
+                                showToast('Maximum 10 images allowed, only first 10 will be processed', 'warning');
+                            }
+                            
+                            // Show multiple uploads UI
+                            createMultipleUploadsUI(filesToProcess);
+                        } else {
+                            // Single file upload - use existing flow
+                            const file = files[0];
+                            const reader = new FileReader();
+                            reader.onload = async function(event) {
+                                const base64Image = event.target.result.split(',')[1];
+                                currentImageData = base64Image; // Store the image data
+                                await saveImageToBucket(base64Image, file.name, true);
+                                await processImage(file);
+                            };
+                            reader.readAsDataURL(file);
+                        }
                     } else {
                         const loginOverlay = document.getElementById('loginOverlay');
                         if (loginOverlay) loginOverlay.style.display = 'block';
@@ -1368,4 +1312,283 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
     window.showRecentFiles = showRecentFiles;
+
+    // Add this function to handle multiple image uploads
+    async function saveMultipleImagesToBucket(images) {
+        try {
+            // Show loading toast
+            showToast(`Uploading ${images.length} image(s)...`, 'info');
+            
+            // Prepare the request body
+            const requestBody = {
+                images: images,
+                customerID: sessionStorage.getItem('customerID')
+            };
+            
+            // Send request to the server
+            const response = await fetch('/upload-multiple-receipts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Upload failed');
+            }
+            
+            // Add each image to recent files
+            images.forEach(image => {
+                addToRecentFiles(image.imageData, image.filename);
+            });
+            
+            // Show success message
+            showToast(`Successfully uploaded ${images.length} image(s)`, 'success');
+            
+            // Show confetti for successful upload
+            if (images.length > 1) {
+                showConfetti();
+            }
+            
+            return data.results;
+        } catch (error) {
+            console.error('Error uploading multiple images:', error);
+            showToast('Failed to upload images', 'error');
+            throw error;
+        }
+    }
+
+    // Add this function to create the multiple uploads UI
+    function createMultipleUploadsUI(files) {
+        // Create modal container
+        const modal = document.createElement('div');
+        modal.className = 'multiple-uploads-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Multiple Payments</h3>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="uploads-container" id="uploadsContainer">
+                    <!-- Image entries will be added here dynamically -->
+                </div>
+                <div class="modal-footer">
+                    <button class="add-more-btn" id="addAnotherPayment">
+                        <span class="plus-icon">+</span> Add Another Payment
+                    </button>
+                    <button class="submit-all-btn" id="submitAllUploads">Submit All</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Get the uploads container
+        const uploadsContainer = document.getElementById('uploadsContainer');
+        
+        // Add image entries to the container
+        const imageEntries = [];
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const entry = createImageEntryUI(file, i);
+            uploadsContainer.appendChild(entry.element);
+            imageEntries.push(entry);
+        }
+        
+        // Handle close button
+        const closeBtn = modal.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        });
+        
+        // Handle add another payment button
+        const addAnotherBtn = document.getElementById('addAnotherPayment');
+        addAnotherBtn.addEventListener('click', () => {
+            if (imageEntries.length >= 10) {
+                showToast('Maximum 10 images allowed', 'error');
+                return;
+            }
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    const entry = createImageEntryUI(file, imageEntries.length);
+                    uploadsContainer.appendChild(entry.element);
+                    imageEntries.push(entry);
+                }
+            };
+            input.click();
+        });
+        
+        // Handle submit all button
+        const submitAllBtn = document.getElementById('submitAllUploads');
+        submitAllBtn.addEventListener('click', async () => {
+            // Validate all entries
+            const invalidEntries = imageEntries.filter(entry => !entry.isValid());
+            if (invalidEntries.length > 0) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+            
+            // Prepare images data
+            const imagesData = [];
+            for (const entry of imageEntries) {
+                const entryData = entry.getData();
+                imagesData.push({
+                    imageData: entryData.imageData,
+                    filename: entryData.filename,
+                    metadata: {
+                        amount: entryData.amount,
+                        reference: entryData.reference,
+                        particulars: entryData.particulars,
+                        date: entryData.date
+                    }
+                });
+            }
+            
+            try {
+                // Upload all images
+                const results = await saveMultipleImagesToBucket(imagesData);
+                
+                // Process each image
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+                    const entryData = imageEntries[i].getData();
+                    
+                    // Process the image (you may need to modify this part based on your requirements)
+                    await processImageWithMetadata(result.url, entryData.metadata);
+                }
+                
+                // Close the modal
+                modal.classList.remove('show');
+                setTimeout(() => modal.remove(), 300);
+            } catch (error) {
+                console.error('Error processing uploads:', error);
+                showToast('Failed to process uploads', 'error');
+            }
+        });
+        
+        // Show the modal with animation
+        setTimeout(() => modal.classList.add('show'), 10);
+        
+        return {
+            modal,
+            imageEntries
+        };
+    }
+
+    // Function to create a single image entry UI
+    function createImageEntryUI(file, index) {
+        const entryId = `image-entry-${index}`;
+        const entry = document.createElement('div');
+        entry.className = 'image-entry';
+        entry.id = entryId;
+        
+        // Create reader to get image preview
+        const reader = new FileReader();
+        let imageData = null;
+        
+        reader.onload = (event) => {
+            const imgPreview = entry.querySelector('.image-preview img');
+            imgPreview.src = event.target.result;
+            imageData = event.target.result.split(',')[1];
+        };
+        
+        reader.readAsDataURL(file);
+        
+        // Create the entry HTML
+        entry.innerHTML = `
+            <div class="image-preview">
+                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlIj48cmVjdCB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHg9IjMiIHk9IjMiIHJ4PSIyIiByeT0iMiIvPjxjaXJjbGUgY3g9IjguNSIgY3k9IjguNSIgcj0iMS41Ii8+PHBvbHlsaW5lIHBvaW50cz0iMjEgMTUgMTYgMTAgNSAyMSIvPjwvc3ZnPg==" alt="Receipt Preview">
+                <button class="delete-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                </button>
+            </div>
+            <div class="entry-details">
+                <div class="form-group">
+                    <label>Amount</label>
+                    <div class="input-with-icon">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" class="amount-input" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Reference</label>
+                    <input type="text" class="reference-input" placeholder="Enter reference">
+                </div>
+                <div class="form-group">
+                    <label>Particulars</label>
+                    <input type="text" class="particulars-input" placeholder="Enter details">
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <div class="date-input-container">
+                        <input type="date" class="date-input" required>
+                        <button class="calendar-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Set default date to today
+        const dateInput = entry.querySelector('.date-input');
+        const today = new Date();
+        const formattedDate = today.toISOString().split('T')[0];
+        dateInput.value = formattedDate;
+        
+        // Handle delete button
+        const deleteBtn = entry.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', () => {
+            entry.remove();
+        });
+        
+        // Return the entry element and methods to interact with it
+        return {
+            element: entry,
+            isValid: () => {
+                const amountInput = entry.querySelector('.amount-input');
+                const dateInput = entry.querySelector('.date-input');
+                return amountInput.value.trim() !== '' && dateInput.value.trim() !== '';
+            },
+            getData: () => {
+                return {
+                    imageData: imageData,
+                    filename: file.name,
+                    amount: entry.querySelector('.amount-input').value,
+                    reference: entry.querySelector('.reference-input').value,
+                    particulars: entry.querySelector('.particulars-input').value,
+                    date: entry.querySelector('.date-input').value
+                };
+            }
+        };
+    }
+
+    // Function to process image with metadata
+    async function processImageWithMetadata(imageUrl, metadata) {
+        try {
+            // You can implement the logic to process the image with metadata here
+            // For example, you might want to call your existing API to process the receipt
+            
+            // For now, let's just log the data
+            console.log('Processing image:', imageUrl, 'with metadata:', metadata);
+            
+            // Show success message
+            showToast('Image processed successfully', 'success');
+            
+            return true;
+        } catch (error) {
+            console.error('Error processing image:', error);
+            showToast('Failed to process image', 'error');
+            return false;
+        }
+    }
 });

@@ -1082,6 +1082,82 @@ app.post('/upload-receipt', async (req, res) => {
     }
 });
 
+// Add new endpoint for multiple image uploads
+app.post('/upload-multiple-receipts', async (req, res) => {
+    try {
+        const { images, customerID } = req.body;
+        
+        // Check if images array exists and is not empty
+        if (!images || !Array.isArray(images) || images.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'No images provided'
+            });
+        }
+        
+        // Check if number of images exceeds the limit
+        if (images.length > 10) {
+            return res.status(400).json({
+                success: false,
+                error: 'Maximum 10 images allowed per upload'
+            });
+        }
+        
+        const tableName = checkCurrentUser(customerID);
+        const uploadResults = [];
+        
+        // Process each image
+        // for (const image of images) {
+        //     const { imageData, filename } = image;
+            
+        //     // Convert base64 to buffer
+        //     const buffer = Buffer.from(imageData, 'base64');
+            
+        //     // Generate unique filename
+        //     const timestamp = Date.now();
+        //     const uniqueFilename = `receipts/${tableName}/${timestamp}_${filename}`;
+            
+        //     // Set up S3 upload parameters
+        //     const uploadParams = {
+        //         Bucket: process.env.AWS_BUCKET_NAME,
+        //         Key: uniqueFilename,
+        //         Body: buffer,
+        //         ContentType: 'image/jpeg'
+        //     };
+            
+        //     // Upload to S3
+        //     const uploadResult = await s3Client.send(new PutObjectCommand(uploadParams));
+            
+        //     // Generate presigned URL for the uploaded image
+        //     const getObjectParams = {
+        //         Bucket: process.env.AWS_BUCKET_NAME,
+        //         Key: uniqueFilename
+        //     };
+            
+        //     const command = new GetObjectCommand(getObjectParams);
+        //     const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+            
+        //     uploadResults.push({
+        //         filename: uniqueFilename,
+        //         url: url,
+        //         success: true
+        //     });
+        // }
+        
+        res.json({
+            success: true,
+            results: uploadResults
+        });
+        
+    } catch (error) {
+        console.error('Error uploading multiple receipts:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to upload receipts'
+        });
+    }
+});
+
 // Optional: Add endpoint to regenerate signed URL for existing images
 // app.get('/get-image-url', async (req, res) => {
 //     try {
