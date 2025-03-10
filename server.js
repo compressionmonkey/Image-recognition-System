@@ -1109,20 +1109,9 @@ app.post('/upload-receipt', async (req, res) => {
 //     }
 // });
 
-// Export a serverless function handler for Vercel
-export default function handler(req, res) {
-    // Don't process favicon requests
-    if (req.url === '/favicon.ico') {
-        res.status(204).end();
-        return;
-    }
+// Export the app for potential serverless environments (like Vercel)
+export default app;
 
-    // Handle all other requests through the Express app
-    return app(req, res);
-}
-
-// If running locally, start the server
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}
+// Start the server for traditional hosting (like Railway)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`));

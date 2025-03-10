@@ -584,7 +584,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             // Log relevant response details
-            logEvent(`check data: ${JSON.stringify(data)} response status: ${response.status}, ok: ${response.ok}`);
+            console.log(`check data: ${JSON.stringify(data)} response status: ${response.status}, ok: ${response.ok}`);
 
             // First check if response is not ok
             if (!response.ok) {
@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             imageSaved = false;  // Reset flag on error
-            logEvent(`Error ${JSON.stringify(error)}`);
+            console.log(`Error ${JSON.stringify(error)}`);
             console.error('Error:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your image. Please try again.');
         }
@@ -612,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentConfirmationData = data;
 
         console.log('data', data);
-        logEvent(`data ${JSON.stringify(data)}`);
+        console.log(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.referenceNo || '';
@@ -809,7 +809,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
-                logEvent(`stream ${JSON.stringify(stream)}`);
+                console.log(`stream ${JSON.stringify(stream)}`);
 
                 // Create and show camera modal
                 const cameraModal = createCameraModal();
@@ -888,8 +888,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Try to focus camera if available
             if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
                 const track = video.srcObject.getVideoTracks()[0];
-                logEvent(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
-                logEvent(`track focusMode' ${track.getCapabilities().focusMode}`);
+                console.log(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
+                console.log(`track focusMode' ${track.getCapabilities().focusMode}`);
                 // Check if camera supports focus mode
                 if (track.getCapabilities && track.getCapabilities().focusMode) {
                     // Apply focus settings
@@ -951,12 +951,12 @@ document.addEventListener('DOMContentLoaded', function() {
             let retryCount = 0;
             let success = false;
 
-            logEvent(`while loop ${!success && retryCount < maxRetries}`);
-            logEvent(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
+            console.log(`while loop ${!success && retryCount < maxRetries}`);
+            console.log(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
 
             while (!success && retryCount < maxRetries) {
                 try {
-                    logEvent(`while loop inside ${!success && retryCount < maxRetries}`);
+                    console.log(`while loop inside ${!success && retryCount < maxRetries}`);
                     const formData = new FormData();
                     formData.append('image', blob);
 
@@ -988,11 +988,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             lastFrameTime ? (currentTime - lastFrameTime) : 16.67
                         );
 
-                        logEvent(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
+                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
 
                         // Update UI with confidence score
                         qualityMetrics.confidence = result.confidence;
-                        logEvent(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
+                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
 
                         await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
 
@@ -1022,7 +1022,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (error) {
                     retryCount++;
                     if (retryCount === maxRetries) {
-                        logEvent(`Detection failed after retries: ${error}`);
+                        console.log(`Detection failed after retries: ${error}`);
                     }
                     await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
                 }
@@ -1306,31 +1306,6 @@ document.addEventListener('DOMContentLoaded', function() {
             dateInputElement.classList.remove('date-warning');
             validationMessage.style.display = 'none';
             validationMessage.classList.remove('show');
-        }
-    }
-
-    // Example function to log an event
-    async function logEvent(message) {
-        try {
-            const response = await fetch('/api/logEvent', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ message })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                console.error('Failed to log event:', error);
-                return false;
-            }
-
-            const data = await response.json();
-            return data.success;
-        } catch (error) {
-            console.error('Error logging event:', error);
-            return false;
         }
     }
 
