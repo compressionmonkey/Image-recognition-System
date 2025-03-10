@@ -769,6 +769,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 closeCameraModal();
             }
         } else {
+            console.log('gallery option');
             // Gallery option
             const input = document.createElement('input');
             input.type = 'file';
