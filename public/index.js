@@ -847,24 +847,55 @@ document.addEventListener('DOMContentLoaded', function() {
             input.multiple = true;  // Enable multiple file selection
             input.onchange = async (e) => {
                 const files = e.target.files;
-                if(files.length === 1 && isLoggedIn) {
-                    closePhotoOptions();
+                if (!files || files.length === 0) return;
+                
+                closePhotoOptions();
+                
+                if (!isLoggedIn) {
+                    const loginOverlay = document.getElementById('loginOverlay');
+                    if (loginOverlay) loginOverlay.style.display = 'block';
+                    return;
+                }
+                
+                if (files.length === 1) {
+                    // Handle single file as before
                     const file = files[0];
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
                         currentImageData = base64Image; // Store the image data
-                        await saveImageToBucket(base64Image, file.name, true);
+                        await saveImageToBucket(base64Image, file.name);
                         await processImage(file);
                     };
                     reader.readAsDataURL(file);
-                }
-                if(files.length > 1 && isLoggedIn) {
-                    closePhotoOptions();
-                }
-                else {
-                    const loginOverlay = document.getElementById('loginOverlay');
-                    if (loginOverlay) loginOverlay.style.display = 'block';
+                } else if (files.length > 1) {
+                    // Handle multiple files
+                    try {
+                        // Convert all files to base64 for upload to S3
+                        const filesArray = await Promise.all(Array.from(files).map(file => {
+                            return new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                    resolve({
+                                        imageData: event.target.result.split(',')[1],
+                                        filename: file.name
+                                    });
+                                };
+                                reader.onerror = reject;
+                                reader.readAsDataURL(file);
+                            });
+                        }));
+                        
+                        // Upload files to S3
+                        await saveMultipleImagesToBucket(filesArray);
+                        
+                        // Process images for OCR and analysis
+                        await processMultipleImages(Array.from(files));
+                        
+                    } catch (error) {
+                        console.error('Error processing multiple files:', error);
+                        showToast('Failed to process multiple files', 'error');
+                    }
                 }
             };
             input.click();
@@ -1299,4 +1330,312 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
     window.showRecentFiles = showRecentFiles;
+
+    async function saveMultipleImagesToBucket(filesArray) {
+        try {
+            showToast('Uploading files...', 'info');
+            
+            // Prepare the files data
+            const customerID = sessionStorage.getItem('customerID');
+            
+            // First upload to S3 using the multiple endpoint
+            const response = await fetch('/upload-multiple-receipts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    files: filesArray,
+                    customerID: customerID
+                })
+            });
+
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            // Create and show preview modal with the first S3 URL
+            const previewModal = document.createElement('div');
+            previewModal.className = 'image-preview-modal';
+            previewModal.innerHTML = `
+                <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>Receipt Preview (${filesArray.length} files uploaded)</h3>
+                    </div>
+                    <div class="image-container">
+                        <img src="${data.urls[0]}" 
+                             alt="Receipt Preview" 
+                             loading="lazy" 
+                             decoding="async">
+                        <div class="zoom-hint">
+                            <span class="icon">🔍</span>
+                            Pinch or scroll to zoom
+                        </div>
+                    </div>
+                    <div class="preview-controls">
+                        <button class="preview-button retake-btn">
+                            <span class="icon">📸</span> Retake
+                        </button>
+                        <button class="preview-button close-btn">
+                        <span class="icon">➡️</span> Proceed
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(previewModal);
+            
+            // Add each file to recent files
+            filesArray.forEach((file, index) => {
+                addToRecentFiles(file.imageData, file.filename);
+            });
+
+            // Force reflow then add show class for animation
+            previewModal.offsetHeight;
+            previewModal.classList.add('show');
+
+            // Store first URL in session storage for later use
+            sessionStorage.setItem('lastReceiptUrl', data.urls[0]);
+            // Store all URLs in session storage (as JSON string)
+            sessionStorage.setItem('allReceiptUrls', JSON.stringify(data.urls));
+            // Store all keys in session storage (as JSON string)
+            sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
+
+            // Setup touch handling for mobile
+            let touchStartY = 0;
+            previewModal.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+            });
+
+            previewModal.addEventListener('touchmove', (e) => {
+                const deltaY = e.touches[0].clientY - touchStartY;
+                if (deltaY > 100) {
+                    closePreviewModal();
+                }
+            });
+
+            // Setup image zoom (same as in saveImageToBucket)
+            const img = previewModal.querySelector('img');
+            let scale = 1;
+            let panning = false;
+            let pointX = 0;
+            let pointY = 0;
+            let start = { x: 0, y: 0 };
+
+            img.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const xs = (e.clientX - img.offsetLeft) / scale;
+                const ys = (e.clientY - img.offsetTop) / scale;
+                
+                scale += e.deltaY * -0.01;
+                scale = Math.min(Math.max(1, scale), 4);
+                
+                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+            });
+
+            img.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                start = { x: e.clientX - pointX, y: e.clientY - pointY };
+                panning = true;
+            });
+
+            img.addEventListener('mousemove', (e) => {
+                e.preventDefault();
+                if (!panning) return;
+                pointX = (e.clientX - start.x);
+                pointY = (e.clientY - start.y);
+                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+            });
+
+            img.addEventListener('mouseup', () => {
+                panning = false;
+            });
+
+            // Handle button clicks
+            const closeBtn = previewModal.querySelector('.close-btn');
+            closeBtn.onclick = closePreviewModal;
+
+            function closePreviewModal() {
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            }
+
+            // Add pinch-zoom support (same as in saveImageToBucket)
+            let currentScale = 1;
+            let startDistance = 0;
+
+            img.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    startDistance = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                }
+            });
+
+            img.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    
+                    const currentDistance = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                    
+                    const scale = currentDistance / startDistance;
+                    currentScale = Math.min(Math.max(1, currentScale * scale), 4);
+                    
+                    img.style.transform = `scale(${currentScale})`;
+                    startDistance = currentDistance;
+                }
+            });
+
+            // Add a loading indicator
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'loading-indicator';
+            previewModal.querySelector('.image-container').appendChild(loadingIndicator);
+
+            img.onload = () => {
+                loadingIndicator.remove();
+            };
+
+            const retakeBtn = previewModal.querySelector('.retake-btn');
+            retakeBtn.onclick = () => {
+                closePreviewModal();
+                const photoOptionsModal = document.getElementById('photoOptionsModal');
+                if (photoOptionsModal) {
+                    photoOptionsModal.style.display = 'flex';
+                }
+            };
+            
+            return data;
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Failed to upload receipts', 'error');
+            throw error;
+        }
+    }
+
+    async function processMultipleImages(filesArray) {
+        showToast('Processing multiple images...', 'info');
+
+        try {
+            // Convert all files to processable format
+            const processedFiles = await Promise.all(filesArray.map(async (file, index) => {
+                // Create a promise for each file processing
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const img = new Image();
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            
+                            // Maintain higher resolution
+                            let { width, height } = img;
+                            const maxDim = Math.min(2560, Math.max(width, height));
+                            if (Math.max(width, height) > maxDim) {
+                                const scale = maxDim / Math.max(width, height);
+                                width *= scale;
+                                height *= scale;
+                            }
+                            
+                            canvas.width = width;
+                            canvas.height = height;
+                            
+                            // Disable image smoothing for sharper edges
+                            ctx.imageSmoothingEnabled = false;
+                            
+                            // Draw image without filters
+                            ctx.drawImage(img, 0, 0, width, height);
+                            
+                            // Use higher quality JPEG encoding
+                            const finalImage = canvas.toDataURL('image/jpeg', 0.95);
+                            const base64Image = finalImage.split(',')[1];
+                            
+                            resolve({
+                                index,
+                                filename: file.name,
+                                base64Image
+                            });
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }));
+
+            // Send all processed images to server
+            await uploadMultipleToServer(processedFiles);
+            
+        } catch (error) {
+            console.error('Error processing multiple images:', error);
+            showToast('Failed to process images', 'error');
+        }
+    }
+
+    async function uploadMultipleToServer(processedFiles) {
+        try {
+            // Store the first image data globally (for potential use)
+            if (processedFiles.length > 0) {
+                currentImageData = processedFiles[0].base64Image;
+            }
+
+            // Close any existing modals
+            const photoOptionsModal = document.getElementById('photoOptionsModal');
+            const cameraModal = document.querySelector('.camera-modal');
+            
+            if (photoOptionsModal) {
+                photoOptionsModal.style.display = 'none';
+            }
+            
+            if (cameraModal) {
+                closeCameraModal();
+            }
+
+            // Make API call
+            const customerID = sessionStorage.getItem('customerID');
+            const response = await fetch('/multiple-vision-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    images: processedFiles.map(file => ({
+                        image: file.base64Image,
+                        filename: file.filename,
+                        index: file.index
+                    })),
+                    deviceInfo: navigator.userAgent,
+                    screenResolution: `${window.screen.width}x${window.screen.height}`,
+                    paymentMethod: 'Bank Receipt',
+                    customerID: customerID,
+                    startTime: new Date().getTime()
+                })
+            });
+
+            const data = await response.json();
+
+            // Log relevant response details
+            console.log(`Multiple image response:`, data);
+
+            // Check response status
+            if (!response.ok) {
+                showFailureModal('Scan failed', 'Please retry');
+                return;
+            }
+
+            // Success - note we're not showing confirmation modal yet as requested
+            showToast(`Processed ${processedFiles.length} images successfully`, 'success');
+            
+            // Return the data for potential further processing
+            return data;
+
+        } catch (error) {
+            console.error('Error uploading multiple images:', error);
+            showFailureModal('Processing Error', 'An error occurred while processing your images. Please try again.');
+            throw error;
+        }
+    }
 });

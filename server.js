@@ -1109,6 +1109,215 @@ app.post('/upload-receipt', async (req, res) => {
 //     }
 // });
 
+app.post('/upload-multiple-receipts', async (req, res) => {
+    try {
+        const { files, customerID } = req.body;
+        
+        if (!files || !Array.isArray(files) || files.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'No files provided or invalid files format'
+            });
+        }
+        
+        // Get the customer's table name for file organization
+        const tableName = checkCurrentUser(customerID);
+        const timestamp = Date.now();
+        
+        // Process each file
+        const uploadPromises = files.map(async (file, index) => {
+            const { imageData, filename } = file;
+            
+            // Generate unique filename with index to avoid conflicts
+            const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${filename}`;
+            
+            // Convert base64 to buffer
+            const buffer = Buffer.from(imageData, 'base64');
+            
+            // Set up S3 upload parameters
+            const uploadParams = {
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Key: uniqueFilename,
+                Body: buffer,
+                ContentType: 'image/jpeg'
+            };
+
+            // Upload to S3
+            const command = new PutObjectCommand(uploadParams);
+            await s3Client.send(command);
+
+            // Generate pre-signed URL
+            const getObjectCommand = new GetObjectCommand({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Key: uniqueFilename
+            });
+            
+            const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+                expiresIn: 3600 // URL valid for 1 hour
+            });
+            
+            return {
+                url: signedUrl,
+                key: uniqueFilename
+            };
+        });
+        
+        // Wait for all uploads to complete
+        const results = await Promise.all(uploadPromises);
+        
+        // Extract URLs and keys into separate arrays
+        const urls = results.map(result => result.url);
+        const keys = results.map(result => result.key);
+        
+        // Return success with all URLs and keys
+        res.json({
+            success: true,
+            urls: urls,
+            keys: keys,
+            count: files.length
+        });
+
+    } catch (error) {
+        console.error('S3 multiple upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to upload images'
+        });
+    }
+});
+
+app.post('/multiple-vision-api', async (req, res) => {
+    const { images, customerID, deviceInfo, screenResolution, paymentMethod, startTime } = req.body;
+    const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+
+    if (!images || !Array.isArray(images) || images.length === 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'No images provided or invalid image format'
+        });
+    }
+
+    try {
+        // Prepare the API request for Google Vision API
+        // This is a batch request with multiple images in one call
+        const requests = images.map(img => ({
+            image: {
+                content: img.image
+            },
+            features: [{
+                type: 'DOCUMENT_TEXT_DETECTION'
+            }],
+            imageContext: {
+                languageHints: ['en'],
+                textDetectionParams: {
+                    enableTextDetectionConfidenceScore: true
+                }
+            }
+        }));
+
+        // Make the API call with all images in one request
+        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                requests: requests
+            })
+        });
+
+        const data = await response.json();
+
+        // Process each image's results
+        const resultsArray = [];
+        
+        if (data.responses && Array.isArray(data.responses)) {
+            // Process each response
+            for (let i = 0; i < data.responses.length; i++) {
+                const textResult = data.responses[i]?.fullTextAnnotation;
+                const recognizedText = textResult?.text || '';
+                const confidence = textResult?.pages?.[0]?.blocks?.reduce((acc, block) => 
+                    acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
+                
+                // Only process if confidence is high enough
+                if (confidence > 0.7) {
+                    const bankKey = determineBankKey(recognizedText);
+                    const receiptData = parseReceiptData(recognizedText, bankKey);
+                    
+                    // Check if this is actually a receipt
+                    const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
+                    
+                    if (isReceipt) {
+                        // Add the corresponding image filename and index
+                        resultsArray.push({
+                            index: images[i].index,
+                            filename: images[i].filename,
+                            amount: receiptData.Amount,
+                            referenceNo: receiptData.ReferenceNo,
+                            Date: receiptData.Date,
+                            Time: receiptData.Time,
+                            PaymentMethod: receiptData.PaymentMethod,
+                            Bank: receiptData.Bank,
+                            recognizedText
+                        });
+                    } else {
+                        // Add a failed result
+                        resultsArray.push({
+                            index: images[i].index,
+                            filename: images[i].filename,
+                            error: 'No receipt data detected',
+                            recognizedText
+                        });
+                    }
+                } else {
+                    // Add a failed result due to low confidence
+                    resultsArray.push({
+                        index: images[i].index,
+                        filename: images[i].filename,
+                        error: 'Text confidence score is below threshold',
+                        confidence: confidence,
+                        threshold: 0.7
+                    });
+                }
+            }
+            
+            // Return the combined results
+            if (resultsArray.length > 0) {
+                // Return the first successful result as the primary result
+                // and include all results in the array
+                const primaryResult = resultsArray.find(r => !r.error) || resultsArray[0];
+                
+                res.json({
+                    success: true,
+                    primaryResult: primaryResult,
+                    allResults: resultsArray,
+                    count: resultsArray.length,
+                    successCount: resultsArray.filter(r => !r.error).length
+                });
+            } else {
+                res.status(400).json({
+                    success: false,
+                    error: 'No valid receipts detected in any of the images',
+                    results: resultsArray
+                });
+            }
+        } else {
+            res.status(400).json({
+                success: false,
+                error: 'Invalid response from Vision API',
+                details: data
+            });
+        }
+    } catch (error) {
+        console.error('Error processing multiple images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error processing multiple images',
+            details: error.message
+        });
+    }
+});
+
 // Export the app for potential serverless environments (like Vercel)
 export default app;
 
