@@ -1442,7 +1442,69 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
     }
+
+    function validateAllEntries() {
+        // Check if imageEntries is available and has entries
+        if (!window.imageEntries || window.imageEntries.length === 0) {
+            showToast('No receipt entries found', 'error');
+            return false;
+        }
+        
+        let hasEmptyFields = false;
+        let emptyFieldTypes = [];
+        
+        // Loop through each image entry
+        window.imageEntries.forEach((entry, index) => {
+            const entryElement = entry.element;
+            const amountInput = entryElement.querySelector('.amount-input');
+            const referenceInput = entryElement.querySelector('.reference-input');
+            const particularsInput = entryElement.querySelector('.particulars-input');
+            const dateInput = entryElement.querySelector('.date-input');
+            
+            // Check if any field is empty
+            if (!amountInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Amount in entry #${index + 1}`);
+                amountInput.classList.add('invalid-input');
+            }
+            
+            if (!referenceInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Reference in entry #${index + 1}`);
+                referenceInput.classList.add('invalid-input');
+            }
+            
+            if (!particularsInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Particulars in entry #${index + 1}`);
+                particularsInput.classList.add('invalid-input');
+            }
+            
+            if (!dateInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Date in entry #${index + 1}`);
+                dateInput.classList.add('invalid-input');
+            }
+        });
+        
+        // Show toast with specific error information
+        if (hasEmptyFields) {
+            // Limit to first 3 empty fields to keep toast readable
+            const errorMsg = emptyFieldTypes.slice(0, 3).join(', ') + 
+                            (emptyFieldTypes.length > 3 ? ' and other fields' : '') + 
+                            ' cannot be empty';
+            showToast(errorMsg, 'error');
+            return false;
+        }
+        
+        return true;
+    }
+
     async function handleSubmitAll() {
+        if (!validateAllEntries()) {
+            return;
+        }
+
         // Disable the submit button first to prevent multiple submissions
         const submitButton = document.getElementById('submitAllUploads');
         if (submitButton) {

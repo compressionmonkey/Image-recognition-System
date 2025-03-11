@@ -67,7 +67,7 @@ app.get('/', (req, res) => {
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
     '0e702': 'Dhapa',    // CUSTOMER_2
-    '571b6': 'Customer3',    // CUSTOMER_3
+    '571b6': 'Kaldens',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
     '72d72': 'Customer5'     // CUSTOMER_5
 };
@@ -79,7 +79,7 @@ function pickCustomerSheet(customerID) {
         case '0e702':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_DHAPA_ID;
         case '571b6':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_KALDENS_ID;
         case 'be566':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         case '72d72':
