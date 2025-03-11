@@ -173,5 +173,58 @@
         </div>
     </div>
 
+    <!-- Multiple Uploads Modal Template -->
+    <div id="multipleUploadsModal" class="multiple-uploads-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Multiple Payments</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="uploads-container" id="uploadsContainer">
+                <!-- Image entries will be added here dynamically -->
+            </div>
+            <div class="modal-footer">
+                <!-- <button class="add-more-btn" id="addAnotherPayment">
+                    <span class="plus-icon">+</span> Add Another Payment
+                </button> -->
+                <button class="submit-all-btn" id="submitAllUploads">Submit All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Entry Template (hidden, will be cloned by JS) -->
+    <template id="imageEntryTemplate">
+        <div class="image-entry">
+            <div class="image-preview">
+                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlIj48cmVjdCB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHg9IjMiIHk9IjMiIHJ4PSIyIiByeT0iMiIvPjxjaXJjbGUgY3g9IjguNSIgY3k9IjguNSIgcj0iMS41Ii8+PHBvbHlsaW5lIHBvaW50cz0iMjEgMTUgMTYgMTAgNSAyMSIvPjwvc3ZnPg==" alt="Receipt Preview">
+                <button class="delete-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                </button>
+            </div>
+            <div class="entry-details">
+                <div class="form-group">
+                    <label>Amount</label>
+                    <div class="input-with-icon">
+                        <input type="number" class="amount-input" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Reference</label>
+                    <input type="text" class="reference-input" placeholder="Enter reference">
+                </div>
+                <div class="form-group">
+                    <label>Particulars</label>
+                    <input type="text" class="particulars-input" placeholder="Enter details">
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <div class="date-input-container">
+                        <input type="date" class="date-input" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
 </body>
 </html>

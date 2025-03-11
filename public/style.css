@@ -1515,3 +1515,279 @@ close-btn:hover {
     font-weight: 600;  /* Makes text bold (600 is semi-bold) */
     /* or use font-weight: bold; for even bolder text */
 }
+
+/* Multiple Uploads Modal Styles */
+.multiple-uploads-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.multiple-uploads-modal.show {
+    opacity: 1;
+}
+
+.multiple-uploads-modal .modal-content {
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.3s ease forwards;
+}
+
+.multiple-uploads-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+.multiple-uploads-modal .modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.multiple-uploads-modal .close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.multiple-uploads-modal .uploads-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    max-height: 60vh;
+}
+
+.multiple-uploads-modal .modal-footer {
+    padding: 16px;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.multiple-uploads-modal .add-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.multiple-uploads-modal .add-more-btn:hover {
+    background-color: #eee;
+}
+
+.multiple-uploads-modal .plus-icon {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.multiple-uploads-modal .submit-all-btn {
+    background-color: #000;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.multiple-uploads-modal .submit-all-btn:hover {
+    background-color: #333;
+}
+
+/* Image Entry Styles */
+.image-entry {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.image-entry .image-preview {
+    position: relative;
+    height: 180px;
+    background-color: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.image-entry .image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-entry .delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.image-entry .delete-btn:hover {
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.image-entry .delete-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.image-entry .entry-details {
+    padding: 16px;
+}
+
+.image-entry .form-group {
+    margin-bottom: 12px;
+}
+
+.image-entry .form-group label {
+    display: block;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.image-entry .input-with-icon {
+    position: relative;
+}
+
+.image-entry .currency-symbol {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+}
+
+.image-entry .amount-input {
+    padding-left: 24px;
+}
+
+.image-entry input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.image-entry input:focus {
+    border-color: #000;
+    outline: none;
+}
+
+.image-entry .date-input-container {
+    position: relative;
+    display: flex;
+}
+
+.image-entry .date-input {
+    flex: 1;
+    padding-right: 40px;
+}
+
+.image-entry .calendar-btn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 40px;
+    background: none;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.image-entry .calendar-btn svg {
+    width: 20px;
+    height: 20px;
+    color: #666;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .multiple-uploads-modal .modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+
+    .image-entry .image-preview {
+        height: 150px;
+    }
+}
+
+@media (max-width: 480px) {
+    .multiple-uploads-modal .modal-header h3 {
+        font-size: 16px;
+    }
+
+    .image-entry .form-group label {
+        font-size: 13px;
+    }
+
+    .image-entry input {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+}
