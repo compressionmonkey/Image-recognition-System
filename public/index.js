@@ -857,45 +857,36 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                if (files.length === 1) {
-                    // Handle single file as before
-                    const file = files[0];
-                    const reader = new FileReader();
-                    reader.onload = async function(event) {
-                        const base64Image = event.target.result.split(',')[1];
-                        currentImageData = base64Image; // Store the image data
-                        await saveImageToBucket(base64Image, file.name);
-                        await processImage(file);
-                    };
-                    reader.readAsDataURL(file);
-                } else if (files.length > 1) {
-                    // Handle multiple files
-                    try {
-                        // Convert all files to base64 for upload to S3
-                        const filesArray = await Promise.all(Array.from(files).map(file => {
-                            return new Promise((resolve, reject) => {
-                                const reader = new FileReader();
-                                reader.onload = (event) => {
-                                    resolve({
-                                        imageData: event.target.result.split(',')[1],
-                                        filename: file.name
-                                    });
-                                };
-                                reader.onerror = reject;
-                                reader.readAsDataURL(file);
-                            });
-                        }));
-                        
-                        // Upload files to S3
-                        await saveMultipleImagesToBucket(filesArray);
+                try {
+                    // Warn if trying to upload more than 10 files
+                    if (files.length > 10) {
+                        showToast('Only the first 10 files will be processed', 'info');
+                    }
+                    
+                    if (files.length === 1) {
+                        // Handle single file
+                        const file = files[0];
+                        const reader = new FileReader();
+                        reader.onload = async function(event) {
+                            const base64Image = event.target.result.split(',')[1];
+                            currentImageData = base64Image;
+                            await saveImageToBucket(base64Image, file.name);
+                            await processImage(file);
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        // Handle multiple files using the new FormData approach
+                        await saveMultipleImagesToBucketForm(files);
                         
                         // Process images for OCR and analysis
                         await processMultipleImages(Array.from(files));
                         
-                    } catch (error) {
-                        console.error('Error processing multiple files:', error);
-                        showToast('Failed to process multiple files', 'error');
+                        // If you want to process all files, uncomment this
+                        // await processMultipleImages(Array.from(files).slice(0, 10));
                     }
+                } catch (error) {
+                    console.error('Error processing files:', error);
+                    showToast('Failed to process files', 'error');
                 }
             };
             input.click();
@@ -1635,6 +1626,127 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error uploading multiple images:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your images. Please try again.');
+            throw error;
+        }
+    }
+
+    // Function to upload multiple images using FormData (up to 10 files)
+    async function saveMultipleImagesToBucketForm(files) {
+        try {
+            showToast('Uploading files...', 'info');
+            
+            // Check file count limit
+            if (files.length > 10) {
+                showToast('Maximum 10 files allowed', 'error');
+                throw new Error('Maximum 10 files allowed');
+            }
+            
+            // Create FormData object
+            const formData = new FormData();
+            const customerID = sessionStorage.getItem('customerID');
+            
+            // Add customer ID
+            formData.append('customerID', customerID);
+            
+            // Add all files to form data (limit to first 10 if somehow more were provided)
+            const filesToUpload = Array.from(files).slice(0, 10);
+            filesToUpload.forEach(file => {
+                formData.append('files', file);
+            });
+            
+            // Make request to upload endpoint
+            const response = await fetch('/upload-multiple-receipts-form', {
+                method: 'POST',
+                body: formData // Browser automatically sets content-type with boundary
+            });
+
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Upload failed');
+            }
+            
+            // Show preview and store URLs
+            const previewModal = document.createElement('div');
+            previewModal.className = 'image-preview-modal';
+            previewModal.innerHTML = `
+                <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>Receipt Preview (${data.count} files uploaded)</h3>
+                    </div>
+                    <div class="image-container">
+                        <img src="${data.urls[0]}" 
+                             alt="Receipt Preview" 
+                             loading="lazy" 
+                             decoding="async">
+                        <div class="zoom-hint">
+                            <span class="icon">🔍</span>
+                            Pinch or scroll to zoom
+                        </div>
+                    </div>
+                    <div class="preview-controls">
+                        <button class="preview-button retake-btn">
+                            <span class="icon">📸</span> Retake
+                        </button>
+                        <button class="preview-button close-btn">
+                        <span class="icon">➡️</span> Proceed
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(previewModal);
+
+            // Store URLs in session storage
+            sessionStorage.setItem('lastReceiptUrl', data.urls[0]);
+            sessionStorage.setItem('allReceiptUrls', JSON.stringify(data.urls));
+            sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
+            
+            // Animation and event handlers
+            previewModal.offsetHeight; // Force reflow
+            previewModal.classList.add('show');
+            
+            // Image manipulation handlers (similar to your existing code)
+            const img = previewModal.querySelector('img');
+            let scale = 1;
+            let panning = false;
+            let pointX = 0;
+            let pointY = 0;
+            let start = { x: 0, y: 0 };
+            
+            // Add zoom, pan and other handlers as in your existing code
+            // ... (reusing the same interaction code you already have)
+            
+            // Modal close function
+            function closePreviewModal() {
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            }
+            
+            // Button handlers
+            const closeBtn = previewModal.querySelector('.close-btn');
+            closeBtn.onclick = closePreviewModal;
+            
+            const retakeBtn = previewModal.querySelector('.retake-btn');
+            retakeBtn.onclick = () => {
+                closePreviewModal();
+                const photoOptionsModal = document.getElementById('photoOptionsModal');
+                if (photoOptionsModal) {
+                    photoOptionsModal.style.display = 'flex';
+                }
+            };
+            
+            // Add these files to recent files
+            filesToUpload.forEach((file, index) => {
+                // Only add if we have the URL
+                if (data.urls[index]) {
+                    addToRecentFiles(null, file.name, data.urls[index]);
+                }
+            });
+            
+            return data;
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Failed to upload receipts', 'error');
             throw error;
         }
     }

@@ -8,6 +8,8 @@ import nlp from 'compromise';
 import { google } from 'googleapis';
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import multer from 'multer';
+import multerS3 from 'multer-s3';
 
 
 dotenv.config();
@@ -1106,84 +1108,87 @@ app.post('/upload-receipt', async (req, res) => {
 //             success: false,
 //             error: 'Failed to generate URL'
 //         });
-//     }
-// });
+//     });
 
-app.post('/upload-multiple-receipts', async (req, res) => {
-    try {
-        const { files, customerID } = req.body;
-        
-        if (!files || !Array.isArray(files) || files.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'No files provided or invalid files format'
-            });
-        }
-        
-        // Get the customer's table name for file organization
+// Configure multer with S3 storage
+const s3Upload = multer({
+  storage: multerS3({
+    s3: s3Client,
+    bucket: process.env.AWS_BUCKET_NAME,
+    acl: 'private',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const customerID = req.body.customerID;
+      try {
         const tableName = checkCurrentUser(customerID);
         const timestamp = Date.now();
-        
-        // Process each file
-        const uploadPromises = files.map(async (file, index) => {
-            const { imageData, filename } = file;
-            
-            // Generate unique filename with index to avoid conflicts
-            const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${filename}`;
-            
-            // Convert base64 to buffer
-            const buffer = Buffer.from(imageData, 'base64');
-            
-            // Set up S3 upload parameters
-            const uploadParams = {
-                Bucket: process.env.AWS_BUCKET_NAME,
-                Key: uniqueFilename,
-                Body: buffer,
-                ContentType: 'image/jpeg'
-            };
-
-            // Upload to S3
-            const command = new PutObjectCommand(uploadParams);
-            await s3Client.send(command);
-
-            // Generate pre-signed URL
-            const getObjectCommand = new GetObjectCommand({
-                Bucket: process.env.AWS_BUCKET_NAME,
-                Key: uniqueFilename
-            });
-            
-            const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
-                expiresIn: 3600 // URL valid for 1 hour
-            });
-            
-            return {
-                url: signedUrl,
-                key: uniqueFilename
-            };
-        });
-        
-        // Wait for all uploads to complete
-        const results = await Promise.all(uploadPromises);
-        
-        // Extract URLs and keys into separate arrays
-        const urls = results.map(result => result.url);
-        const keys = results.map(result => result.key);
-        
-        // Return success with all URLs and keys
-        res.json({
-            success: true,
-            urls: urls,
-            keys: keys,
-            count: files.length
-        });
-
-    } catch (error) {
-        console.error('S3 multiple upload error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to upload images'
-        });
+        const index = req.filesProcessed || 0;
+        req.filesProcessed = index + 1;
+        const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${file.originalname}`;
+        cb(null, uniqueFilename);
+      } catch (error) {
+        cb(new Error('Invalid customer ID'));
+      }
     }
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB per file
+    files: 10 // Max 10 files
+  }
+});
+
+// Add new endpoint for multipart form uploads
+app.post('/upload-multiple-receipts-form', (req, res, next) => {
+  // Initialize file counter
+  req.filesProcessed = 0;
+  next();
+}, s3Upload.array('files', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No files uploaded'
+      });
+    }
+
+    // Generate signed URLs for each file
+    const results = await Promise.all(req.files.map(async (file) => {
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: file.key
+      });
+      
+      const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+        expiresIn: 3600 // 1 hour expiration
+      });
+      
+      return {
+        url: signedUrl,
+        key: file.key,
+        originalName: file.originalname,
+        size: file.size
+      };
+    }));
+    
+    // Extract URLs and keys
+    const urls = results.map(result => result.url);
+    const keys = results.map(result => result.key);
+    
+    res.json({
+      success: true,
+      urls: urls,
+      keys: keys,
+      files: results,
+      count: req.files.length
+    });
+  } catch (error) {
+    console.error('S3 multiple upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload images',
+      details: error.message
+    });
+  }
 });
 
 app.post('/multiple-vision-api', async (req, res) => {
