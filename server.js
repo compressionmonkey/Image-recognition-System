@@ -862,6 +862,228 @@ async function updateReceiptData(receiptData) {
     }
 }
 
+// Configure multer with S3 storage
+const s3Upload = multer({
+  storage: multerS3({
+    s3: s3Client,
+    bucket: process.env.AWS_BUCKET_NAME,
+    acl: 'private',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const customerID = req.body.customerID;
+      try {
+        const tableName = checkCurrentUser(customerID);
+        const timestamp = Date.now();
+        const index = req.filesProcessed || 0;
+        req.filesProcessed = index + 1;
+        const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${file.originalname}`;
+        cb(null, uniqueFilename);
+      } catch (error) {
+        cb(new Error('Invalid customer ID'));
+      }
+    }
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB per file
+    files: 10 // Max 10 files
+  }
+});
+
+// Enhanced function for bulk receipt data updates (now independent of endpoint)
+async function updateReceiptDataBulk(receiptDataArray) {
+    console.log(`Processing ${receiptDataArray.length} receipts in bulk`);
+    
+    // Track results for each receipt
+    const results = [];
+    
+    // Process receipts sequentially to avoid potential rate limiting with Google Sheets API
+    for (let i = 0; i < receiptDataArray.length; i++) {
+        const receiptData = receiptDataArray[i];
+        try {
+            // Get sheet ID for this customer
+            const sheetId = customerSheets[receiptData.customerID];
+            if (!sheetId) {
+                results.push({
+                    success: false,
+                    error: 'Invalid customer ID or sheet ID not found',
+                    receiptId: receiptData.referenceNo || 'Unknown',
+                    amount: receiptData.amount || '0.00'
+                });
+                continue; // Skip to next receipt
+            }
+            
+            const spreadsheetCustomerID = pickCustomerSheet(receiptData.customerID);
+            
+            // Format data for Google Sheets
+            const rowData = {
+                'OCR Timestamp': receiptData['OCR Timestamp'] || new Date().toISOString(),
+                'Reference Number': receiptData.referenceNo || 'MANUAL',
+                'Amount': receiptData.amount,
+                'Recognized Text': receiptData['Recognized Text'] || '',
+                'Payment Method': receiptData['Payment Method'] || 'Bank Receipt',
+                'Bank': receiptData['Bank'] || 'Unknown',
+                'Particulars': receiptData['Particulars'] || '',
+                'Receipt URL': receiptData['Receipt URL']
+            };
+
+            // Write to sheet with error handling
+            await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
+            
+            // Record success
+            results.push({
+                success: true,
+                receiptId: receiptData.referenceNo || 'MANUAL',
+                amount: receiptData.amount
+            });
+        } catch (error) {
+            console.error(`Error updating receipt data at index ${i}:`, error);
+            // Record failure but continue processing others
+            results.push({
+                success: false,
+                error: error.message || 'Unknown error occurred',
+                receiptId: receiptData.referenceNo || 'Unknown',
+                amount: receiptData.amount || '0.00'
+            });
+        }
+    }
+    
+    // Return comprehensive results
+    return {
+        totalProcessed: receiptDataArray.length,
+        successCount: results.filter(r => r.success).length,
+        failureCount: results.filter(r => !r.success).length,
+        results: results
+    };
+}
+
+// Updated endpoint to handle both file uploads and data processing
+app.post('/upload-multiple-receipts-form', (req, res, next) => {
+  // Initialize file counter
+  req.filesProcessed = 0;
+  next();
+}, s3Upload.array('files', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No files uploaded'
+      });
+    }
+
+    const customerID = req.body.customerID;
+    if (!customerID) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer ID is required'
+      });
+    }
+
+    // Parse the metadata JSON
+    let metadata = [];
+    try {
+      if (req.body.metadata) {
+        metadata = JSON.parse(req.body.metadata);
+      }
+    } catch (err) {
+      console.error('Error parsing metadata:', err);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid metadata format'
+      });
+    }
+
+    // Generate signed URLs for each file
+    const results = await Promise.all(req.files.map(async (file, index) => {
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: file.key
+      });
+      
+      const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+        expiresIn: 3600 // 1 hour expiration
+      });
+      
+      return {
+        url: signedUrl,
+        key: file.key,
+        originalName: file.originalname,
+        size: file.size,
+        index: index
+      };
+    }));
+    
+    // Extract URLs and keys
+    const urls = results.map(result => result.url);
+    const keys = results.map(result => result.key);
+    
+    // Prepare receipt data for each file if metadata exists
+    const receiptsToProcess = [];
+    
+    if (metadata.length > 0) {
+      // Match metadata with file URLs
+      for (let i = 0; i < Math.min(metadata.length, urls.length); i++) {
+        const fileData = metadata[i];
+        
+        // Skip invalid entries
+        if (!fileData || !fileData.amount) continue;
+        
+        receiptsToProcess.push({
+          customerID: customerID,
+          amount: fileData.amount,
+          referenceNo: fileData.reference || 'MANUAL',
+          'Particulars': fileData.particulars || '',
+          'OCR Timestamp': fileData.date || new Date().toISOString().split('T')[0],
+          'Payment Method': 'Bank Receipt',
+          'Bank': fileData.ocrData?.Bank || 'Unknown',
+          'Recognized Text': fileData.ocrData?.recognizedText || '',
+          'Receipt URL': urls[i]
+        });
+      }
+      
+      // Process the receipts if we have any valid ones
+      if (receiptsToProcess.length > 0) {
+        const sheetResults = await updateReceiptDataBulk(receiptsToProcess);
+        
+        // Return both upload and sheet writing results
+        res.json({
+          success: true,
+          urls: urls,
+          keys: keys,
+          files: results,
+          count: req.files.length,
+          sheetResults: sheetResults
+        });
+      } else {
+        // Just return the upload results if no valid receipts to process
+        res.json({
+          success: true,
+          urls: urls,
+          keys: keys,
+          files: results,
+          count: req.files.length,
+          message: 'Files uploaded but no valid metadata for sheet processing'
+        });
+      }
+    } else {
+      // If no metadata, just return the upload results
+      res.json({
+        success: true,
+        urls: urls,
+        keys: keys,
+        files: results,
+        count: req.files.length
+      });
+    }
+  } catch (error) {
+    console.error('S3 upload or sheet processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process uploads',
+      details: error.message
+    });
+  }
+});
+
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
@@ -1109,87 +1331,6 @@ app.post('/upload-receipt', async (req, res) => {
 //             error: 'Failed to generate URL'
 //         });
 //     });
-
-// Configure multer with S3 storage
-const s3Upload = multer({
-  storage: multerS3({
-    s3: s3Client,
-    bucket: process.env.AWS_BUCKET_NAME,
-    acl: 'private',
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: function (req, file, cb) {
-      const customerID = req.body.customerID;
-      try {
-        const tableName = checkCurrentUser(customerID);
-        const timestamp = Date.now();
-        const index = req.filesProcessed || 0;
-        req.filesProcessed = index + 1;
-        const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${file.originalname}`;
-        cb(null, uniqueFilename);
-      } catch (error) {
-        cb(new Error('Invalid customer ID'));
-      }
-    }
-  }),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per file
-    files: 10 // Max 10 files
-  }
-});
-
-// Add new endpoint for multipart form uploads
-app.post('/upload-multiple-receipts-form', (req, res, next) => {
-  // Initialize file counter
-  req.filesProcessed = 0;
-  next();
-}, s3Upload.array('files', 10), async (req, res) => {
-  try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No files uploaded'
-      });
-    }
-
-    // Generate signed URLs for each file
-    const results = await Promise.all(req.files.map(async (file) => {
-      const getObjectCommand = new GetObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: file.key
-      });
-      
-      const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
-        expiresIn: 3600 // 1 hour expiration
-      });
-      
-      return {
-        url: signedUrl,
-        key: file.key,
-        originalName: file.originalname,
-        size: file.size
-      };
-    }));
-    
-    // Extract URLs and keys
-    const urls = results.map(result => result.url);
-    const keys = results.map(result => result.key);
-    
-    res.json({
-      success: true,
-      urls: urls,
-      keys: keys,
-      files: results,
-      count: req.files.length
-    });
-  } catch (error) {
-    console.error('S3 multiple upload error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to upload images',
-      details: error.message
-    });
-  }
-});
 
 app.post('/multiple-vision-api', async (req, res) => {
     const { images, customerID, deviceInfo, screenResolution, paymentMethod, startTime } = req.body;

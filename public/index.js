@@ -698,8 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'Recognized Text': currentConfirmationData.recognizedText,
             'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
-        console.log('confirmationData', confirmationData);
-        // Send confirmation to server
+        
         fetch('/confirm-receipt', {
             method: 'POST',
             headers: {
@@ -808,8 +807,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         exposureMode: ['continuous']
                     }
                 });
-
-                console.log(`stream ${JSON.stringify(stream)}`);
 
                 // Create and show camera modal
                 const cameraModal = createCameraModal();
@@ -925,12 +922,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let retryCount = 0;
             let success = false;
 
-            console.log(`while loop ${!success && retryCount < maxRetries}`);
-            console.log(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
-
             while (!success && retryCount < maxRetries) {
                 try {
-                    console.log(`while loop inside ${!success && retryCount < maxRetries}`);
                     const formData = new FormData();
                     formData.append('image', blob);
 
@@ -962,11 +955,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             lastFrameTime ? (currentTime - lastFrameTime) : 16.67
                         );
 
-                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
-
                         // Update UI with confidence score
                         qualityMetrics.confidence = result.confidence;
-                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
 
                         await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
 
@@ -995,9 +985,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 } catch (error) {
                     retryCount++;
-                    if (retryCount === maxRetries) {
-                        console.log(`Detection failed after retries: ${error}`);
-                    }
                     await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
                 }
             }
@@ -1303,208 +1290,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Make functions available globally
-    window.handlePhotoOption = handlePhotoOption;
-    window.showPhotoOptions = showPhotoOptions;
-    window.closePhotoOptions = closePhotoOptions;
-    window.closeCameraModal = closeCameraModal;
-    window.validateLogin = validateLogin;
-    window.showManualEntryModal = showManualEntryModal;
-    window.closeManualEntryModal = closeManualEntryModal;
-    window.closeFailureModal  = closeFailureModal;
-    window.handleManualSubmit  = handleManualSubmit;
-    window.handleConfirmDetails = handleConfirmDetails;
-    window.closeConfirmationModal = closeConfirmationModal;
-    window.routeUser = routeUser;
-    window.showRecentFiles = showRecentFiles;
-    window.handleSubmitAll = handleSubmitAll;
-
-    async function saveMultipleImagesToBucket(filesArray) {
-        try {
-            showToast('Uploading files...', 'info');
-            
-            // Prepare the files data
-            const customerID = sessionStorage.getItem('customerID');
-            
-            // First upload to S3 using the multiple endpoint
-            const response = await fetch('/upload-multiple-receipts', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    files: filesArray,
-                    customerID: customerID
-                })
-            });
-
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Upload failed');
-            }
-
-            // Create and show preview modal with the first S3 URL
-            const previewModal = document.createElement('div');
-            previewModal.className = 'image-preview-modal';
-            previewModal.innerHTML = `
-                <div class="preview-content">
-                    <div class="preview-header">
-                        <h3>Receipt Preview (${filesArray.length} files uploaded)</h3>
-                    </div>
-                    <div class="image-container">
-                        <img src="${data.urls[0]}" 
-                             alt="Receipt Preview" 
-                             loading="lazy" 
-                             decoding="async">
-                        <div class="zoom-hint">
-                            <span class="icon">🔍</span>
-                            Pinch or scroll to zoom
-                        </div>
-                    </div>
-                    <div class="preview-controls">
-                        <button class="preview-button retake-btn">
-                            <span class="icon">📸</span> Retake
-                        </button>
-                        <button class="preview-button close-btn">
-                        <span class="icon">➡️</span> Proceed
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(previewModal);
-            
-            // Add each file to recent files
-            filesArray.forEach((file, index) => {
-                addToRecentFiles(file.imageData, file.filename);
-            });
-
-            // Force reflow then add show class for animation
-            previewModal.offsetHeight;
-            previewModal.classList.add('show');
-
-            // Store first URL in session storage for later use
-            sessionStorage.setItem('lastReceiptUrl', data.urls[0]);
-            // Store all URLs in session storage (as JSON string)
-            sessionStorage.setItem('allReceiptUrls', JSON.stringify(data.urls));
-            // Store all keys in session storage (as JSON string)
-            sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
-
-            // Setup touch handling for mobile
-            let touchStartY = 0;
-            previewModal.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-            });
-
-            previewModal.addEventListener('touchmove', (e) => {
-                const deltaY = e.touches[0].clientY - touchStartY;
-                if (deltaY > 100) {
-                    closePreviewModal();
-                }
-            });
-
-            // Setup image zoom (same as in saveImageToBucket)
-            const img = previewModal.querySelector('img');
-            let scale = 1;
-            let panning = false;
-            let pointX = 0;
-            let pointY = 0;
-            let start = { x: 0, y: 0 };
-
-            img.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const xs = (e.clientX - img.offsetLeft) / scale;
-                const ys = (e.clientY - img.offsetTop) / scale;
-                
-                scale += e.deltaY * -0.01;
-                scale = Math.min(Math.max(1, scale), 4);
-                
-                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-            });
-
-            img.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                start = { x: e.clientX - pointX, y: e.clientY - pointY };
-                panning = true;
-            });
-
-            img.addEventListener('mousemove', (e) => {
-                e.preventDefault();
-                if (!panning) return;
-                pointX = (e.clientX - start.x);
-                pointY = (e.clientY - start.y);
-                img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-            });
-
-            img.addEventListener('mouseup', () => {
-                panning = false;
-            });
-
-            // Handle button clicks
-            const closeBtn = previewModal.querySelector('.close-btn');
-            closeBtn.onclick = closePreviewModal;
-
-            function closePreviewModal() {
-                previewModal.classList.remove('show');
-                setTimeout(() => previewModal.remove(), 300);
-            }
-
-            // Add pinch-zoom support (same as in saveImageToBucket)
-            let currentScale = 1;
-            let startDistance = 0;
-
-            img.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 2) {
-                    startDistance = Math.hypot(
-                        e.touches[0].pageX - e.touches[1].pageX,
-                        e.touches[0].pageY - e.touches[1].pageY
-                    );
-                }
-            });
-
-            img.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    
-                    const currentDistance = Math.hypot(
-                        e.touches[0].pageX - e.touches[1].pageX,
-                        e.touches[0].pageY - e.touches[1].pageY
-                    );
-                    
-                    const scale = currentDistance / startDistance;
-                    currentScale = Math.min(Math.max(1, currentScale * scale), 4);
-                    
-                    img.style.transform = `scale(${currentScale})`;
-                    startDistance = currentDistance;
-                }
-            });
-
-            // Add a loading indicator
-            const loadingIndicator = document.createElement('div');
-            loadingIndicator.className = 'loading-indicator';
-            previewModal.querySelector('.image-container').appendChild(loadingIndicator);
-
-            img.onload = () => {
-                loadingIndicator.remove();
-            };
-
-            const retakeBtn = previewModal.querySelector('.retake-btn');
-            retakeBtn.onclick = () => {
-                closePreviewModal();
-                const photoOptionsModal = document.getElementById('photoOptionsModal');
-                if (photoOptionsModal) {
-                    photoOptionsModal.style.display = 'flex';
-                }
-            };
-            
-            return data;
-        } catch (error) {
-            console.error('Error:', error);
-            showToast('Failed to upload receipts', 'error');
-            throw error;
-        }
-    }
-
     async function processMultipleImages(filesArray) {
         showToast('Processing multiple images...', 'info');
 
@@ -1658,126 +1443,164 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     async function handleSubmitAll() {
-        // Validate all entries
-        const invalidEntries = imageEntries.filter(entry => !entry.isValid());
-        if (invalidEntries.length > 0) {
-            showToast('Please fill in all required fields', 'error');
-            return;
+        // Disable the submit button first to prevent multiple submissions
+        const submitButton = document.getElementById('submitAllUploads');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.style.opacity = '0.5';
+            submitButton.style.cursor = 'not-allowed';
+            submitButton.innerHTML = '<span class="spinner" style="display: inline-block;"></span> Processing...';
         }
-
+        
         try {
-            // Show loading toast
-            showToast('Uploading files...', 'info');
-            
-            // Create FormData for bulk file upload
-            const formData = new FormData();
-            const customerID = sessionStorage.getItem('customerID');
-            formData.append('customerID', customerID);
-            
-            // Add all files to FormData
-            const receiptMetadata = [];
-            
-            imageEntries.forEach((entry, index) => {
-                // Add the file to FormData
-                formData.append('files', entry.file);
-                
-                // Collect metadata for each receipt
-                receiptMetadata.push({
-                    index,
-                    amount: entry.element.querySelector('.amount-input').value,
-                    reference: entry.element.querySelector('.reference-input').value,
-                    particulars: entry.element.querySelector('.particulars-input').value,
-                    date: entry.element.querySelector('.date-input').value,
-                    ocrData: entry.originalOcrData || {}
+            // Reset validation states first
+            imageEntries.forEach(entry => {
+                const inputs = entry.element.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.classList.remove('invalid-input');
+                    const errorMsg = input.parentElement.querySelector('.validation-error');
+                    if (errorMsg) errorMsg.remove();
                 });
             });
             
-            // Store metadata in session storage for use after upload
-            sessionStorage.setItem('receiptMetadata', JSON.stringify(receiptMetadata));
+            // Perform comprehensive validation
+            let hasErrors = false;
+            const validationResults = imageEntries.map(entry => entry.validate());
             
-            // Upload all files in a single request
-            const response = await fetch('/upload-multiple-receipts-form', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Upload failed');
+            // Check if any entries have validation errors
+            if (validationResults.some(result => !result.valid)) {
+                hasErrors = true;
+                // Display errors for each entry
+                validationResults.forEach((result, index) => {
+                    if (!result.valid) {
+                        const entry = imageEntries[index];
+                        
+                        // Mark invalid fields and show error messages
+                        Object.entries(result.errors).forEach(([field, message]) => {
+                            const input = entry.element.querySelector(`.${field}-input`);
+                            if (input) {
+                                input.classList.add('invalid-input');
+                                
+                                // Add error message below the input
+                                const errorMsg = document.createElement('div');
+                                errorMsg.className = 'validation-error';
+                                errorMsg.textContent = message;
+                                input.parentElement.appendChild(errorMsg);
+                                
+                                // Scroll to the first error
+                                if (field === Object.keys(result.errors)[0] && index === validationResults.findIndex(r => !r.valid)) {
+                                    setTimeout(() => {
+                                        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 100);
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                showToast('Please correct the highlighted fields', 'error');
+                
+                // Re-enable the button if validation fails
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+                
+                // Important: Return early to prevent API call
+                return;
             }
-            
-            // Process confirmations in batch after successful upload
-            await processReceiptConfirmations(data.urls, receiptMetadata);
-            
-            // Store URLs in session storage
-            sessionStorage.setItem('lastReceiptUrl', data.urls[0]);
-            sessionStorage.setItem('allReceiptUrls', JSON.stringify(data.urls));
-            sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
-            
-            // Show success message
-            showToast(`Successfully processed ${data.count} files`, 'success');
-            showConfetti();
-            
-            // Close the modal
-            const modal = document.getElementById('multipleUploadsModal');
-            modal.classList.remove('show');
-            setTimeout(() => {
-                modal.style.display = 'none';
-                document.getElementById('uploadsContainer').innerHTML = '';
-            }, 300);
-            
+
+            // Only proceed if no validation errors
+            if (!hasErrors) {
+                // Show loading toast
+                showToast('Uploading files...', 'info');
+                
+                // Create FormData for bulk file upload
+                const formData = new FormData();
+                const customerID = sessionStorage.getItem('customerID');
+                formData.append('customerID', customerID);
+                
+                // Add all files to FormData
+                const receiptMetadata = [];
+                
+                imageEntries.forEach((entry, index) => {
+                    // Add the file to FormData
+                    formData.append('files', entry.file);
+                    
+                    // Collect metadata for each receipt
+                    receiptMetadata.push({
+                        index,
+                        amount: entry.element.querySelector('.amount-input').value,
+                        reference: entry.element.querySelector('.reference-input').value,
+                        particulars: entry.element.querySelector('.particulars-input').value,
+                        date: entry.element.querySelector('.date-input').value,
+                        ocrData: entry.originalOcrData || {}
+                    });
+                });
+                
+                // Add metadata as JSON
+                formData.append('metadata', JSON.stringify(receiptMetadata));
+                
+                // Store metadata in session storage for reference
+                sessionStorage.setItem('receiptMetadata', JSON.stringify(receiptMetadata));
+                
+                // Upload all files and process data in a single request
+                const response = await fetch('/upload-multiple-receipts-form', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Upload failed');
+                }
+                
+                // Check sheet processing results if available
+                if (data.sheetResults) {
+                    if (data.sheetResults.failureCount > 0) {
+                        showToast(`Processed ${data.sheetResults.successCount} of ${data.sheetResults.totalProcessed} receipts`, 'warning');
+                    } else {
+                        showToast(`Successfully processed all ${data.sheetResults.successCount} receipts`, 'success');
+                    }
+                } else {
+                    showToast(`Uploaded ${data.count} files, but data not processed`, 'warning');
+                }
+                
+                // Store URLs in session storage
+                if (data.urls && data.urls.length > 0) {
+                    sessionStorage.setItem('lastReceiptUrl', data.urls[0]);
+                    sessionStorage.setItem('allReceiptUrls', JSON.stringify(data.urls));
+                }
+                if (data.keys && data.keys.length > 0) {
+                    sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
+                }
+                
+                // Show success animation
+                showConfetti();
+                
+                // Close the modal
+                const modal = document.getElementById('multipleUploadsModal');
+                modal.classList.remove('show');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    document.getElementById('uploadsContainer').innerHTML = '';
+                }, 300);
+            }
         } catch (error) {
             console.error('Error processing uploads:', error);
             showToast('Failed to process uploads: ' + error.message, 'error');
+        } finally {
+            // Always re-enable the button
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.style.opacity = '1';
+                submitButton.style.cursor = 'pointer';
+                submitButton.innerHTML = 'Submit All';
+            }
         }
-    }
-
-    // Helper function to process receipt confirmations in batch
-    async function processReceiptConfirmations(urls, metadataArray) {
-        if (!urls || urls.length === 0 || !metadataArray || metadataArray.length === 0) {
-            return;
-        }
-        
-        const customerID = sessionStorage.getItem('customerID');
-        
-        // Create batch of confirmation requests
-        const confirmationPromises = metadataArray.map((metadata, index) => {
-            // Make sure we have a URL for this metadata
-            if (index >= urls.length) return Promise.resolve({ success: false });
-            
-            const receiptUrl = urls[index];
-            
-            // Create confirmation data object
-            const confirmData = {
-                customerID,
-                amount: metadata.amount,
-                referenceNo: metadata.reference || 'MANUAL',
-                Particulars: metadata.particulars || '',
-                'OCR Timestamp': metadata.date,
-                'Payment Method': 'Bank Receipt',
-                'Bank': metadata.ocrData.Bank || 'Unknown',
-                'Recognized Text': metadata.ocrData.recognizedText || '',
-                'Receipt URL': receiptUrl
-            };
-            
-            // Send confirmation to server
-            return fetch('/confirm-receipt', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(confirmData)
-            })
-            .then(response => response.json())
-            .catch(error => {
-                console.error('Error confirming receipt:', error);
-                return { success: false, error: error.message };
-            });
-        });
-        
-        // Process all confirmations in parallel
-        return Promise.all(confirmationPromises);
     }
 
     // Function to create the multiple uploads UI
@@ -1887,14 +1710,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (originalOcrData && !originalOcrData.error) {
             const amountInput = entryElement.querySelector('.amount-input');
             const referenceInput = entryElement.querySelector('.reference-input');
-            const particularsInput = entryElement.querySelector('.particulars-input');
             
             // Set values if they exist in OCR data
             if (originalOcrData.amount) amountInput.value = originalOcrData.amount;
             if (originalOcrData.referenceNo) referenceInput.value = originalOcrData.referenceNo;
-            if (originalOcrData.Bank && originalOcrData.Bank !== 'Unknown') {
-                particularsInput.value = `Payment to ${originalOcrData.Bank}`;
-            }
             if (originalOcrData.Date) {
                 // Try to parse the date from OCR
                 try {
@@ -1926,12 +1745,78 @@ document.addEventListener('DOMContentLoaded', function() {
             element: entryElement,
             file: actualFile,
             originalOcrData, // Store the original OCR data for later use
-            isValid: () => {
+            
+            // Enhanced validation that returns detailed results
+            validate: () => {
                 const amountInput = entryElement.querySelector('.amount-input');
+                const referenceInput = entryElement.querySelector('.reference-input');
+                const particularsInput = entryElement.querySelector('.particulars-input');
                 const dateInput = entryElement.querySelector('.date-input');
-                return amountInput.value.trim() !== '' && dateInput.value.trim() !== '';
+                
+                const errors = {};
+                
+                // Validate amount (required, valid number, positive)
+                if (!amountInput.value.trim()) {
+                    errors.amount = 'Amount is required';
+                } else if (isNaN(parseFloat(amountInput.value))) {
+                    errors.amount = 'Amount must be a valid number';
+                } else if (parseFloat(amountInput.value) <= 0) {
+                    errors.amount = 'Amount must be greater than zero';
+                }
+                
+                // Validate reference (optional, but if provided must meet certain criteria)
+                // We'll be lenient here as references are often auto-generated
+                if (referenceInput.value.trim() && referenceInput.value.trim().length < 3) {
+                    errors.reference = 'Reference is too short';
+                }
+                
+                // Validate particulars (optional, but if provided should be meaningful)
+                if (particularsInput.value.trim() && particularsInput.value.trim().length < 2) {
+                    errors.particulars = 'Particulars is too short';
+                }
+                
+                // Validate date (required, valid date, not in future)
+                if (!dateInput.value.trim()) {
+                    errors.date = 'Date is required';
+                } else {
+                    const selectedDate = new Date(dateInput.value);
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999); // End of today
+                    
+                    if (isNaN(selectedDate.getTime())) {
+                        errors.date = 'Invalid date format';
+                    } else if (selectedDate > today) {
+                        errors.date = 'Date cannot be in the future';
+                    }
+                }
+                
+                return {
+                    valid: Object.keys(errors).length === 0,
+                    errors: errors
+                };
+            },
+            
+            // Keep the simple version for backward compatibility
+            isValid: function() {
+                return this.validate().valid;
             }
         };
     }
+
+    // Make functions available globally
+    window.handlePhotoOption = handlePhotoOption;
+    window.showPhotoOptions = showPhotoOptions;
+    window.closePhotoOptions = closePhotoOptions;
+    window.closeCameraModal = closeCameraModal;
+    window.validateLogin = validateLogin;
+    window.showManualEntryModal = showManualEntryModal;
+    window.closeManualEntryModal = closeManualEntryModal;
+    window.closeFailureModal  = closeFailureModal;
+    window.handleManualSubmit  = handleManualSubmit;
+    window.handleConfirmDetails = handleConfirmDetails;
+    window.closeConfirmationModal = closeConfirmationModal;
+    window.routeUser = routeUser;
+    window.showRecentFiles = showRecentFiles;
+    window.handleSubmitAll = handleSubmitAll;
 
 });
