@@ -1686,6 +1686,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const imgPreview = entryElement.querySelector('.image-preview img');
         
+        // Add click event to show larger preview
+        imgPreview.addEventListener('click', () => {
+            showLargeImagePreview(imgPreview.src, file, actualFile);
+        });
+        
         if (file.base64Image) {
             // If we already have base64 data
             imgPreview.src = `data:image/jpeg;base64,${file.base64Image}`;
@@ -1803,6 +1808,157 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
+    // Add this new function for large image preview
+    function showLargeImagePreview(imgSrc, fileData, originalFile) {
+        // Create modal for large image preview
+        const previewModal = document.createElement('div');
+        previewModal.className = 'image-preview-modal';
+        previewModal.innerHTML = `
+            <div class="preview-content">
+                <div class="preview-header">
+                    <h3>Receipt Preview</h3>
+                </div>
+                <div class="image-container">
+                    <img src="${imgSrc}" alt="Receipt Preview" loading="lazy" decoding="async">
+                    <div class="zoom-hint">
+                        <span class="icon">🔍</span>
+                        Pinch or scroll to zoom
+                    </div>
+                </div>
+                <div class="preview-controls">
+                    <button class="preview-button delete-btn" style="background-color: #dc3545; color: white;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        Delete
+                    </button>
+                    <button class="preview-button close-btn" style="color: white;">
+                        <span class="icon">➡️</span> Close
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(previewModal);
+        
+        // Force reflow then add show class for animation
+        previewModal.offsetHeight;
+        previewModal.classList.add('show');
+        
+        // Add zoom functionality
+        const img = previewModal.querySelector('img');
+        let scale = 1;
+        let panning = false;
+        let pointX = 0;
+        let pointY = 0;
+        let start = { x: 0, y: 0 };
+        
+        // Mouse wheel zoom
+        img.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const xs = (e.clientX - img.offsetLeft) / scale;
+            const ys = (e.clientY - img.offsetTop) / scale;
+            
+            scale += e.deltaY * -0.01;
+            scale = Math.min(Math.max(1, scale), 4);
+            
+            img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        });
+        
+        // Mouse panning
+        img.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            start = { x: e.clientX - pointX, y: e.clientY - pointY };
+            panning = true;
+        });
+        
+        img.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            if (!panning) return;
+            pointX = (e.clientX - start.x);
+            pointY = (e.clientY - start.y);
+            img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        });
+        
+        img.addEventListener('mouseup', () => {
+            panning = false;
+        });
+        
+        // Touch support for mobile
+        img.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                startDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+            }
+        });
+        
+        let startDistance = 0;
+        let currentScale = 1;
+        
+        img.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                
+                const currentDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                
+                const pinchScale = currentDistance / startDistance;
+                currentScale = Math.min(Math.max(1, currentScale * pinchScale), 4);
+                
+                img.style.transform = `scale(${currentScale})`;
+                startDistance = currentDistance;
+            }
+        });
+        
+        // Add event listeners to buttons
+        const closeButtons = previewModal.querySelectorAll('.close-btn');
+        closeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            });
+        });
+        
+        // Delete button functionality
+        const deleteBtn = previewModal.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', () => {
+            // Find the entry in the global imageEntries array
+            const entryIndex = window.imageEntries.findIndex(entry => 
+                entry.file === originalFile || 
+                (fileData && entry.element.querySelector('img').src === imgSrc)
+            );
+            
+            if (entryIndex !== -1) {
+                // Get the DOM element
+                const entryElement = window.imageEntries[entryIndex].element;
+                
+                // Add removing animation
+                entryElement.classList.add('removing');
+                
+                // Remove from DOM and array after animation
+                setTimeout(() => {
+                    entryElement.remove();
+                    window.imageEntries.splice(entryIndex, 1);
+                    
+                    // Close the preview modal
+                    previewModal.classList.remove('show');
+                    setTimeout(() => previewModal.remove(), 300);
+                    
+                    // Show toast notification
+                    showToast('Receipt removed', 'info');
+                }, 300);
+            } else {
+                // If entry not found, just close the modal
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            }
+        });
+    }
+
     // Make functions available globally
     window.handlePhotoOption = handlePhotoOption;
     window.showPhotoOptions = showPhotoOptions;
@@ -1818,5 +1974,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.routeUser = routeUser;
     window.showRecentFiles = showRecentFiles;
     window.handleSubmitAll = handleSubmitAll;
+    window.showLargeImagePreview = showLargeImagePreview;
 
 });
