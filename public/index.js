@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update the saveImageToBucket function
-    async function saveImageToBucket(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
+    async function saveImageToBucket(imageData, filename = 'receipt.jpg') {
         try {
             // First upload to S3
             const response = await fetch('/upload-receipt', {
@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
-                    saveImageToBucket(file.imageData, file.filename, false);
+                    saveImageToBucket(file.imageData, file.filename);
                     modal.remove();
                 };
             });
@@ -629,7 +629,7 @@ document.addEventListener('DOMContentLoaded', function() {
             viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
             viewImageBtn.onclick = (e) => {
                 e.preventDefault();
-                saveImageToBucket(currentImageData, 'receipt.jpg', false);
+                saveImageToBucket(currentImageData, 'receipt.jpg');
             };
             form.insertBefore(viewImageBtn, form.firstChild);
         }
@@ -844,23 +844,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
+            input.multiple = true;  // Enable multiple file selection
             input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (file) {
+                const files = e.target.files;
+                if(files.length === 1 && isLoggedIn) {
                     closePhotoOptions();
-                    if (isLoggedIn) {
-                        const reader = new FileReader();
-                        reader.onload = async function(event) {
-                            const base64Image = event.target.result.split(',')[1];
-                            currentImageData = base64Image; // Store the image data
-                            await saveImageToBucket(base64Image, file.name, true);
-                            await processImage(file);
-                        };
-                        reader.readAsDataURL(file);
-                    } else {
-                        const loginOverlay = document.getElementById('loginOverlay');
-                        if (loginOverlay) loginOverlay.style.display = 'block';
-                    }
+                    const file = files[0];
+                    const reader = new FileReader();
+                    reader.onload = async function(event) {
+                        const base64Image = event.target.result.split(',')[1];
+                        currentImageData = base64Image; // Store the image data
+                        await saveImageToBucket(base64Image, file.name, true);
+                        await processImage(file);
+                    };
+                    reader.readAsDataURL(file);
+                }
+                if(files.length > 1 && isLoggedIn) {
+                    closePhotoOptions();
+                }
+                else {
+                    const loginOverlay = document.getElementById('loginOverlay');
+                    if (loginOverlay) loginOverlay.style.display = 'block';
                 }
             };
             input.click();
@@ -874,54 +878,6 @@ document.addEventListener('DOMContentLoaded', function() {
      const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
      const MOTION_MEMORY = 5; // Number of recent motion measurements to track
      const recentMotions = [];
-    // Add this function to create and animate the countdown timer
-
-    function showCountdownTimer() {
-        return new Promise((resolve) => {
-            const liveView = document.getElementById('liveView');
-            const video = document.getElementById('camera-preview');
-            const timer = document.createElement('div');
-            timer.className = 'countdown-timer';
-            liveView.appendChild(timer);
-            let count = 3;
-
-            // Try to focus camera if available
-            if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
-                const track = video.srcObject.getVideoTracks()[0];
-                console.log(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
-                console.log(`track focusMode' ${track.getCapabilities().focusMode}`);
-                // Check if camera supports focus mode
-                if (track.getCapabilities && track.getCapabilities().focusMode) {
-                    // Apply focus settings
-                    track.applyConstraints({
-                        advanced: [
-                            { focusMode: "continuous" },  // Continuous auto-focus
-                            { focusDistance: 0.33 }      // Focus at about 30cm distance
-                        ]
-                    }).catch(err => console.log('Focus error:', err));
-                }
-            }
-
-            function updateTimer() {
-                timer.textContent = count;
-                timer.classList.remove('countdown-animation');
-                void timer.offsetWidth; // Trigger reflow
-                timer.classList.add('countdown-animation');           
-
-                if (count > 1) {
-                    count--;
-                    setTimeout(updateTimer, 1000);
-                } else {
-                    setTimeout(() => {
-                        timer.remove();
-                        resolve();
-                    }, 1000);
-                }
-            }
-
-            updateTimer();
-        });
-    }
 
     // Update the predictWebcam function to include the countdown
      async function predictWebcam(video, liveView) {
@@ -1218,7 +1174,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
-                        await saveImageToBucket(base64Image, filename, true);
+                        await saveImageToBucket(base64Image, filename);
                         
                         // Continue with normal flow
                         closeCameraModal();
