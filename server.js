@@ -22,7 +22,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 app.use((req, res, next) => {
-    console.log("Received Body:", JSON.stringify(req.body, null, 2));
+    req.setEncoding("utf-8");
+    console.log("Raw Body:", JSON.stringify(req.body));
+    console.log("Processed Body:", JSON.stringify(req.body, null, 2));
+    console.log("Headers:", req.headers);
     next();
 });
 
