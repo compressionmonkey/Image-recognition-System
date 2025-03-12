@@ -124,7 +124,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json; charset=UTF-8',
                 },
                 body: JSON.stringify({
                     majorDimension: "ROWS",
