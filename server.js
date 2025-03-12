@@ -91,8 +91,19 @@ function pickCustomerSheet(customerID) {
 async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     try {
         console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
-        // Read and use service account credentials directly
-        const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+        
+        // Read and use service account credentials with better handling for control characters
+        let credentials;
+        try {
+            // Clean the credentials string by removing control characters
+            const credentialsString = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+            
+            credentials = JSON.parse(credentialsString);
+        } catch (parseError) {
+            console.error('Error parsing credentials:', parseError);
+            throw new Error('Invalid Google credentials format. Please check your environment variables.');
+        }
         
         // Create JWT client using service account credentials
         const jwtClient = new google.auth.JWT(
@@ -108,16 +119,9 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
         // Get the access token
         const token = await jwtClient.getAccessToken();
 
-        const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
-        // Add this before the axios call
-        console.log('Debug - Request details:', {
-            spreadsheetCustomerID,
-            range,
-            rowData: JSON.stringify(rowData),
-            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
-        });
+        const createdAt = formatCreatedTime();
         
-        // Make the request to Google Sheets API using axios
+        // Make the request to Google Sheets API
         const response = await axios({
             method: 'post',
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
@@ -142,15 +146,14 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             }
         });
 
-        const data = response.data;
-        console.log('Write successful:', data);
-        return data;
+        console.log('Write successful:', response.data);
+        return response.data;
     } catch (error) {
         console.error('Error writing to Google Sheets:', {
             message: error.message,
             status: error.response?.status,
             statusText: error.response?.statusText,
-            details: error.response?.data || error.stack
+            details: error.stack
         });
         throw error;
     }
@@ -210,12 +213,6 @@ export function determineBankKey(paragraph) {
           { bankKey, score: score.totalScore } : 
           best;
       }, { bankKey: 'Unknown', score: 0 });
-      
-    // Log for debugging
-    console.log('Bank detection scores:', {
-      bestMatch,
-      allScores: scores
-    });
     
     // Return result if confidence threshold met (lowered from 3 to 2)
     return bestMatch.score >= 2 && normalizedText.length > 30 ? 
@@ -360,9 +357,6 @@ function findCurrency(text, result) {
     currencyPatterns.forEach(pattern => {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
-            // Get the full matched text for debugging
-            console.log('Found match: ', match[0], 'Groups:', match.groups, 'Captured:', match[1]);
-            
             // Directly use the captured amount if it exists
             let amount = match[1];
             if (amount) {
