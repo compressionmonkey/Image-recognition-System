@@ -1,7 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import fetch from 'node-fetch';
+import axios from 'axios';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
@@ -109,46 +109,40 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
         const token = await jwtClient.getAccessToken();
 
         const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
-        // Add this before the fetch call
+        // Add this before the axios call
         console.log('Debug - Request details:', {
             spreadsheetCustomerID,
             range,
             rowData: JSON.stringify(rowData),
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
         });
-        // Make the request to Google Sheets API
-        const response = await fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    majorDimension: "ROWS",
-                    values: [[
-                        rowData['Reference Number'] || '',
-                        false, //checked
-                        rowData['Particulars'] || '',
-                        rowData['Amount'] || '',
-                        rowData['Bank'] || '',
-                        createdAt,
-                        rowData['Payment Method'] || '',
-                        rowData['OCR Timestamp'] || '',
-                        rowData['Recognized Text'] || '',
-                        rowData['Receipt URL'] || ''
-                    ]]
-                })
+        
+        // Make the request to Google Sheets API using axios
+        const response = await axios({
+            method: 'post',
+            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+            headers: {
+                'Authorization': `Bearer ${token.token}`,
+                'Content-Type': 'application/json',
+            },
+            data: {
+                majorDimension: "ROWS",
+                values: [[
+                    rowData['Reference Number'] || '',
+                    false, //checked
+                    rowData['Particulars'] || '',
+                    rowData['Amount'] || '',
+                    rowData['Bank'] || '',
+                    createdAt,
+                    rowData['Payment Method'] || '',
+                    rowData['OCR Timestamp'] || '',
+                    rowData['Recognized Text'] || '',
+                    rowData['Receipt URL'] || ''
+                ]]
             }
-        );
+        });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Sheets API error: ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
+        const data = response.data;
         console.log('Write successful:', data);
         return data;
     } catch (error) {
@@ -1090,12 +1084,13 @@ app.post('/vision-api', async (req, res) => {
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
     try {
-        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-            method: 'POST',
+        const response = await axios({
+            method: 'post',
+            url: `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            data: {
                 requests: [{
                     image: {
                         content: imageBase64
@@ -1110,10 +1105,10 @@ app.post('/vision-api', async (req, res) => {
                         }
                     }
                 }]
-            })
+            }
         });
 
-        const data = await response.json();
+        const data = response.data;
 
         const textResult = data.responses[0]?.fullTextAnnotation;
         const recognizedText = textResult?.text || '';
@@ -1364,18 +1359,19 @@ app.post('/multiple-vision-api', async (req, res) => {
             }
         }));
 
-        // Make the API call with all images in one request
-        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-            method: 'POST',
+        // Make the API call with all images in one request using axios
+        const response = await axios({
+            method: 'post',
+            url: `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            data: {
                 requests: requests
-            })
+            }
         });
 
-        const data = await response.json();
+        const data = response.data;
 
         // Process each image's results
         const resultsArray = [];
