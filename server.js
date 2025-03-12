@@ -90,25 +90,6 @@ function pickCustomerSheet(customerID) {
 // Modify the writeToSheet function to include more error handling
 async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     try {
-        const hardcodedBody = JSON.stringify({
-            majorDimension: "ROWS",
-            values: [[
-                "TestRef123",
-                false,
-                "TestParticulars",
-                100,
-                "TestBank",
-                "25/01/2025 13:12:00",
-                "Cash",
-                "",
-                "TestText",
-                "https://example.com/receipt.jpg"
-            ]]
-        });
-        
-        console.log("Debug - Hardcoded JSON Body:", hardcodedBody);
-        
-        
         console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
         // Read and use service account credentials directly
         const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
@@ -132,7 +113,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
         console.log('Debug - Request details:', {
             spreadsheetCustomerID,
             range,
-            rowData: JSON.stringify(hardcodedBody),
+            rowData: JSON.stringify(rowData),
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
         });
         // Make the request to Google Sheets API
@@ -1213,6 +1194,8 @@ app.post('/record-cash', async (req, res) => {
             'Payment Method': paymentMethod,
         };
 
+        console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
+        console.log("Debug - sheetId: ", sheetId, "rowData: ", rowData, "spreadsheetCustomerID: ", spreadsheetCustomerID);
         await writeToSheet(`${sheetId}!A:I`, rowData, spreadsheetCustomerID);
 
         res.status(200).json({
@@ -1385,7 +1368,7 @@ app.post('/multiple-vision-api', async (req, res) => {
         const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json; charset=UTF-8'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 requests: requests
