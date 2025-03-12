@@ -21,6 +21,11 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+app.use((req, res, next) => {
+    console.log("Received Body:", JSON.stringify(req.body, null, 2));
+    next();
+});
+
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
     credentials: {
