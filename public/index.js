@@ -871,11 +871,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             await processImage(file);
                         };
                         reader.readAsDataURL(file);
-                    } else {
+                    } else if (files.length > 1 && files.length <= 10) {
                         // Process images for OCR and analysis
                         const filesWithOcrData = await processMultipleImages(Array.from(files));
                         // Now create the UI with the processed files
                         createMultipleUploadsUI(filesWithOcrData);
+                    } else {
+                        showToast('You can only upload up to 10 files at a time', 'error');
                     }
                 } catch (error) {
                     console.error('Error processing files:', error);
