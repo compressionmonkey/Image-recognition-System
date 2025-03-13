@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update the saveImageToBucket function
-    async function saveImageToBucket(imageData, filename = 'receipt.jpg', shouldAutoDownload) {
+    async function saveImageToBucket(imageData, filename = 'receipt.jpg') {
         try {
             // First upload to S3
             const response = await fetch('/upload-receipt', {
@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
-                    saveImageToBucket(file.imageData, file.filename, false);
+                    saveImageToBucket(file.imageData, file.filename);
                     modal.remove();
                 };
             });
@@ -629,7 +629,7 @@ document.addEventListener('DOMContentLoaded', function() {
             viewImageBtn.innerHTML = '<span class="icon">🖼️</span> View Receipt Image';
             viewImageBtn.onclick = (e) => {
                 e.preventDefault();
-                saveImageToBucket(currentImageData, 'receipt.jpg', false);
+                saveImageToBucket(currentImageData, 'receipt.jpg');
             };
             form.insertBefore(viewImageBtn, form.firstChild);
         }
@@ -698,8 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'Recognized Text': currentConfirmationData.recognizedText,
             'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
-        console.log('confirmationData', confirmationData);
-        // Send confirmation to server
+        
         fetch('/confirm-receipt', {
             method: 'POST',
             headers: {
@@ -809,8 +808,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
-                console.log(`stream ${JSON.stringify(stream)}`);
-
                 // Create and show camera modal
                 const cameraModal = createCameraModal();
                 document.body.appendChild(cameraModal);
@@ -844,23 +841,45 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
+            input.multiple = true;  // Enable multiple file selection
             input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    closePhotoOptions();
-                    if (isLoggedIn) {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+                
+                closePhotoOptions();
+                
+                if (!isLoggedIn) {
+                    const loginOverlay = document.getElementById('loginOverlay');
+                    if (loginOverlay) loginOverlay.style.display = 'block';
+                    return;
+                }
+                
+                try {
+                    // Warn if trying to upload more than 10 files
+                    if (files.length > 10) {
+                        showToast('Only the first 10 files will be processed', 'info');
+                    }
+                    
+                    if (files.length === 1) {
+                        // Handle single file
+                        const file = files[0];
                         const reader = new FileReader();
                         reader.onload = async function(event) {
                             const base64Image = event.target.result.split(',')[1];
-                            currentImageData = base64Image; // Store the image data
-                            await saveImageToBucket(base64Image, file.name, true);
+                            currentImageData = base64Image;
+                            await saveImageToBucket(base64Image, file.name);
                             await processImage(file);
                         };
                         reader.readAsDataURL(file);
                     } else {
-                        const loginOverlay = document.getElementById('loginOverlay');
-                        if (loginOverlay) loginOverlay.style.display = 'block';
+                        // Process images for OCR and analysis
+                        const filesWithOcrData = await processMultipleImages(Array.from(files));
+                        // Now create the UI with the processed files
+                        createMultipleUploadsUI(filesWithOcrData);
                     }
+                } catch (error) {
+                    console.error('Error processing files:', error);
+                    showToast('Failed to process files', 'error');
                 }
             };
             input.click();
@@ -874,54 +893,6 @@ document.addEventListener('DOMContentLoaded', function() {
      const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
      const MOTION_MEMORY = 5; // Number of recent motion measurements to track
      const recentMotions = [];
-    // Add this function to create and animate the countdown timer
-
-    function showCountdownTimer() {
-        return new Promise((resolve) => {
-            const liveView = document.getElementById('liveView');
-            const video = document.getElementById('camera-preview');
-            const timer = document.createElement('div');
-            timer.className = 'countdown-timer';
-            liveView.appendChild(timer);
-            let count = 3;
-
-            // Try to focus camera if available
-            if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
-                const track = video.srcObject.getVideoTracks()[0];
-                console.log(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
-                console.log(`track focusMode' ${track.getCapabilities().focusMode}`);
-                // Check if camera supports focus mode
-                if (track.getCapabilities && track.getCapabilities().focusMode) {
-                    // Apply focus settings
-                    track.applyConstraints({
-                        advanced: [
-                            { focusMode: "continuous" },  // Continuous auto-focus
-                            { focusDistance: 0.33 }      // Focus at about 30cm distance
-                        ]
-                    }).catch(err => console.log('Focus error:', err));
-                }
-            }
-
-            function updateTimer() {
-                timer.textContent = count;
-                timer.classList.remove('countdown-animation');
-                void timer.offsetWidth; // Trigger reflow
-                timer.classList.add('countdown-animation');           
-
-                if (count > 1) {
-                    count--;
-                    setTimeout(updateTimer, 1000);
-                } else {
-                    setTimeout(() => {
-                        timer.remove();
-                        resolve();
-                    }, 1000);
-                }
-            }
-
-            updateTimer();
-        });
-    }
 
     // Update the predictWebcam function to include the countdown
      async function predictWebcam(video, liveView) {
@@ -951,12 +922,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let retryCount = 0;
             let success = false;
 
-            console.log(`while loop ${!success && retryCount < maxRetries}`);
-            console.log(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
-
             while (!success && retryCount < maxRetries) {
                 try {
-                    console.log(`while loop inside ${!success && retryCount < maxRetries}`);
                     const formData = new FormData();
                     formData.append('image', blob);
 
@@ -988,11 +955,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             lastFrameTime ? (currentTime - lastFrameTime) : 16.67
                         );
 
-                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
-
                         // Update UI with confidence score
                         qualityMetrics.confidence = result.confidence;
-                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
 
                         await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
 
@@ -1021,9 +985,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 } catch (error) {
                     retryCount++;
-                    if (retryCount === maxRetries) {
-                        console.log(`Detection failed after retries: ${error}`);
-                    }
                     await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
                 }
             }
@@ -1218,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reader = new FileReader();
                     reader.onload = async function(event) {
                         const base64Image = event.target.result.split(',')[1];
-                        await saveImageToBucket(base64Image, filename, true);
+                        await saveImageToBucket(base64Image, filename);
                         
                         // Continue with normal flow
                         closeCameraModal();
@@ -1329,6 +1290,737 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    async function processMultipleImages(filesArray) {
+        showToast('Processing multiple images...', 'info');
+
+        try {
+            // Convert all files to processable format
+            const processedFiles = await Promise.all(filesArray.map(async (file, index) => {
+                // Create a promise for each file processing
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const img = new Image();
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            
+                            // Maintain higher resolution
+                            let { width, height } = img;
+                            const maxDim = Math.min(2560, Math.max(width, height));
+                            if (Math.max(width, height) > maxDim) {
+                                const scale = maxDim / Math.max(width, height);
+                                width *= scale;
+                                height *= scale;
+                            }
+                            
+                            canvas.width = width;
+                            canvas.height = height;
+                            
+                            // Disable image smoothing for sharper edges
+                            ctx.imageSmoothingEnabled = false;
+                            
+                            // Draw image without filters
+                            ctx.drawImage(img, 0, 0, width, height);
+                            
+                            // Use higher quality JPEG encoding
+                            const finalImage = canvas.toDataURL('image/jpeg', 0.95);
+                            const base64Image = finalImage.split(',')[1];
+                            
+                            resolve({
+                                index,
+                                filename: file.name,
+                                base64Image,
+                                file // Include the original file for reference
+                            });
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }));
+
+            // Send processed images to server and get OCR results
+            const ocrResults = await uploadMultipleToServer(processedFiles);
+            
+            // Combine OCR results with file data
+            if (ocrResults && ocrResults.allResults) {
+                // Map each file with its corresponding OCR data
+                const filesWithOcr = processedFiles.map(processedFile => {
+                    // Find matching OCR result by index
+                    const ocrData = ocrResults.allResults.find(
+                        result => result.index === processedFile.index
+                    );
+                    
+                    // Return the file with OCR data attached
+                    return {
+                        ...processedFile,
+                        ocrData: ocrData || { error: 'No OCR data found' }
+                    };
+                });
+                
+                // Return the files with OCR data
+                return filesWithOcr;
+            }
+            
+            // If no OCR results, return the processed files anyway
+            return processedFiles;
+            
+        } catch (error) {
+            console.error('Error processing multiple images:', error);
+            showToast('Failed to process images', 'error');
+            // Return original files with error indication
+            return filesArray.map((file, index) => ({
+                index,
+                file,
+                filename: file.name,
+                ocrData: { error: 'Processing failed' }
+            }));
+        }
+    }
+
+    async function uploadMultipleToServer(processedFiles) {
+        try {
+            // Store the first image data globally (for potential use)
+            if (processedFiles.length > 0) {
+                currentImageData = processedFiles[0].base64Image;
+            }
+
+            // Close any existing modals
+            const photoOptionsModal = document.getElementById('photoOptionsModal');
+            const cameraModal = document.querySelector('.camera-modal');
+            
+            if (photoOptionsModal) {
+                photoOptionsModal.style.display = 'none';
+            }
+            
+            if (cameraModal) {
+                closeCameraModal();
+            }
+
+            // Make API call
+            const customerID = sessionStorage.getItem('customerID');
+            const response = await fetch('/multiple-vision-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    images: processedFiles.map(file => ({
+                        image: file.base64Image,
+                        filename: file.filename,
+                        index: file.index
+                    })),
+                    deviceInfo: navigator.userAgent,
+                    screenResolution: `${window.screen.width}x${window.screen.height}`,
+                    paymentMethod: 'Bank Receipt',
+                    customerID: customerID,
+                    startTime: new Date().getTime()
+                })
+            });
+
+            const data = await response.json();
+
+            // Log relevant response details
+            console.log(`Multiple image response:`, data);
+
+            // Check response status
+            if (!response.ok) {
+                showFailureModal('Scan failed', 'Please retry');
+                return null;
+            }
+
+            // Success - note we're not showing confirmation modal yet as requested
+            showToast(`Processed ${processedFiles.length} images successfully`, 'success');
+            
+            // Return the data for further processing
+            return data;
+
+        } catch (error) {
+            console.error('Error uploading multiple images:', error);
+            showFailureModal('Processing Error', 'An error occurred while processing your images. Please try again.');
+            return null;
+        }
+    }
+
+    function validateAllEntries() {
+        // Check if imageEntries is available and has entries
+        if (!window.imageEntries || window.imageEntries.length === 0) {
+            showToast('No receipt entries found', 'error');
+            return false;
+        }
+        
+        let hasEmptyFields = false;
+        let emptyFieldTypes = [];
+        
+        // Loop through each image entry
+        window.imageEntries.forEach((entry, index) => {
+            const entryElement = entry.element;
+            const amountInput = entryElement.querySelector('.amount-input');
+            const referenceInput = entryElement.querySelector('.reference-input');
+            const particularsInput = entryElement.querySelector('.particulars-input');
+            const dateInput = entryElement.querySelector('.date-input');
+            
+            // Check if any field is empty
+            if (!amountInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Amount in entry #${index + 1}`);
+                amountInput.classList.add('invalid-input');
+            }
+            
+            if (!referenceInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Reference in entry #${index + 1}`);
+                referenceInput.classList.add('invalid-input');
+            }
+            
+            if (!particularsInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Particulars in entry #${index + 1}`);
+                particularsInput.classList.add('invalid-input');
+            }
+            
+            if (!dateInput.value.trim()) {
+                hasEmptyFields = true;
+                emptyFieldTypes.push(`Date in entry #${index + 1}`);
+                dateInput.classList.add('invalid-input');
+            }
+        });
+        
+        // Show toast with specific error information
+        if (hasEmptyFields) {
+            // Limit to first 3 empty fields to keep toast readable
+            const errorMsg = emptyFieldTypes.slice(0, 3).join(', ') + 
+                            (emptyFieldTypes.length > 3 ? ' and other fields' : '') + 
+                            ' cannot be empty';
+            showToast(errorMsg, 'error');
+            return false;
+        }
+        
+        return true;
+    }
+
+    async function handleSubmitAll() {
+        if (!validateAllEntries()) {
+            return;
+        }
+
+        // Disable the submit button first to prevent multiple submissions
+        const submitButton = document.getElementById('submitAllUploads');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.style.opacity = '0.5';
+            submitButton.style.cursor = 'not-allowed';
+            submitButton.innerHTML = '<span class="spinner" style="display: inline-block;"></span> Processing...';
+        }
+        
+        try {
+            // Reset validation states first
+            imageEntries.forEach(entry => {
+                const inputs = entry.element.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.classList.remove('invalid-input');
+                    const errorMsg = input.parentElement.querySelector('.validation-error');
+                    if (errorMsg) errorMsg.remove();
+                });
+            });
+            
+            // Perform comprehensive validation
+            let hasErrors = false;
+            const validationResults = imageEntries.map(entry => entry.validate());
+            
+            // Check if any entries have validation errors
+            if (validationResults.some(result => !result.valid)) {
+                hasErrors = true;
+                // Display errors for each entry
+                validationResults.forEach((result, index) => {
+                    if (!result.valid) {
+                        const entry = imageEntries[index];
+                        
+                        // Mark invalid fields and show error messages
+                        Object.entries(result.errors).forEach(([field, message]) => {
+                            const input = entry.element.querySelector(`.${field}-input`);
+                            if (input) {
+                                input.classList.add('invalid-input');
+                                
+                                // Add error message below the input
+                                const errorMsg = document.createElement('div');
+                                errorMsg.className = 'validation-error';
+                                errorMsg.textContent = message;
+                                input.parentElement.appendChild(errorMsg);
+                                
+                                // Scroll to the first error
+                                if (field === Object.keys(result.errors)[0] && index === validationResults.findIndex(r => !r.valid)) {
+                                    setTimeout(() => {
+                                        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 100);
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                showToast('Please correct the highlighted fields', 'error');
+                
+                // Re-enable the button if validation fails
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+                
+                // Important: Return early to prevent API call
+                return;
+            }
+
+            // Only proceed if no validation errors
+            if (!hasErrors) {
+                // Show loading toast
+                showToast('Uploading files...', 'info');
+                
+                // Create FormData for bulk file upload
+                const formData = new FormData();
+                const customerID = sessionStorage.getItem('customerID');
+                formData.append('customerID', customerID);
+                
+                // Add all files to FormData
+                const receiptMetadata = [];
+                
+                imageEntries.forEach((entry, index) => {
+                    // Add the file to FormData
+                    formData.append('files', entry.file);
+                    
+                    // Collect metadata for each receipt
+                    receiptMetadata.push({
+                        index,
+                        amount: entry.element.querySelector('.amount-input').value,
+                        reference: entry.element.querySelector('.reference-input').value,
+                        particulars: entry.element.querySelector('.particulars-input').value,
+                        date: entry.element.querySelector('.date-input').value,
+                        ocrData: entry.originalOcrData || {}
+                    });
+                });
+                
+                // Add metadata as JSON
+                formData.append('metadata', JSON.stringify(receiptMetadata));
+                
+                // Store metadata in session storage for reference
+                sessionStorage.setItem('receiptMetadata', JSON.stringify(receiptMetadata));
+                
+                // Upload all files and process data in a single request
+                const response = await fetch('/upload-multiple-receipts-form', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Upload failed');
+                }
+                
+                // Check sheet processing results if available
+                if (data.sheetResults) {
+                    if (data.sheetResults.failureCount > 0) {
+                        showToast(`Processed ${data.sheetResults.successCount} of ${data.sheetResults.totalProcessed} receipts`, 'warning');
+                    } else {
+                        showToast(`Successfully processed all ${data.sheetResults.successCount} receipts`, 'success');
+                    }
+                } else {
+                    showToast(`Uploaded ${data.count} files, but data not processed`, 'warning');
+                }
+                
+                // Store URLs in session storage
+                if (data.urls && data.urls.length > 0) {
+                    sessionStorage.setItem('lastReceiptUrl', data.urls[0]);
+                    sessionStorage.setItem('allReceiptUrls', JSON.stringify(data.urls));
+                }
+                if (data.keys && data.keys.length > 0) {
+                    sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
+                }
+                
+                // Show success animation
+                showConfetti();
+                
+                // Close the modal
+                const modal = document.getElementById('multipleUploadsModal');
+                modal.classList.remove('show');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    document.getElementById('uploadsContainer').innerHTML = '';
+                }, 300);
+            }
+        } catch (error) {
+            console.error('Error processing uploads:', error);
+            showToast('Failed to process uploads: ' + error.message, 'error');
+        } finally {
+            // Always re-enable the button
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.style.opacity = '1';
+                submitButton.style.cursor = 'pointer';
+                submitButton.innerHTML = 'Submit All';
+            }
+        }
+    }
+
+    // Function to create the multiple uploads UI
+    function createMultipleUploadsUI(files) {
+        // Get the template modal and show it
+        const modal = document.getElementById('multipleUploadsModal');
+        modal.style.display = 'flex';
+        
+        // Get the uploads container
+        const uploadsContainer = document.getElementById('uploadsContainer');
+        // Clear any existing entries
+        uploadsContainer.innerHTML = '';
+
+        // Add image entries to the container
+        const imageEntries = [];
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const entry = createImageEntryUI(file, i);
+            uploadsContainer.appendChild(entry.element);
+            imageEntries.push(entry);
+        }
+        window.imageEntries = imageEntries;
+
+        // Handle close button
+        const closeBtn = modal.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                uploadsContainer.innerHTML = '';
+            }, 300);
+        });
+
+        // Handle add another payment button
+        // const addAnotherBtn = document.getElementById('addAnotherPayment');
+        // addAnotherBtn.addEventListener('click', () => {
+        //     if (imageEntries.length >= 10) {
+        //         showToast('Maximum 10 images allowed', 'error');
+        //         return;
+        //     }
+
+        //     const input = document.createElement('input');
+        //     input.type = 'file';
+        //     input.accept = 'image/*';
+        //     input.onchange = (e) => {
+        //         if (e.target.files && e.target.files.length > 0) {
+        //             const file = e.target.files[0];
+        //             const entry = createImageEntryUI(file, imageEntries.length);
+        //             uploadsContainer.appendChild(entry.element);
+        //             imageEntries.push(entry);
+        //         }
+        //     };
+        //     input.click();
+        // });
+
+        // Show the modal with animation
+        setTimeout(() => modal.classList.add('show'), 10);
+
+        return {
+            modal,
+            imageEntries
+        };
+    }
+
+    // Function to create a single image entry UI
+    function createImageEntryUI(file, index) {
+        // Clone the template
+        const template = document.getElementById('imageEntryTemplate');
+        const entryElement = template.content.cloneNode(true).querySelector('.image-entry');
+        
+        // Add ID to the entry
+        const entryId = `image-entry-${index}`;
+        entryElement.id = entryId;
+
+        // Create reader to get image preview if needed
+        let imageData = null;
+        
+        // Store the original OCR data if available
+        const originalOcrData = file.ocrData || {};
+
+        // Handle different file formats for preview
+        let actualFile = file.file || file;
+        
+        const imgPreview = entryElement.querySelector('.image-preview img');
+        
+        // Add click event to show larger preview
+        imgPreview.addEventListener('click', () => {
+            showLargeImagePreview(imgPreview.src, file, actualFile);
+        });
+        
+        if (file.base64Image) {
+            // If we already have base64 data
+            imgPreview.src = `data:image/jpeg;base64,${file.base64Image}`;
+            imageData = file.base64Image;
+        } else if (actualFile instanceof File || actualFile instanceof Blob) {
+            // If we have a File or Blob object, create reader
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                imgPreview.src = event.target.result;
+                imageData = event.target.result.split(',')[1];
+            };
+            reader.readAsDataURL(actualFile);
+        }
+
+        // Set default date to today
+        const dateInput = entryElement.querySelector('.date-input');
+        const today = new Date();
+        const formattedDate = today.toISOString().split('T')[0];
+        dateInput.value = formattedDate;
+
+        // Fill in OCR data if available
+        if (originalOcrData && !originalOcrData.error) {
+            const amountInput = entryElement.querySelector('.amount-input');
+            const referenceInput = entryElement.querySelector('.reference-input');
+            
+            // Set values if they exist in OCR data
+            if (originalOcrData.amount) amountInput.value = originalOcrData.amount;
+            if (originalOcrData.referenceNo) referenceInput.value = originalOcrData.referenceNo;
+            if (originalOcrData.Date) {
+                // Try to parse the date from OCR
+                try {
+                    const ocrDate = new Date(originalOcrData.Date);
+                    if (!isNaN(ocrDate.getTime())) {
+                        dateInput.value = ocrDate.toISOString().split('T')[0];
+                    }
+                } catch (e) {
+                    console.log('Could not parse OCR date, using today instead');
+                }
+            }
+        }
+
+        // Add delete functionality
+        const deleteBtn = entryElement.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', () => {
+            entryElement.classList.add('removing');
+            setTimeout(() => {
+                entryElement.remove();
+                // Update the global imageEntries array
+                const index = window.imageEntries.findIndex(entry => entry.element === entryElement);
+                if (index !== -1) {
+                    window.imageEntries.splice(index, 1);
+                }
+            }, 300);
+        });
+
+        return {
+            element: entryElement,
+            file: actualFile,
+            originalOcrData, // Store the original OCR data for later use
+            
+            // Enhanced validation that returns detailed results
+            validate: () => {
+                const amountInput = entryElement.querySelector('.amount-input');
+                const referenceInput = entryElement.querySelector('.reference-input');
+                const particularsInput = entryElement.querySelector('.particulars-input');
+                const dateInput = entryElement.querySelector('.date-input');
+                
+                const errors = {};
+                
+                // Validate amount (required, valid number, positive)
+                if (!amountInput.value.trim()) {
+                    errors.amount = 'Amount is required';
+                } else if (isNaN(parseFloat(amountInput.value))) {
+                    errors.amount = 'Amount must be a valid number';
+                } else if (parseFloat(amountInput.value) <= 0) {
+                    errors.amount = 'Amount must be greater than zero';
+                }
+                
+                // Validate reference (optional, but if provided must meet certain criteria)
+                // We'll be lenient here as references are often auto-generated
+                if (referenceInput.value.trim() && referenceInput.value.trim().length < 3) {
+                    errors.reference = 'Reference is too short';
+                }
+                
+                // Validate particulars (optional, but if provided should be meaningful)
+                if (particularsInput.value.trim() && particularsInput.value.trim().length < 2) {
+                    errors.particulars = 'Particulars is too short';
+                }
+                
+                // Validate date (required, valid date, not in future)
+                if (!dateInput.value.trim()) {
+                    errors.date = 'Date is required';
+                } else {
+                    const selectedDate = new Date(dateInput.value);
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999); // End of today
+                    
+                    if (isNaN(selectedDate.getTime())) {
+                        errors.date = 'Invalid date format';
+                    } else if (selectedDate > today) {
+                        errors.date = 'Date cannot be in the future';
+                    }
+                }
+                
+                return {
+                    valid: Object.keys(errors).length === 0,
+                    errors: errors
+                };
+            },
+            
+            // Keep the simple version for backward compatibility
+            isValid: function() {
+                return this.validate().valid;
+            }
+        };
+    }
+
+    // Add this new function for large image preview
+    function showLargeImagePreview(imgSrc, fileData, originalFile) {
+        // Create modal for large image preview
+        const previewModal = document.createElement('div');
+        previewModal.className = 'image-preview-modal';
+        previewModal.innerHTML = `
+            <div class="preview-content">
+                <div class="preview-header">
+                    <h3>Receipt Preview</h3>
+                </div>
+                <div class="image-container">
+                    <img src="${imgSrc}" alt="Receipt Preview" loading="lazy" decoding="async">
+                    <div class="zoom-hint">
+                        <span class="icon">🔍</span>
+                        Pinch or scroll to zoom
+                    </div>
+                </div>
+                <div class="preview-controls">
+                    <button class="preview-button delete-btn" style="background-color: #dc3545; color: white;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        Delete
+                    </button>
+                    <button class="preview-button close-btn" style="color: white;">
+                        <span class="icon">➡️</span> Close
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(previewModal);
+        
+        // Force reflow then add show class for animation
+        previewModal.offsetHeight;
+        previewModal.classList.add('show');
+        
+        // Add zoom functionality
+        const img = previewModal.querySelector('img');
+        let scale = 1;
+        let panning = false;
+        let pointX = 0;
+        let pointY = 0;
+        let start = { x: 0, y: 0 };
+        
+        // Mouse wheel zoom
+        img.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const xs = (e.clientX - img.offsetLeft) / scale;
+            const ys = (e.clientY - img.offsetTop) / scale;
+            
+            scale += e.deltaY * -0.01;
+            scale = Math.min(Math.max(1, scale), 4);
+            
+            img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        });
+        
+        // Mouse panning
+        img.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            start = { x: e.clientX - pointX, y: e.clientY - pointY };
+            panning = true;
+        });
+        
+        img.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            if (!panning) return;
+            pointX = (e.clientX - start.x);
+            pointY = (e.clientY - start.y);
+            img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        });
+        
+        img.addEventListener('mouseup', () => {
+            panning = false;
+        });
+        
+        // Touch support for mobile
+        img.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                startDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+            }
+        });
+        
+        let startDistance = 0;
+        let currentScale = 1;
+        
+        img.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                
+                const currentDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                
+                const pinchScale = currentDistance / startDistance;
+                currentScale = Math.min(Math.max(1, currentScale * pinchScale), 4);
+                
+                img.style.transform = `scale(${currentScale})`;
+                startDistance = currentDistance;
+            }
+        });
+        
+        // Add event listeners to buttons
+        const closeButtons = previewModal.querySelectorAll('.close-btn');
+        closeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            });
+        });
+        
+        // Delete button functionality
+        const deleteBtn = previewModal.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', () => {
+            // Find the entry in the global imageEntries array
+            const entryIndex = window.imageEntries.findIndex(entry => 
+                entry.file === originalFile || 
+                (fileData && entry.element.querySelector('img').src === imgSrc)
+            );
+            
+            if (entryIndex !== -1) {
+                // Get the DOM element
+                const entryElement = window.imageEntries[entryIndex].element;
+                
+                // Add removing animation
+                entryElement.classList.add('removing');
+                
+                // Remove from DOM and array after animation
+                setTimeout(() => {
+                    entryElement.remove();
+                    window.imageEntries.splice(entryIndex, 1);
+                    
+                    // Close the preview modal
+                    previewModal.classList.remove('show');
+                    setTimeout(() => previewModal.remove(), 300);
+                    
+                    // Show toast notification
+                    showToast('Receipt removed', 'info');
+                }, 300);
+            } else {
+                // If entry not found, just close the modal
+                previewModal.classList.remove('show');
+                setTimeout(() => previewModal.remove(), 300);
+            }
+        });
+    }
+
     // Make functions available globally
     window.handlePhotoOption = handlePhotoOption;
     window.showPhotoOptions = showPhotoOptions;
@@ -1343,4 +2035,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
     window.showRecentFiles = showRecentFiles;
+    window.handleSubmitAll = handleSubmitAll;
+    window.showLargeImagePreview = showLargeImagePreview;
+
 });
