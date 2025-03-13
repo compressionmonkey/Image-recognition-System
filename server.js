@@ -1,13 +1,15 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import fetch from 'node-fetch';
+import axios from 'axios';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
 import { google } from 'googleapis';
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import multer from 'multer';
+import multerS3 from 'multer-s3';
 
 
 dotenv.config();
@@ -88,8 +90,20 @@ function pickCustomerSheet(customerID) {
 // Modify the writeToSheet function to include more error handling
 async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     try {
-        // Read and use service account credentials directly
-        const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+        console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
+        
+        // Read and use service account credentials with better handling for control characters
+        let credentials;
+        try {
+            // Clean the credentials string by removing control characters
+            const credentialsString = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+            
+            credentials = JSON.parse(credentialsString);
+        } catch (parseError) {
+            console.error('Error parsing credentials:', parseError);
+            throw new Error('Invalid Google credentials format. Please check your environment variables.');
+        }
         
         // Create JWT client using service account credentials
         const jwtClient = new google.auth.JWT(
@@ -105,55 +119,41 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
         // Get the access token
         const token = await jwtClient.getAccessToken();
 
-        const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
-        // Add this before the fetch call
-        console.log('Debug - Request details:', {
-            spreadsheetCustomerID,
-            range,
-            rowData: JSON.stringify(rowData),
-            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
-        });
+        const createdAt = formatCreatedTime();
+        
         // Make the request to Google Sheets API
-        const response = await fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    majorDimension: "ROWS",
-                    values: [[
-                        rowData['Reference Number'] || '',
-                        false, //checked
-                        rowData['Particulars'] || '',
-                        rowData['Amount'] || '',
-                        rowData['Bank'] || '',
-                        createdAt,
-                        rowData['Payment Method'] || '',
-                        rowData['OCR Timestamp'] || '',
-                        rowData['Recognized Text'] || '',
-                        rowData['Receipt URL'] || ''
-                    ]]
-                })
+        const response = await axios({
+            method: 'post',
+            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+            headers: {
+                'Authorization': `Bearer ${token.token}`,
+                'Content-Type': 'application/json',
+            },
+            data: {
+                majorDimension: "ROWS",
+                values: [[
+                    rowData['Reference Number'] || '',
+                    false, //checked
+                    rowData['Particulars'] || '',
+                    rowData['Amount'] || '',
+                    rowData['Bank'] || '',
+                    createdAt,
+                    rowData['Payment Method'] || '',
+                    rowData['OCR Timestamp'] || '',
+                    rowData['Recognized Text'] || '',
+                    rowData['Receipt URL'] || ''
+                ]]
             }
-        );
+        });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Sheets API error: ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('Write successful:', data);
-        return data;
+        console.log('Write successful:', response.data);
+        return response.data;
     } catch (error) {
         console.error('Error writing to Google Sheets:', {
             message: error.message,
             status: error.response?.status,
             statusText: error.response?.statusText,
-            details: error.response?.data || error.stack
+            details: error.stack
         });
         throw error;
     }
@@ -213,12 +213,6 @@ export function determineBankKey(paragraph) {
           { bankKey, score: score.totalScore } : 
           best;
       }, { bankKey: 'Unknown', score: 0 });
-      
-    // Log for debugging
-    console.log('Bank detection scores:', {
-      bestMatch,
-      allScores: scores
-    });
     
     // Return result if confidence threshold met (lowered from 3 to 2)
     return bestMatch.score >= 2 && normalizedText.length > 30 ? 
@@ -363,9 +357,6 @@ function findCurrency(text, result) {
     currencyPatterns.forEach(pattern => {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
-            // Get the full matched text for debugging
-            console.log('Found match: ', match[0], 'Groups:', match.groups, 'Captured:', match[1]);
-            
             // Directly use the captured amount if it exists
             let amount = match[1];
             if (amount) {
@@ -860,17 +851,240 @@ async function updateReceiptData(receiptData) {
     }
 }
 
+// Configure multer with S3 storage
+const s3Upload = multer({
+  storage: multerS3({
+    s3: s3Client,
+    bucket: process.env.AWS_BUCKET_NAME,
+    acl: 'private',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const customerID = req.body.customerID;
+      try {
+        const tableName = checkCurrentUser(customerID);
+        const timestamp = Date.now();
+        const index = req.filesProcessed || 0;
+        req.filesProcessed = index + 1;
+        const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${file.originalname}`;
+        cb(null, uniqueFilename);
+      } catch (error) {
+        cb(new Error('Invalid customer ID'));
+      }
+    }
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB per file
+    files: 10 // Max 10 files
+  }
+});
+
+// Enhanced function for bulk receipt data updates (now independent of endpoint)
+async function updateReceiptDataBulk(receiptDataArray) {
+    console.log(`Processing ${receiptDataArray.length} receipts in bulk`);
+    
+    // Track results for each receipt
+    const results = [];
+    
+    // Process receipts sequentially to avoid potential rate limiting with Google Sheets API
+    for (let i = 0; i < receiptDataArray.length; i++) {
+        const receiptData = receiptDataArray[i];
+        try {
+            // Get sheet ID for this customer
+            const sheetId = customerSheets[receiptData.customerID];
+            if (!sheetId) {
+                results.push({
+                    success: false,
+                    error: 'Invalid customer ID or sheet ID not found',
+                    receiptId: receiptData.referenceNo || 'Unknown',
+                    amount: receiptData.amount || '0.00'
+                });
+                continue; // Skip to next receipt
+            }
+            
+            const spreadsheetCustomerID = pickCustomerSheet(receiptData.customerID);
+            
+            // Format data for Google Sheets
+            const rowData = {
+                'OCR Timestamp': receiptData['OCR Timestamp'] || new Date().toISOString(),
+                'Reference Number': receiptData.referenceNo || 'MANUAL',
+                'Amount': receiptData.amount,
+                'Recognized Text': receiptData['Recognized Text'] || '',
+                'Payment Method': receiptData['Payment Method'] || 'Bank Receipt',
+                'Bank': receiptData['Bank'] || 'Unknown',
+                'Particulars': receiptData['Particulars'] || '',
+                'Receipt URL': receiptData['Receipt URL']
+            };
+
+            // Write to sheet with error handling
+            await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
+            
+            // Record success
+            results.push({
+                success: true,
+                receiptId: receiptData.referenceNo || 'MANUAL',
+                amount: receiptData.amount
+            });
+        } catch (error) {
+            console.error(`Error updating receipt data at index ${i}:`, error);
+            // Record failure but continue processing others
+            results.push({
+                success: false,
+                error: error.message || 'Unknown error occurred',
+                receiptId: receiptData.referenceNo || 'Unknown',
+                amount: receiptData.amount || '0.00'
+            });
+        }
+    }
+    
+    // Return comprehensive results
+    return {
+        totalProcessed: receiptDataArray.length,
+        successCount: results.filter(r => r.success).length,
+        failureCount: results.filter(r => !r.success).length,
+        results: results
+    };
+}
+
+// Updated endpoint to handle both file uploads and data processing
+app.post('/upload-multiple-receipts-form', (req, res, next) => {
+  // Initialize file counter
+  req.filesProcessed = 0;
+  next();
+}, s3Upload.array('files', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No files uploaded'
+      });
+    }
+
+    const customerID = req.body.customerID;
+    if (!customerID) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer ID is required'
+      });
+    }
+
+    // Parse the metadata JSON
+    let metadata = [];
+    try {
+      if (req.body.metadata) {
+        metadata = JSON.parse(req.body.metadata);
+      }
+    } catch (err) {
+      console.error('Error parsing metadata:', err);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid metadata format'
+      });
+    }
+
+    // Generate signed URLs for each file
+    const results = await Promise.all(req.files.map(async (file, index) => {
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: file.key
+      });
+      
+      const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+        expiresIn: 3600 // 1 hour expiration
+      });
+      
+      return {
+        url: signedUrl,
+        key: file.key,
+        originalName: file.originalname,
+        size: file.size,
+        index: index
+      };
+    }));
+    
+    // Extract URLs and keys
+    const urls = results.map(result => result.url);
+    const keys = results.map(result => result.key);
+    
+    // Prepare receipt data for each file if metadata exists
+    const receiptsToProcess = [];
+    
+    if (metadata.length > 0) {
+      // Match metadata with file URLs
+      for (let i = 0; i < Math.min(metadata.length, urls.length); i++) {
+        const fileData = metadata[i];
+        
+        // Skip invalid entries
+        if (!fileData || !fileData.amount) continue;
+        
+        receiptsToProcess.push({
+          customerID: customerID,
+          amount: fileData.amount,
+          referenceNo: fileData.reference || 'MANUAL',
+          'Particulars': fileData.particulars || '',
+          'OCR Timestamp': fileData.date || new Date().toISOString().split('T')[0],
+          'Payment Method': 'Bank Receipt',
+          'Bank': fileData.ocrData?.Bank || 'Unknown',
+          'Recognized Text': fileData.ocrData?.recognizedText || '',
+          'Receipt URL': urls[i]
+        });
+      }
+      
+      // Process the receipts if we have any valid ones
+      if (receiptsToProcess.length > 0) {
+        const sheetResults = await updateReceiptDataBulk(receiptsToProcess);
+        
+        // Return both upload and sheet writing results
+        res.json({
+          success: true,
+          urls: urls,
+          keys: keys,
+          files: results,
+          count: req.files.length,
+          sheetResults: sheetResults
+        });
+      } else {
+        // Just return the upload results if no valid receipts to process
+        res.json({
+          success: true,
+          urls: urls,
+          keys: keys,
+          files: results,
+          count: req.files.length,
+          message: 'Files uploaded but no valid metadata for sheet processing'
+        });
+      }
+    } else {
+      // If no metadata, just return the upload results
+      res.json({
+        success: true,
+        urls: urls,
+        keys: keys,
+        files: results,
+        count: req.files.length
+      });
+    }
+  } catch (error) {
+    console.error('S3 upload or sheet processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process uploads',
+      details: error.message
+    });
+  }
+});
+
 app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
     try {
-        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-            method: 'POST',
+        const response = await axios({
+            method: 'post',
+            url: `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            data: {
                 requests: [{
                     image: {
                         content: imageBase64
@@ -885,10 +1099,10 @@ app.post('/vision-api', async (req, res) => {
                         }
                     }
                 }]
-            })
+            }
         });
 
-        const data = await response.json();
+        const data = response.data;
 
         const textResult = data.responses[0]?.fullTextAnnotation;
         const recognizedText = textResult?.text || '';
@@ -969,6 +1183,8 @@ app.post('/record-cash', async (req, res) => {
             'Payment Method': paymentMethod,
         };
 
+        console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
+        console.log("Debug - sheetId: ", sheetId, "rowData: ", rowData, "spreadsheetCustomerID: ", spreadsheetCustomerID);
         await writeToSheet(`${sheetId}!A:I`, rowData, spreadsheetCustomerID);
 
         res.status(200).json({
@@ -1106,8 +1322,140 @@ app.post('/upload-receipt', async (req, res) => {
 //             success: false,
 //             error: 'Failed to generate URL'
 //         });
-//     }
-// });
+//     });
+
+app.post('/multiple-vision-api', async (req, res) => {
+    const { images, customerID, deviceInfo, screenResolution, paymentMethod, startTime } = req.body;
+    const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+
+    if (!images || !Array.isArray(images) || images.length === 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'No images provided or invalid image format'
+        });
+    }
+
+    try {
+        // Prepare the API request for Google Vision API
+        // This is a batch request with multiple images in one call
+        const requests = images.map(img => ({
+            image: {
+                content: img.image
+            },
+            features: [{
+                type: 'DOCUMENT_TEXT_DETECTION'
+            }],
+            imageContext: {
+                languageHints: ['en'],
+                textDetectionParams: {
+                    enableTextDetectionConfidenceScore: true
+                }
+            }
+        }));
+
+        // Make the API call with all images in one request using axios
+        const response = await axios({
+            method: 'post',
+            url: `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            data: {
+                requests: requests
+            }
+        });
+
+        const data = response.data;
+
+        // Process each image's results
+        const resultsArray = [];
+        
+        if (data.responses && Array.isArray(data.responses)) {
+            // Process each response
+            for (let i = 0; i < data.responses.length; i++) {
+                const textResult = data.responses[i]?.fullTextAnnotation;
+                const recognizedText = textResult?.text || '';
+                const confidence = textResult?.pages?.[0]?.blocks?.reduce((acc, block) => 
+                    acc + block.confidence, 0) / (textResult?.pages?.[0]?.blocks?.length || 1);
+                
+                // Only process if confidence is high enough
+                if (confidence > 0.7) {
+                    const bankKey = determineBankKey(recognizedText);
+                    const receiptData = parseReceiptData(recognizedText, bankKey);
+                    
+                    // Check if this is actually a receipt
+                    const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
+                    
+                    if (isReceipt) {
+                        // Add the corresponding image filename and index
+                        resultsArray.push({
+                            index: images[i].index,
+                            filename: images[i].filename,
+                            amount: receiptData.Amount,
+                            referenceNo: receiptData.ReferenceNo,
+                            Date: receiptData.Date,
+                            Time: receiptData.Time,
+                            PaymentMethod: receiptData.PaymentMethod,
+                            Bank: receiptData.Bank,
+                            recognizedText
+                        });
+                    } else {
+                        // Add a failed result
+                        resultsArray.push({
+                            index: images[i].index,
+                            filename: images[i].filename,
+                            error: 'No receipt data detected',
+                            recognizedText
+                        });
+                    }
+                } else {
+                    // Add a failed result due to low confidence
+                    resultsArray.push({
+                        index: images[i].index,
+                        filename: images[i].filename,
+                        error: 'Text confidence score is below threshold',
+                        confidence: confidence,
+                        threshold: 0.7
+                    });
+                }
+            }
+            
+            // Return the combined results
+            if (resultsArray.length > 0) {
+                // Return the first successful result as the primary result
+                // and include all results in the array
+                const primaryResult = resultsArray.find(r => !r.error) || resultsArray[0];
+                
+                res.json({
+                    success: true,
+                    primaryResult: primaryResult,
+                    allResults: resultsArray,
+                    count: resultsArray.length,
+                    successCount: resultsArray.filter(r => !r.error).length
+                });
+            } else {
+                res.status(400).json({
+                    success: false,
+                    error: 'No valid receipts detected in any of the images',
+                    results: resultsArray
+                });
+            }
+        } else {
+            res.status(400).json({
+                success: false,
+                error: 'Invalid response from Vision API',
+                details: data
+            });
+        }
+    } catch (error) {
+        console.error('Error processing multiple images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error processing multiple images',
+            details: error.message
+        });
+    }
+});
 
 // Export the app for potential serverless environments (like Vercel)
 export default app;
