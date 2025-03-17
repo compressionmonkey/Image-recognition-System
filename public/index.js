@@ -1126,6 +1126,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cameraModal.className = 'camera-modal';
         cameraModal.innerHTML = `
             <div class="camera-content">
+                <button class="close-btn" onclick="closeCameraModal()">&times;</button>
                 <div id="liveView" class="videoView">
                     <video id="camera-preview" autoplay playsinline></video>
                 </div>
