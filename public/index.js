@@ -1464,11 +1464,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="fab-label">Processing Complete</div>
                         `;
                         
-                        // Add click handler to dismiss
-                        floatingBtn.addEventListener('click', () => {
+                        // Automatically fade out and remove the button after 3 seconds
+                        setTimeout(() => {
                             floatingBtn.classList.add('hidden');
                             setTimeout(() => floatingBtn.remove(), 300);
-                        });
+                        }, 3000);
                     }
                 }, 500);
             }, 500);
@@ -1517,6 +1517,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update the uploadMultipleToServer function to use the more comprehensive loading modal
     async function uploadMultipleToServer(processedFiles) {
+        // Create a new loading modal or pass it as a parameter
+        const loadingModal = document.querySelector('.loading-modal'); // Get the existing modal
+        
         try {
             // Store the first image data globally (for potential use)
             if (processedFiles.length > 0) {
@@ -1535,92 +1538,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 closeCameraModal();
             }
 
-            // Create loading modal with the comprehensive UI from handleSubmitAll
-        const loadingModal = document.createElement('div');
-        loadingModal.className = 'loading-modal';
-        loadingModal.innerHTML = `
-            <div class="loading-content">
-                <div class="loading-spinner"></div>
-                <h3 class="loading-message">Preparing files...</h3>
-                <div class="progress-container">
-                    <div class="progress-bar">
-                        <div class="progress-fill"></div>
-                    </div>
-                        <div class="progress-text">0/${processedFiles.length} files analyzed</div>
-                    <div class="time-estimate">Estimating time remaining...</div>
-                    <div class="loading-stage">
-                        <div class="stage-item active" data-stage="prepare">
-                            <span class="stage-icon"></span>
-                            <span>Preparing files</span>
-                        </div>
-                            <div class="stage-item" data-stage="analyze">
-                            <span class="stage-icon"></span>
-                                <span>Analyzing receipts</span>
-                        </div>
-                        <div class="stage-item" data-stage="process">
-                            <span class="stage-icon"></span>
-                                <span>Processing results</span>
-                        </div>
-                    </div>
-                    <div class="network-speed"></div>
-                    <div class="loading-note">It could take up to 20 seconds depending on your internet speed.</div>
-                    <button class="loading-cancel-btn">Don't want to wait?</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(loadingModal);
-
-        // Add event listener for the cancel button
-        const cancelBtn = loadingModal.querySelector('.loading-cancel-btn');
-        cancelBtn.addEventListener('click', () => {
-            // Hide the loading modal but continue the upload in background
-            loadingModal.classList.add('fade-out');
-            setTimeout(() => {
-                loadingModal.style.display = 'none';
+            // Update the existing loading modal if it exists
+            if (loadingModal) {
+                const loadingMessage = loadingModal.querySelector('.loading-message');
+                const progressFill = loadingModal.querySelector('.progress-fill');
+                const progressText = loadingModal.querySelector('.progress-text');
+                const timeEstimate = loadingModal.querySelector('.time-estimate');
                 
-                // Show a floating action button to return to the upload when it's done
-                const floatingBtn = document.createElement('div');
-                floatingBtn.className = 'floating-action-btn hidden';
-                floatingBtn.id = 'uploadStatusBtn';
-                floatingBtn.innerHTML = `
-                    <div class="fab-icon">
-                        <div class="fab-spinner"></div>
-                    </div>
-                        <div class="fab-label">Analyzing...</div>
-                `;
-                document.body.appendChild(floatingBtn);
+                // Update loading message and stage for analysis phase
+                const analyzeStage = loadingModal.querySelector('.stage-item[data-stage="analyze"]');
+                if (analyzeStage) {
+                    analyzeStage.classList.add('active');
+                }
                 
-                // Show the button with animation
-                setTimeout(() => floatingBtn.classList.remove('hidden'), 100);
-            }, 300);
-        });
-
-        // References to loading elements
-        const loadingMessage = loadingModal.querySelector('.loading-message');
-        const progressFill = loadingModal.querySelector('.progress-fill');
-        const progressText = loadingModal.querySelector('.progress-text');
-        const timeEstimate = loadingModal.querySelector('.time-estimate');
-
-            // Update loading message and stage for analysis phase
-            const prepareStage = loadingModal.querySelector('.stage-item[data-stage="prepare"]');
-            const analyzeStage = loadingModal.querySelector('.stage-item[data-stage="analyze"]');
-            
-            setTimeout(() => {
-            prepareStage.classList.remove('active');
-            prepareStage.classList.add('completed');
-                analyzeStage.classList.add('active');
+                if (loadingMessage) {
+                    loadingMessage.textContent = 'Analyzing receipts...';
+                }
                 
-                loadingMessage.textContent = 'Analyzing receipts...';
-                timeEstimate.textContent = 'This may take a few moments...';
-            }, 1000);
+                if (timeEstimate) {
+                    timeEstimate.textContent = 'This may take a few moments...';
+                }
+                
+                if (progressFill) {
+                    progressFill.style.width = '50%';
+                }
+            }
 
             // Make API call
             const customerID = sessionStorage.getItem('customerID');
-            const startTime = Date.now();
-            
-            // Update progress to 33% to indicate we're starting the analysis
-            progressFill.style.width = '33%';
-            
             const response = await fetch('/multiple-vision-api', {
                 method: 'POST',
                 headers: {
@@ -1636,27 +1581,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     screenResolution: `${window.screen.width}x${window.screen.height}`,
                     paymentMethod: 'Bank Receipt',
                     customerID: customerID,
-                    startTime: startTime
+                    startTime: new Date().getTime()
                 })
             });
 
-            // Update progress to 66% after API call completes
-            progressFill.style.width = '66%';
+            // Update progress if loading modal exists
+            if (loadingModal) {
+                const progressFill = loadingModal.querySelector('.progress-fill');
+                if (progressFill) {
+                    progressFill.style.width = '75%';
+                }
+            }
 
             const data = await response.json();
-
-            // Update to processing stage
-            const processStage = loadingModal.querySelector('.stage-item[data-stage="process"]');
-            analyzeStage.classList.remove('active');
-            analyzeStage.classList.add('completed');
-                        processStage.classList.add('active');
-                        
-            loadingMessage.textContent = 'Processing results...';
-                        timeEstimate.textContent = 'Almost done...';
-                        
-            // Update progress to 100% for completion
-            progressFill.style.width = '100%';
-            progressText.textContent = `${processedFiles.length}/${processedFiles.length} files processed`;
 
             // Log relevant response details
             console.log(`Multiple image response:`, data);
@@ -1664,68 +1601,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check response status
             if (!response.ok) {
                 showFailureModal('Scan failed', 'Please retry');
-                
-                // Clean up loading modal
-                            loadingModal.classList.add('fade-out');
-                            setTimeout(() => loadingModal.remove(), 300);
-                
-                // Update floating button if it exists
-                        const floatingBtn = document.getElementById('uploadStatusBtn');
-                        if (floatingBtn) {
-                            floatingBtn.innerHTML = `
-                                <div class="fab-icon error">
-                                    <svg viewBox="0 0 24 24" width="24" height="24">
-                                        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                                    </svg>
-                                </div>
-                        <div class="fab-label">Analysis Failed</div>
-                    `;
-                    
-                    // Add click handler to dismiss
-                    floatingBtn.addEventListener('click', () => {
-                        floatingBtn.classList.add('hidden');
-                        setTimeout(() => floatingBtn.remove(), 300);
-                    });
-                }
-                
                 return null;
             }
 
             // Success - note we're not showing confirmation modal yet as requested
             showToast(`Processed ${processedFiles.length} images successfully`, 'success');
-            
-            // Clean up loading modal with a slight delay to show completion
-                setTimeout(() => {
-            loadingModal.classList.add('fade-out');
-            setTimeout(() => loadingModal.remove(), 300);
-            
-                // Update floating button if it exists
-                const floatingBtn = document.getElementById('uploadStatusBtn');
-                if (floatingBtn) {
-                    floatingBtn.innerHTML = `
-                        <div class="fab-icon completed">
-                            <svg viewBox="0 0 24 24" width="24" height="24">
-                                <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                            </svg>
-                        </div>
-                        <div class="fab-label">Analysis Complete</div>
-                    `;
-                    
-                    // Add click handler to dismiss
-                    floatingBtn.addEventListener('click', () => {
-                        floatingBtn.classList.add('hidden');
-                        setTimeout(() => floatingBtn.remove(), 300);
-                    });
-                }
-            }, 1000);
-            
-            // Automatically trigger the "Don't want to wait" button after 3 seconds
-            setTimeout(() => {
-                // Only auto-dismiss if the modal is still visible (user hasn't manually dismissed)
-                if (loadingModal.style.display !== 'none') {
-                    cancelBtn.click();
-                }
-            }, 3000);
             
             // Return the data for further processing
             return data;
@@ -1733,13 +1613,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error uploading multiple images:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your images. Please try again.');
-            
-            // Clean up any loading modal that might be visible
-            const loadingModal = document.querySelector('.loading-modal');
-            if (loadingModal) {
-                loadingModal.classList.add('fade-out');
-                setTimeout(() => loadingModal.remove(), 300);
-            }
             
             // Update floating button if it exists
             const floatingBtn = document.getElementById('uploadStatusBtn');
@@ -1753,11 +1626,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="fab-label">Analysis Failed</div>
                 `;
                 
-                // Add click handler to dismiss
-                floatingBtn.addEventListener('click', () => {
+                // Automatically fade out and remove the button after 3 seconds
+                setTimeout(() => {
                     floatingBtn.classList.add('hidden');
                     setTimeout(() => floatingBtn.remove(), 300);
-                });
+                }, 3000);
             }
             
             return null;
@@ -2061,17 +1934,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                                     </svg>
                                 </div>
-                                <div class="fab-label">Upload Complete</div>
+                                <div class="fab-label">Processing Complete</div>
                             `;
                             
-                            // Add click handler to show results
-                            floatingBtn.addEventListener('click', () => {
+                            // Automatically fade out and remove the button after 3 seconds
+                            setTimeout(() => {
                                 floatingBtn.classList.add('hidden');
                                 setTimeout(() => floatingBtn.remove(), 300);
-                                
-                                // Show completion notification
-                                showUploadCompletionModal(data);
-                            });
+                            }, 3000);
                         }
                         
                         // Check sheet processing results
