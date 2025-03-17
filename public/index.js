@@ -1293,13 +1293,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function processMultipleImages(filesArray) {
-        showToast('Processing multiple images...', 'info');
+        // Create and show loading modal
+        const loadingModal = document.createElement('div');
+        loadingModal.className = 'loading-modal';
+        loadingModal.innerHTML = `
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <h3 class="loading-message">Processing images...</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">0/${filesArray.length} images processed</div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingModal);
 
         try {
             // Convert all files to processable format
             const processedFiles = await Promise.all(filesArray.map(async (file, index) => {
                 // Create a promise for each file processing
-                return new Promise((resolve) => {
+                const result = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         const img = new Image();
@@ -1318,14 +1333,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             canvas.width = width;
                             canvas.height = height;
-                            
-                            // Disable image smoothing for sharper edges
                             ctx.imageSmoothingEnabled = false;
-                            
-                            // Draw image without filters
                             ctx.drawImage(img, 0, 0, width, height);
                             
-                            // Use higher quality JPEG encoding
                             const finalImage = canvas.toDataURL('image/jpeg', 0.95);
                             const base64Image = finalImage.split(',')[1];
                             
@@ -1333,45 +1343,55 @@ document.addEventListener('DOMContentLoaded', function() {
                                 index,
                                 filename: file.name,
                                 base64Image,
-                                file // Include the original file for reference
+                                file
                             });
                         };
                         img.src = event.target.result;
                     };
                     reader.readAsDataURL(file);
                 });
+
+                // Update progress after each file is processed
+                const progressFill = loadingModal.querySelector('.progress-fill');
+                const progressText = loadingModal.querySelector('.progress-text');
+                const progressPercentage = (((index + 1) / filesArray.length) * 100);
+                progressFill.style.width = `${progressPercentage}%`;
+                progressText.textContent = `${index + 1}/${filesArray.length} images processed`;
+
+                return result;
             }));
+
+            // Update message for OCR processing
+            const loadingMessage = loadingModal.querySelector('.loading-message');
+            loadingMessage.textContent = 'Analyzing receipts...';
 
             // Send processed images to server and get OCR results
             const ocrResults = await uploadMultipleToServer(processedFiles);
             
-            // Combine OCR results with file data
+            // Clean up loading modal
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => loadingModal.remove(), 300);
+
             if (ocrResults && ocrResults.allResults) {
-                // Map each file with its corresponding OCR data
-                const filesWithOcr = processedFiles.map(processedFile => {
-                    // Find matching OCR result by index
-                    const ocrData = ocrResults.allResults.find(
-                        result => result.index === processedFile.index
-                    );
-                    
-                    // Return the file with OCR data attached
-                    return {
+                const filesWithOcr = processedFiles.map(processedFile => ({
                         ...processedFile,
-                        ocrData: ocrData || { error: 'No OCR data found' }
-                    };
-                });
-                
-                // Return the files with OCR data
+                    ocrData: ocrResults.allResults.find(
+                        result => result.index === processedFile.index
+                    ) || { error: 'No OCR data found' }
+                }));
                 return filesWithOcr;
             }
             
-            // If no OCR results, return the processed files anyway
             return processedFiles;
             
         } catch (error) {
             console.error('Error processing multiple images:', error);
             showToast('Failed to process images', 'error');
-            // Return original files with error indication
+            
+            // Clean up loading modal on error
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => loadingModal.remove(), 300);
+            
             return filesArray.map((file, index) => ({
                 index,
                 file,
@@ -1502,127 +1522,260 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
+    // Update the handleSubmitAll function to start the upload immediately
+    // and show the loading indicator without blocking the user
     async function handleSubmitAll() {
-        if (!validateAllEntries()) {
+        // Get all image entries
+        const imageEntries = window.imageEntries || [];
+        if (imageEntries.length === 0) {
+            showToast('No images to upload', 'error');
             return;
         }
 
-        // Disable the submit button first to prevent multiple submissions
+        // Validate all entries first
+        const validationResult = validateAllEntries();
+        if (!validationResult.valid) {
+            showToast(validationResult.message, 'error');
+            return;
+        }
+
+        // Disable submit button to prevent multiple submissions
         const submitButton = document.getElementById('submitAllUploads');
         if (submitButton) {
             submitButton.disabled = true;
-            submitButton.style.opacity = '0.5';
+            submitButton.style.opacity = '0.7';
             submitButton.style.cursor = 'not-allowed';
-            submitButton.innerHTML = '<span class="spinner" style="display: inline-block;"></span> Processing...';
+            submitButton.innerHTML = 'Uploading...';
         }
-        
-        try {
-            // Reset validation states first
-            imageEntries.forEach(entry => {
-                const inputs = entry.element.querySelectorAll('input');
-                inputs.forEach(input => {
-                    input.classList.remove('invalid-input');
-                    const errorMsg = input.parentElement.querySelector('.validation-error');
-                    if (errorMsg) errorMsg.remove();
-                });
-            });
-            
-            // Perform comprehensive validation
-            let hasErrors = false;
-            const validationResults = imageEntries.map(entry => entry.validate());
-            
-            // Check if any entries have validation errors
-            if (validationResults.some(result => !result.valid)) {
-                hasErrors = true;
-                // Display errors for each entry
-                validationResults.forEach((result, index) => {
-                    if (!result.valid) {
-                        const entry = imageEntries[index];
-                        
-                        // Mark invalid fields and show error messages
-                        Object.entries(result.errors).forEach(([field, message]) => {
-                            const input = entry.element.querySelector(`.${field}-input`);
-                            if (input) {
-                                input.classList.add('invalid-input');
-                                
-                                // Add error message below the input
-                                const errorMsg = document.createElement('div');
-                                errorMsg.className = 'validation-error';
-                                errorMsg.textContent = message;
-                                input.parentElement.appendChild(errorMsg);
-                                
-                                // Scroll to the first error
-                                if (field === Object.keys(result.errors)[0] && index === validationResults.findIndex(r => !r.valid)) {
-                                    setTimeout(() => {
-                                        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    }, 100);
-                                }
-                            }
-                        });
-                    }
-                });
-                
-                showToast('Please correct the highlighted fields', 'error');
-                
-                // Re-enable the button if validation fails
-                if (submitButton) {
-                    submitButton.disabled = false;
-                    submitButton.style.opacity = '1';
-                    submitButton.style.cursor = 'pointer';
-                    submitButton.innerHTML = 'Submit All';
-                }
-                
-                // Important: Return early to prevent API call
-                return;
-            }
 
-            // Only proceed if no validation errors
-            if (!hasErrors) {
-                // Show loading toast
-                showToast('Uploading files...', 'info');
+        // Create loading modal
+        const loadingModal = document.createElement('div');
+        loadingModal.className = 'loading-modal';
+        loadingModal.innerHTML = `
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <h3 class="loading-message">Preparing files...</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">0/${imageEntries.length} files uploaded</div>
+                    <div class="time-estimate">Estimating time remaining...</div>
+                    <div class="loading-stage">
+                        <div class="stage-item active" data-stage="prepare">
+                            <span class="stage-icon"></span>
+                            <span>Preparing files</span>
+                        </div>
+                        <div class="stage-item" data-stage="upload">
+                            <span class="stage-icon"></span>
+                            <span>Uploading to server</span>
+                        </div>
+                        <div class="stage-item" data-stage="process">
+                            <span class="stage-icon"></span>
+                            <span>Processing receipts</span>
+                        </div>
+                    </div>
+                    <div class="network-speed"></div>
+                    <div class="loading-note">It could take up to 20 seconds depending on your internet speed.</div>
+                    <button class="loading-cancel-btn">Don't want to wait?</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingModal);
+
+        // Add event listener for the cancel button
+        const cancelBtn = loadingModal.querySelector('.loading-cancel-btn');
+        cancelBtn.addEventListener('click', () => {
+            // Hide the loading modal but continue the upload in background
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => {
+                loadingModal.style.display = 'none';
                 
-                // Create FormData for bulk file upload
-                const formData = new FormData();
-                const customerID = sessionStorage.getItem('customerID');
+                // Show a floating action button to return to the upload when it's done
+                const floatingBtn = document.createElement('div');
+                floatingBtn.className = 'floating-action-btn hidden';
+                floatingBtn.id = 'uploadStatusBtn';
+                floatingBtn.innerHTML = `
+                    <div class="fab-icon">
+                        <div class="fab-spinner"></div>
+                    </div>
+                    <div class="fab-label">Uploading...</div>
+                `;
+                document.body.appendChild(floatingBtn);
+                
+                // Show the button with animation
+                setTimeout(() => floatingBtn.classList.remove('hidden'), 100);
+                
+                // Allow user to continue using the app
+                const modal = document.getElementById('multipleUploadsModal');
+                modal.classList.remove('show');
+                                    setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 300);
+            }, 300);
+        });
+
+        // References to loading elements
+        const loadingMessage = loadingModal.querySelector('.loading-message');
+        const progressFill = loadingModal.querySelector('.progress-fill');
+        const progressText = loadingModal.querySelector('.progress-text');
+        const timeEstimate = loadingModal.querySelector('.time-estimate');
+        const networkSpeed = loadingModal.querySelector('.network-speed');
+
+        try {
+            // Prepare FormData
+            const formData = new FormData();
+            const metadata = [];
+            const customerID = sessionStorage.getItem('customerID');
+            
+            if (!customerID) {
+                throw new Error('Customer ID not found. Please log in again.');
+            }
+            
                 formData.append('customerID', customerID);
                 
-                // Add all files to FormData
-                const receiptMetadata = [];
+            // Add each file to FormData and collect metadata
+            for (let i = 0; i < imageEntries.length; i++) {
+                const entry = imageEntries[i];
+                const element = entry.element;
                 
-                imageEntries.forEach((entry, index) => {
-                    // Add the file to FormData
+                // Get values from form fields
+                const amount = element.querySelector('.amount-input').value;
+                const reference = element.querySelector('.reference-input').value;
+                const particulars = element.querySelector('.particulars-input').value;
+                const date = element.querySelector('.date-input').value;
+                
+                // Add file to FormData
                     formData.append('files', entry.file);
                     
-                    // Collect metadata for each receipt
-                    receiptMetadata.push({
-                        index,
-                        amount: entry.element.querySelector('.amount-input').value,
-                        reference: entry.element.querySelector('.reference-input').value,
-                        particulars: entry.element.querySelector('.particulars-input').value,
-                        date: entry.element.querySelector('.date-input').value,
-                        ocrData: entry.originalOcrData || {}
-                    });
+                // Collect metadata
+                metadata.push({
+                    index: i,
+                    amount: amount,
+                    reference: reference,
+                    particulars: particulars,
+                    date: date,
+                    ocrData: entry.ocrData || null
                 });
-                
-                // Add metadata as JSON
-                formData.append('metadata', JSON.stringify(receiptMetadata));
-                
-                // Store metadata in session storage for reference
-                sessionStorage.setItem('receiptMetadata', JSON.stringify(receiptMetadata));
-                
-                // Upload all files and process data in a single request
-                const response = await fetch('/upload-multiple-receipts-form', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Upload failed');
+            }
+            
+            // Add metadata as JSON string
+            formData.append('metadata', JSON.stringify(metadata));
+            
+            // Update loading message and stage
+            loadingMessage.textContent = 'Uploading files...';
+            const prepareStage = loadingModal.querySelector('.stage-item[data-stage="prepare"]');
+            const uploadStage = loadingModal.querySelector('.stage-item[data-stage="upload"]');
+            
+            prepareStage.classList.remove('active');
+            prepareStage.classList.add('completed');
+            uploadStage.classList.add('active');
+            
+            // Create and configure XMLHttpRequest for upload with progress tracking
+            const xhr = new XMLHttpRequest();
+            const startTime = Date.now();
+            let lastLoaded = 0;
+            let lastTime = startTime;
+            let uploadSpeed = 0;
+            
+            xhr.open('POST', '/upload-multiple-receipts-form');
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    // Calculate progress percentage
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    
+                    // Update progress bar
+                    progressFill.style.width = `${percent}%`;
+                    progressText.textContent = `${Math.round(event.loaded / 1024)} KB of ${Math.round(event.total / 1024)} KB uploaded`;
+                    
+                    // Calculate time elapsed and estimated time remaining
+                    const currentTime = Date.now();
+                    const elapsedTime = (currentTime - startTime) / 1000; // in seconds
+                    
+                    // Calculate upload speed (bytes per second)
+                    const timeDelta = (currentTime - lastTime) / 1000;
+                    if (timeDelta > 0.5) { // Update speed every 500ms
+                        const loadedDelta = event.loaded - lastLoaded;
+                        uploadSpeed = loadedDelta / timeDelta; // bytes per second
+                        
+                        // Update for next calculation
+                        lastLoaded = event.loaded;
+                        lastTime = currentTime;
+                        
+                        // Display network speed
+                        const speedKBps = Math.round(uploadSpeed / 1024);
+                        networkSpeed.textContent = `${speedKBps} KB/s`;
+                        networkSpeed.classList.add('fluctuating');
+                    }
+                    
+                    // Estimate remaining time
+                    if (uploadSpeed > 0) {
+                        const remainingBytes = event.total - event.loaded;
+                        const remainingSeconds = remainingBytes / uploadSpeed;
+                        
+                        // Format remaining time
+                        if (remainingSeconds < 1) {
+                            timeEstimate.textContent = 'Almost done...';
+                        } else if (remainingSeconds < 60) {
+                            timeEstimate.textContent = `About ${Math.round(remainingSeconds)} seconds remaining`;
+                        } else {
+                            const minutes = Math.floor(remainingSeconds / 60);
+                            const seconds = Math.round(remainingSeconds % 60);
+                            timeEstimate.textContent = `About ${minutes}:${seconds.toString().padStart(2, '0')} minutes remaining`;
+                        }
+                    }
                 }
-                
-                // Check sheet processing results if available
+            });
+            
+            // Handle successful upload
+            xhr.addEventListener('load', async () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        
+                        // Update stages for processing phase
+                        const uploadStage = loadingModal.querySelector('.stage-item[data-stage="upload"]');
+                        const processStage = loadingModal.querySelector('.stage-item[data-stage="process"]');
+                        
+                        uploadStage.classList.remove('active');
+                        uploadStage.classList.add('completed');
+                        processStage.classList.add('active');
+                        
+                        // Update loading message for processing phase
+                        loadingMessage.textContent = 'Processing receipts...';
+                        timeEstimate.textContent = 'Almost done...';
+                        
+                        // Hide network speed during processing
+                        networkSpeed.style.display = 'none';
+                        
+                        // Check if the loading modal is still visible
+                        const isModalVisible = loadingModal.style.display !== 'none';
+                        
+                        // Update floating action button if it exists
+                        const floatingBtn = document.getElementById('uploadStatusBtn');
+                        if (floatingBtn) {
+                            floatingBtn.innerHTML = `
+                                <div class="fab-icon completed">
+                                    <svg viewBox="0 0 24 24" width="24" height="24">
+                                        <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                                    </svg>
+                                </div>
+                                <div class="fab-label">Upload Complete</div>
+                            `;
+                            
+                            // Add click handler to show results
+                            floatingBtn.addEventListener('click', () => {
+                                floatingBtn.classList.add('hidden');
+                                setTimeout(() => floatingBtn.remove(), 300);
+                                
+                                // Show completion notification
+                                showUploadCompletionModal(data);
+                            });
+                        }
+                        
+                        // Check sheet processing results
                 if (data.sheetResults) {
                     if (data.sheetResults.failureCount > 0) {
                         showToast(`Processed ${data.sheetResults.successCount} of ${data.sheetResults.totalProcessed} receipts`, 'warning');
@@ -1642,22 +1795,171 @@ document.addEventListener('DOMContentLoaded', function() {
                     sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
                 }
                 
-                // Show success animation
+                        // Show success animation if modal is visible
+                        if (isModalVisible) {
                 showConfetti();
+                        }
+                        
+                        // Close the loading modal if it's visible
+                        if (isModalVisible) {
+                            loadingModal.classList.add('fade-out');
+                            setTimeout(() => loadingModal.remove(), 300);
+                        }
+                        
+                        // If the loading modal was hidden, show completion notification
+                        if (!isModalVisible && !floatingBtn) {
+                            showUploadCompletionModal(data);
+                        }
+                        
+                        // Clear the uploads container
+                        window.imageEntries = [];
+                        
+                    } catch (error) {
+                        console.error('Error parsing response:', error);
+                        showToast('Error processing server response', 'error');
+                        
+                        // Update floating button to show error
+                        const floatingBtn = document.getElementById('uploadStatusBtn');
+                        if (floatingBtn) {
+                            floatingBtn.innerHTML = `
+                                <div class="fab-icon error">
+                                    <svg viewBox="0 0 24 24" width="24" height="24">
+                                        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                                    </svg>
+                                </div>
+                                <div class="fab-label">Upload Failed</div>
+                            `;
+                        }
+                        
+                        // Clean up loading modal if visible
+                        if (loadingModal.style.display !== 'none') {
+                            loadingModal.classList.add('fade-out');
+                            setTimeout(() => loadingModal.remove(), 300);
+                        }
+                    }
+                } else {
+                    console.error('Upload failed with status:', xhr.status);
+                    showToast('Upload failed: ' + (xhr.statusText || 'Server error'), 'error');
+                    
+                    // Update floating button to show error
+                    const floatingBtn = document.getElementById('uploadStatusBtn');
+                    if (floatingBtn) {
+                        floatingBtn.innerHTML = `
+                            <div class="fab-icon error">
+                                <svg viewBox="0 0 24 24" width="24" height="24">
+                                    <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                                </svg>
+                            </div>
+                            <div class="fab-label">Upload Failed</div>
+                        `;
+                    }
+                    
+                    // Clean up loading modal if visible
+                    if (loadingModal.style.display !== 'none') {
+                        loadingModal.classList.add('fade-out');
+                        setTimeout(() => loadingModal.remove(), 300);
+                    }
+                }
                 
-                // Close the modal
-                const modal = document.getElementById('multipleUploadsModal');
-                modal.classList.remove('show');
+                // Re-enable submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+            });
+            
+            // Handle network errors
+            xhr.addEventListener('error', () => {
+                console.error('Network error during upload');
+                showToast('Network error during upload. Please check your connection.', 'error');
+                
+                // Update floating button to show error
+                const floatingBtn = document.getElementById('uploadStatusBtn');
+                if (floatingBtn) {
+                    floatingBtn.innerHTML = `
+                        <div class="fab-icon error">
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                            </svg>
+                        </div>
+                        <div class="fab-label">Network Error</div>
+                    `;
+                }
+                
+                // Clean up loading modal if visible
+                if (loadingModal.style.display !== 'none') {
+                    loadingModal.classList.add('fade-out');
+                    setTimeout(() => loadingModal.remove(), 300);
+                }
+                
+                // Re-enable submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+            });
+            
+            // Handle timeout
+            xhr.addEventListener('timeout', () => {
+                console.error('Upload timed out');
+                showToast('Upload timed out. Please try again.', 'error');
+                
+                // Update floating button to show error
+                const floatingBtn = document.getElementById('uploadStatusBtn');
+                if (floatingBtn) {
+                    floatingBtn.innerHTML = `
+                        <div class="fab-icon error">
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                            </svg>
+                        </div>
+                        <div class="fab-label">Upload Timed Out</div>
+                    `;
+                }
+                
+                // Clean up loading modal if visible
+                if (loadingModal.style.display !== 'none') {
+                    loadingModal.classList.add('fade-out');
+                    setTimeout(() => loadingModal.remove(), 300);
+                }
+                
+                // Re-enable submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+            });
+            
+            // Set timeout to 2 minutes
+            xhr.timeout = 120000;
+            
+            // Send the FormData
+            xhr.send(formData);
+            
+            // Automatically trigger the "Don't want to wait" button after 3 seconds
+            // This allows the user to continue using the app while upload happens in background
                 setTimeout(() => {
-                    modal.style.display = 'none';
-                    document.getElementById('uploadsContainer').innerHTML = '';
-                }, 300);
-            }
+                // Only auto-dismiss if the modal is still visible (user hasn't manually dismissed)
+                if (loadingModal.style.display !== 'none') {
+                    cancelBtn.click();
+                }
+            }, 3000);
+            
         } catch (error) {
-            console.error('Error processing uploads:', error);
-            showToast('Failed to process uploads: ' + error.message, 'error');
-        } finally {
-            // Always re-enable the button
+            console.error('Error preparing upload:', error);
+            showToast(error.message || 'Error preparing upload', 'error');
+            
+            // Clean up loading modal
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => loadingModal.remove(), 300);
+            
+            // Re-enable submit button
             if (submitButton) {
                 submitButton.disabled = false;
                 submitButton.style.opacity = '1';
@@ -2040,4 +2342,61 @@ document.addEventListener('DOMContentLoaded', function() {
     window.handleSubmitAll = handleSubmitAll;
     window.showLargeImagePreview = showLargeImagePreview;
 
+    // Add this new function to show completion modal
+    function showUploadCompletionModal(data) {
+        const completionModal = document.createElement('div');
+        completionModal.className = 'completion-modal';
+        
+        const successCount = data.sheetResults?.successCount || data.count || 0;
+        const totalCount = data.sheetResults?.totalProcessed || data.count || 0;
+        const hasErrors = (data.sheetResults?.failureCount || 0) > 0;
+        
+        completionModal.innerHTML = `
+            <div class="completion-content">
+                <div class="completion-icon ${hasErrors ? 'partial' : 'success'}">
+                    ${hasErrors ? 
+                        `<svg viewBox="0 0 24 24" width="48" height="48">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v2h-2v-2zm0-8h2v6h-2V9z"/>
+                        </svg>` : 
+                        `<svg viewBox="0 0 24 24" width="48" height="48">
+                            <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                        </svg>`
+                    }
+                </div>
+                <h3>${hasErrors ? 'Upload Partially Complete' : 'Upload Complete'}</h3>
+                <p class="completion-message">
+                    ${successCount} of ${totalCount} receipts were successfully processed.
+                </p>
+                <div class="completion-actions">
+                    <button class="completion-btn primary">View Dashboard</button>
+                    <button class="completion-btn secondary">Close</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(completionModal);
+        
+        // Add event listeners
+        const primaryBtn = completionModal.querySelector('.completion-btn.primary');
+        primaryBtn.addEventListener('click', () => {
+            completionModal.classList.add('fade-out');
+            setTimeout(() => completionModal.remove(), 300);
+            routeUser(); // Navigate to dashboard
+        });
+        
+        const secondaryBtn = completionModal.querySelector('.completion-btn.secondary');
+        secondaryBtn.addEventListener('click', () => {
+            completionModal.classList.add('fade-out');
+            setTimeout(() => completionModal.remove(), 300);
+        });
+        
+        // Show confetti for successful uploads
+        if (!hasErrors) {
+            showConfetti();
+        }
+        
+        // Force reflow then add show class for animation
+        completionModal.offsetHeight;
+        completionModal.classList.add('show');
+    }
 });
