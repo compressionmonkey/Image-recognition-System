@@ -882,57 +882,138 @@ const s3Upload = multer({
 async function updateReceiptDataBulk(receiptDataArray) {
     console.log(`Processing ${receiptDataArray.length} receipts in bulk`);
     
-    // Track results for each receipt
+    // Group receipts by customer ID to handle different spreadsheets
+    const receiptsByCustomer = {};
+    
+    // Track results for reporting
     const results = [];
     
-    // Process receipts sequentially to avoid potential rate limiting with Google Sheets API
+    // First, organize receipts by customer ID
     for (let i = 0; i < receiptDataArray.length; i++) {
         const receiptData = receiptDataArray[i];
-        try {
-            // Get sheet ID for this customer
-            const sheetId = customerSheets[receiptData.customerID];
-            if (!sheetId) {
-                results.push({
-                    success: false,
-                    error: 'Invalid customer ID or sheet ID not found',
-                    receiptId: receiptData.referenceNo || 'Unknown',
-                    amount: receiptData.amount || '0.00'
-                });
-                continue; // Skip to next receipt
-            }
-            
-            const spreadsheetCustomerID = pickCustomerSheet(receiptData.customerID);
-            
-            // Format data for Google Sheets
-            const rowData = {
-                'OCR Timestamp': receiptData['OCR Timestamp'] || new Date().toISOString(),
-                'Reference Number': receiptData.referenceNo || 'MANUAL',
-                'Amount': receiptData.amount,
-                'Recognized Text': receiptData['Recognized Text'] || '',
-                'Payment Method': receiptData['Payment Method'] || 'Bank Receipt',
-                'Bank': receiptData['Bank'] || 'Unknown',
-                'Particulars': receiptData['Particulars'] || '',
-                'Receipt URL': receiptData['Receipt URL']
-            };
-
-            // Write to sheet with error handling
-            await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
-            
-            // Record success
-            results.push({
-                success: true,
-                receiptId: receiptData.referenceNo || 'MANUAL',
-                amount: receiptData.amount
-            });
-        } catch (error) {
-            console.error(`Error updating receipt data at index ${i}:`, error);
-            // Record failure but continue processing others
+        const customerID = receiptData.customerID;
+        
+        if (!customerSheets[customerID]) {
             results.push({
                 success: false,
-                error: error.message || 'Unknown error occurred',
+                error: 'Invalid customer ID or sheet ID not found',
                 receiptId: receiptData.referenceNo || 'Unknown',
                 amount: receiptData.amount || '0.00'
             });
+            continue;
+        }
+        
+        if (!receiptsByCustomer[customerID]) {
+            receiptsByCustomer[customerID] = [];
+        }
+        
+        receiptsByCustomer[customerID].push({
+            receiptData,
+            index: i
+        });
+    }
+    
+    try {
+        // Read and use service account credentials
+        let credentials;
+        try {
+            // Clean the credentials string by removing control characters
+            const credentialsString = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+            
+            credentials = JSON.parse(credentialsString);
+        } catch (parseError) {
+            console.error('Error parsing credentials:', parseError);
+            throw new Error('Invalid Google credentials format. Please check your environment variables.');
+        }
+        
+        // Create JWT client using service account credentials
+        const jwtClient = new google.auth.JWT(
+            credentials.client_email,
+            null,
+            credentials.private_key,
+            ['https://www.googleapis.com/auth/spreadsheets']
+        );
+
+        // Authorize the client
+        await jwtClient.authorize();
+
+        // Get the access token
+        const token = await jwtClient.getAccessToken();
+        
+        // Process each customer's receipts in a single batch request
+        for (const [customerID, receipts] of Object.entries(receiptsByCustomer)) {
+            const sheetId = customerSheets[customerID];
+            const spreadsheetCustomerID = pickCustomerSheet(customerID);
+            
+            // Prepare values for batch update
+            const values = receipts.map(({ receiptData }) => {
+                const createdAt = formatCreatedTime();
+                return [
+                    receiptData.referenceNo || 'MANUAL',
+                    false, // checked
+                    receiptData['Particulars'] || '',
+                    receiptData.amount || '0.00',
+                    receiptData['Bank'] || '',
+                    createdAt,
+                    receiptData['Payment Method'] || 'Bank Receipt',
+                    receiptData['OCR Timestamp'] || '',
+                    receiptData['Recognized Text'] || '',
+                    receiptData['Receipt URL'] || ''
+                ];
+            });
+            
+            // Make a single batch request to Google Sheets API
+            const response = await axios({
+                method: 'post',
+                url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${sheetId}!A:J:append?valueInputOption=USER_ENTERED`,
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    majorDimension: "ROWS",
+                    values: values
+                }
+            });
+            
+            console.log(`Batch update successful for customer ${customerID}:`, response.data);
+            
+            // Mark all receipts for this customer as successful
+            receipts.forEach(({ receiptData, index }) => {
+                results[index] = {
+                    success: true,
+                    receiptId: receiptData.referenceNo || 'MANUAL',
+                    amount: receiptData.amount || '0.00'
+                };
+            });
+        }
+        
+        // Fill in any missing results (should not happen, but just in case)
+        for (let i = 0; i < receiptDataArray.length; i++) {
+            if (!results[i]) {
+                results[i] = {
+                    success: false,
+                    error: 'Receipt was not processed',
+                    receiptId: receiptDataArray[i].referenceNo || 'Unknown',
+                    amount: receiptDataArray[i].amount || '0.00'
+                };
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error in batch update:', error);
+        
+        // Mark any remaining unprocessed receipts as failed
+        for (let i = 0; i < receiptDataArray.length; i++) {
+            if (!results[i]) {
+                results[i] = {
+                    success: false,
+                    error: error.message || 'Unknown error occurred during batch update',
+                    receiptId: receiptDataArray[i].referenceNo || 'Unknown',
+                    amount: receiptDataArray[i].amount || '0.00'
+                };
+            }
         }
     }
     
