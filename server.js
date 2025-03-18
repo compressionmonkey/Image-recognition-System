@@ -1406,7 +1406,7 @@ app.post('/upload-receipt', async (req, res) => {
 //     });
 
 app.post('/multiple-vision-api', async (req, res) => {
-    const { images } = req.body;
+    const { images, customerID } = req.body;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
     if (!images || !Array.isArray(images) || images.length === 0) {
@@ -1417,9 +1417,61 @@ app.post('/multiple-vision-api', async (req, res) => {
     }
 
     try {
+        // First upload all images to S3 and get the URLs
+        const imagesWithS3Urls = await Promise.all(images.map(async (img, index) => {
+            try {
+                // Convert base64 to buffer
+                const buffer = Buffer.from(img.image, 'base64');
+                
+                // Generate unique filename
+                const timestamp = Date.now();
+                let tableName;
+                
+                try {
+                    tableName = checkCurrentUser(customerID);
+                } catch (e) {
+                    // Fall back to 'unknown' if customer ID is invalid
+                    tableName = 'unknown';
+                }
+                
+                const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${img.filename || 'receipt.jpg'}`;
+                
+                // Set up S3 upload parameters
+                const uploadParams = {
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: uniqueFilename,
+                    Body: buffer,
+                    ContentType: 'image/jpeg'
+                };
+
+                // Upload to S3
+                const command = new PutObjectCommand(uploadParams);
+                await s3Client.send(command);
+
+                // Generate pre-signed URL
+                const getObjectCommand = new GetObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: uniqueFilename
+                });
+                
+                const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+                    expiresIn: 86400 // URL valid for 24 hours
+                });
+
+                return {
+                    ...img,
+                    imageUrl: signedUrl,
+                    imageFileName: uniqueFilename
+                };
+            } catch (error) {
+                console.error(`Error uploading image ${index} to S3:`, error);
+                // Return the original image without S3 details
+                return img;
+            }
+        }));
+
         // Prepare the API request for Google Vision API
-        // This is a batch request with multiple images in one call
-        const requests = images.map(img => ({
+        const requests = imagesWithS3Urls.map(img => ({
             image: {
                 content: img.image
             },
@@ -1468,10 +1520,12 @@ app.post('/multiple-vision-api', async (req, res) => {
                     const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
                     
                     if (isReceipt) {
-                        // Add the corresponding image filename and index
+                        // Add the corresponding image filename, index, and S3 URL
                         resultsArray.push({
-                            index: images[i].index,
-                            filename: images[i].filename,
+                            index: imagesWithS3Urls[i].index,
+                            filename: imagesWithS3Urls[i].filename,
+                            imageUrl: imagesWithS3Urls[i].imageUrl,
+                            imageFileName: imagesWithS3Urls[i].imageFileName,
                             amount: receiptData.Amount,
                             referenceNo: receiptData.ReferenceNo,
                             Date: receiptData.Date,
@@ -1483,8 +1537,10 @@ app.post('/multiple-vision-api', async (req, res) => {
                     } else {
                         // Add a failed result
                         resultsArray.push({
-                            index: images[i].index,
-                            filename: images[i].filename,
+                            index: imagesWithS3Urls[i].index,
+                            filename: imagesWithS3Urls[i].filename,
+                            imageUrl: imagesWithS3Urls[i].imageUrl,
+                            imageFileName: imagesWithS3Urls[i].imageFileName,
                             error: 'No receipt data detected',
                             recognizedText
                         });
@@ -1492,8 +1548,10 @@ app.post('/multiple-vision-api', async (req, res) => {
                 } else {
                     // Add a failed result due to low confidence
                     resultsArray.push({
-                        index: images[i].index,
-                        filename: images[i].filename,
+                        index: imagesWithS3Urls[i].index,
+                        filename: imagesWithS3Urls[i].filename,
+                        imageUrl: imagesWithS3Urls[i].imageUrl,
+                        imageFileName: imagesWithS3Urls[i].imageFileName,
                         error: 'Text confidence score is below threshold',
                         confidence: confidence,
                         threshold: 0.7
