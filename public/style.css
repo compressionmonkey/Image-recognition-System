@@ -300,6 +300,37 @@ header {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    position: relative;
+}
+
+.modal-content .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.modal-content .close-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: scale(1.1);
+}
+
+.modal-content .close-btn:active {
+    transform: scale(0.95);
 }
 
 .modal-content button {
@@ -623,19 +654,30 @@ header {
     position: absolute;
     top: 10px;
     right: 10px;
-    background: none;
+    background: rgba(0, 0, 0, 0.6);
     border: none;
     font-size: 24px;
-    color: #666;
+    color: white;
     cursor: pointer;
     padding: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     line-height: 1;
     z-index: 10;
-    transition: color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .camera-content .close-btn:hover {
-    color: #333;
+    background: rgba(0, 0, 0, 0.8);
+    transform: scale(1.1);
+}
+
+.camera-content .close-btn:active {
+    transform: scale(0.95);
 }
 
 #camera-preview {
@@ -934,7 +976,6 @@ header {
 }
 
 @keyframes countdownPulse {
-
     0% {
         opacity: 0;
         transform: translate(-50%, -50%) scale(1.5);

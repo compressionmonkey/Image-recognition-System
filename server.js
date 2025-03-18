@@ -1406,7 +1406,7 @@ app.post('/upload-receipt', async (req, res) => {
 //     });
 
 app.post('/multiple-vision-api', async (req, res) => {
-    const { images, customerID, deviceInfo, screenResolution, paymentMethod, startTime } = req.body;
+    const { images } = req.body;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
     if (!images || !Array.isArray(images) || images.length === 0) {

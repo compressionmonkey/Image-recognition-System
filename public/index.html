@@ -75,6 +75,7 @@
     <!-- Add this before </body> -->
     <div id="confirmationModal" class="modal">
         <div class="modal-content">
+            <button class="close-btn" onclick="closeConfirmationModal()">&times;</button>
             <!-- <div class="question-icon">❓</div>
             <h2>Is this the correct details?</h2> -->
             <form id="confirmationForm">
@@ -142,6 +143,7 @@
     <!-- Manual Receipt Entry Modal -->
     <div id="manualEntryModal" class="photo-options-modal" style="display: none;">
         <div class="modal-content">
+            <button class="close-btn" onclick="closeManualEntryModal()">&times;</button>
             <h3>Add Cash Receipt</h3>
             <form id="manualReceiptForm">
                 <div class="form-group">
@@ -168,7 +170,6 @@
                     <span class="icon" style="color: white !important;">💾</span>
                     Submit
                 </button>
-                <button type="button" class="cancel-btn" onclick="closeManualEntryModal()">Cancel</button>
             </form>
         </div>
     </div>
