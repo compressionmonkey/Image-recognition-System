@@ -1828,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     reference: reference,
                     particulars: particulars,
                     date: date,
-                    ocrData: entry.ocrData || null
+                    ocrData: entry.originalOcrData || null
                 });
             }
             
