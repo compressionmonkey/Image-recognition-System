@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
+    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72', 'HFpuU', 'eqmB4', 't0Ctf', 'ChQsf', 'FVQbb'];
     let isLoggedIn = false;
     let children = [];
     let currentConfirmationData = null;
