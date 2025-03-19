@@ -1750,7 +1750,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="network-speed"></div>
                     <div class="loading-note">It could take up to 20 seconds depending on your internet speed.</div>
-                    <button class="loading-cancel-btn">Don't want to wait?</button>
+                    <button class="loading-cancel-btn">Close & Continue in Background</button>
                 </div>
             </div>
         `;

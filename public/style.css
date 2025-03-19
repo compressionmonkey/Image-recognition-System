@@ -2067,22 +2067,37 @@ close-btn:hover {
     box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
 }
 
-/* Cancel Button for Interruptible Operations */
-.loading-cancel-btn {
-    margin-top: 1rem;
-    padding: 8px 16px;
-    background: transparent;
-    border: 1px solid #ddd;
-    border-radius: 20px;
-    color: #666;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
+/* Updated loading-cancel-btn styling */
+.loading-content .loading-cancel-btn,
+button.loading-cancel-btn {
+    background-color: #ff3b30 !important;
+    color: white !important;
+    border: none !important;
+    padding: 10px 20px !important;
+    border-radius: 20px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 4px rgba(255, 59, 48, 0.2) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    margin: 16px auto 0 !important;
+    max-width: none !important;
+    width: auto !important;
 }
 
-.loading-cancel-btn:hover {
-    background: #f5f5f5;
-    color: #333;
+.loading-content .loading-cancel-btn:hover,
+button.loading-cancel-btn:hover {
+    background-color: #ff4f45 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 8px rgba(255, 59, 48, 0.3) !important;
+}
+
+/* Fix for iOS devices where button styling can be inconsistent */
+.loading-content .loading-cancel-btn:before,
+button.loading-cancel-btn:before {
+    content: "✖ ";
+    margin-right: 5px;
 }
 
 /* Accessibility */
