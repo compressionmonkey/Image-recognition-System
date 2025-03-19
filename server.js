@@ -65,9 +65,14 @@ app.get('/', (req, res) => {
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
     '0e702': 'Dhapa',    // CUSTOMER_2
-    '571b6': 'Kaldens',    // CUSTOMER_3
+    '571b6': 'RoofTop',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
-    '72d72': 'Customer5'     // CUSTOMER_5
+    '72d72': 'Customer5',     // CUSTOMER_5
+    'HFpuU': 'Customer6',     // CUSTOMER_6
+    'eqmB4': 'Customer7',     // CUSTOMER_7
+    't0Ctf': 'Customer8',     // CUSTOMER_8
+    'ChQsf': 'Customer9',     // CUSTOMER_9
+    'FVQbb': 'Customer10',     // CUSTOMER_10
 };
 
 function pickCustomerSheet(customerID) {
@@ -77,11 +82,21 @@ function pickCustomerSheet(customerID) {
         case '0e702':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_DHAPA_ID;
         case '571b6':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_KALDENS_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_ROOFTOP_ID;
         case 'be566':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         case '72d72':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER5_ID;
+        case 'HFpuU':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER6_ID;
+        case 'eqmB4':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER7_ID;
+        case 't0Ctf':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER8_ID;
+        case 'ChQsf':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER9_ID;
+        case 'FVQbb':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER10_ID;
     }
 }
 
