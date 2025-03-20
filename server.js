@@ -68,7 +68,7 @@ const customerSheets = {
     '571b6': 'RoofTop',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
     '72d72': 'OmBakery',     // CUSTOMER_5
-    'HFpuU': 'Customer6',     // CUSTOMER_6
+    'HFpuU': 'SunRiseBakery',     // CUSTOMER_6
     'eqmB4': 'Customer7',     // CUSTOMER_7
     't0Ctf': 'Customer8',     // CUSTOMER_8
     'ChQsf': 'Customer9',     // CUSTOMER_9
@@ -88,7 +88,7 @@ function pickCustomerSheet(customerID) {
         case '72d72':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_OMBAKERY_ID;
         case 'HFpuU':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER6_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_SUNRISEBAKERY_ID;
         case 'eqmB4':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER7_ID;
         case 't0Ctf':
