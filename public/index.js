@@ -42,11 +42,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Validate input
         if (!amount || isNaN(amount) || amount <= 0) {
             showToast('Please enter a valid amount', 'error');
+            // Re-enable button if validation fails
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
             return;
         }
         
         if (!particulars) {
             showToast('Please enter particulars', 'error');
+            // Re-enable button if validation fails
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
             return;
         }
         
