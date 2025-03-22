@@ -1515,3 +1515,70 @@ close-btn:hover {
     font-weight: 600;  /* Makes text bold (600 is semi-bold) */
     /* or use font-weight: bold; for even bolder text */
 }
+
+/* Draggable modal styles */
+.modal-header {
+    padding: 8px;
+    cursor: move;
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 10px 10px 0 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.drag-handle {
+    width: 30px;
+    height: 5px;
+    background-color: #ccc;
+    border-radius: 3px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.drag-icon {
+    color: #777;
+    font-weight: bold;
+}
+
+/* Make modal content scrollable */
+#confirmationModal .modal-content {
+    max-height: 85vh;
+    overflow-y: auto;
+    padding-right: 15px; /* Add some padding for the scrollbar */
+    position: relative; /* Needed for dragging */
+    transition: none; /* Remove transitions for smoother dragging */
+}
+
+/* Mobile specific styles */
+@media (max-width: 768px) {
+    #confirmationModal .modal-content {
+        max-height: 80vh;
+        width: 90%;
+        margin: 0 auto;
+    }
+    
+    /* Make it easier to scroll on mobile */
+    #confirmationModal .modal-content::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    #confirmationModal .modal-content::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+    }
+    
+    /* Add some spacing between form elements on mobile */
+    #confirmationModal .form-group {
+        margin-bottom: 20px;
+    }
+}
+
+/* For touch devices, make sure scrolling works properly */
+@media (pointer: coarse) {
+    #confirmationModal .modal-content {
+        -webkit-overflow-scrolling: touch;
+    }
+}

@@ -611,6 +611,76 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Add this function to make the modal draggable
+    function makeModalDraggable() {
+        const modal = document.getElementById('confirmationModalContent');
+        const dragHandle = document.getElementById('dragHandle');
+        
+        if (!modal || !dragHandle) return;
+        
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+        
+        // Touch events for mobile
+        dragHandle.addEventListener('touchstart', dragStart, false);
+        document.addEventListener('touchend', dragEnd, false);
+        document.addEventListener('touchmove', drag, false);
+        
+        // Mouse events for desktop
+        dragHandle.addEventListener('mousedown', dragStart, false);
+        document.addEventListener('mouseup', dragEnd, false);
+        document.addEventListener('mousemove', drag, false);
+        
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+            
+            if (e.target === dragHandle || e.target.parentNode === dragHandle) {
+                isDragging = true;
+            }
+        }
+        
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+        
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+                
+                xOffset = currentX;
+                yOffset = currentY;
+                
+                setTranslate(currentX, currentY, modal);
+            }
+        }
+        
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+    }
+
+    // Update the showConfirmationModal function to initialize draggable behavior
     function showConfirmationModal(data) {
         const modal = document.getElementById('confirmationModal');
         const amountInput = document.getElementById('confirmAmount');
@@ -655,6 +725,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show the modal first
         if (modal) {
             modal.style.display = 'flex';
+            
+            // Reset any previous transform
+            const modalContent = document.getElementById('confirmationModalContent');
+            if (modalContent) {
+                modalContent.style.transform = 'translate3d(0px, 0px, 0)';
+            }
+            
+            // Initialize draggable behavior
+            makeModalDraggable();
         } else {
             console.error('Confirmation modal not found in DOM');
         }
@@ -665,6 +744,28 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add date change event listener
         if (dateInput) {
             dateInput.addEventListener('change', (e) => validateDate(e.target.value));
+        }
+    }
+
+    // Update the closeConfirmationModal function to reset the position
+    function closeConfirmationModal() {
+        const modal = document.getElementById('confirmationModal');
+        if (modal) {
+            // Re-enable the confirm button
+            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.style.opacity = '1';
+                confirmButton.style.cursor = 'pointer';
+            }
+            
+            // Reset the modal position before closing
+            const modalContent = document.getElementById('confirmationModalContent');
+            if (modalContent) {
+                modalContent.style.transform = 'translate3d(0px, 0px, 0)';
+            }
+            
+            modal.style.display = 'none';
         }
     }
 
@@ -758,20 +859,6 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmButton.style.cursor = 'pointer';
             showToast('Failed to confirm receipt', 'error');
         });
-    }
-
-    function closeConfirmationModal() {
-        const modal = document.getElementById('confirmationModal');
-        if (modal) {
-            // Re-enable the confirm button
-            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
-            if (confirmButton) {
-                confirmButton.disabled = false;
-                confirmButton.style.opacity = '1';
-                confirmButton.style.cursor = 'pointer';
-            }
-            modal.style.display = 'none';
-        }
     }
 
     async function processImage(file) {
