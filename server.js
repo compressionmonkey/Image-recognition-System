@@ -69,7 +69,7 @@ const customerSheets = {
     'be566': 'MeatShop',    // CUSTOMER_4
     '72d72': 'OmBakery',     // CUSTOMER_5
     'HFpuU': 'SunRiseBakery',     // CUSTOMER_6
-    'eqmB4': 'Customer7',     // CUSTOMER_7
+    'eqmB4': 'JunctionMart',     // CUSTOMER_7
     't0Ctf': 'Customer8',     // CUSTOMER_8
     'ChQsf': 'Customer9',     // CUSTOMER_9
     'FVQbb': 'Customer10',     // CUSTOMER_10
@@ -90,7 +90,7 @@ function pickCustomerSheet(customerID) {
         case 'HFpuU':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_SUNRISEBAKERY_ID;
         case 'eqmB4':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER7_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_JUNCTIONMART_ID;
         case 't0Ctf':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER8_ID;
         case 'ChQsf':
@@ -128,8 +128,37 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             rowData: JSON.stringify(rowData),
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
         });
+        let response;
         // Make the request to Google Sheets API
-        const response = await fetch(
+        if(spreadsheetCustomerID == '17hsl2RUbeXaeGCbcf3wFHLxn0yQH9aDIRCjGxykUgnY'){
+            response = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token.token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        majorDimension: "ROWS",
+                        values: [[
+                            rowData['Reference Number'] || '',
+                            false, //checked
+                            rowData['Particulars'] || '',
+                            rowData['Amount'] || '',
+                            rowData['Bank'] || '',
+                            createdAt,
+                            rowData['Remarks'] || '',
+                            rowData['Payment Method'] || '',
+                            rowData['OCR Timestamp'] || '',
+                            rowData['Recognized Text'] || '',
+                            rowData['Receipt URL'] || ''
+                        ]]
+                    })
+                }
+            );
+        } else {
+        response = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
             {
                 method: 'POST',
@@ -154,6 +183,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                 })
             }
         );
+        }
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -866,6 +896,11 @@ async function updateReceiptData(receiptData) {
             'Particulars': receiptData['Particulars'],
             'Receipt URL': receiptData['Receipt URL']
         };
+        
+        // Add remarks only if customer is "eqmB4" and remarks exist
+        if (receiptData.customerID === 'eqmB4' && receiptData['Remarks']) {
+            rowData['Remarks'] = receiptData['Remarks'];
+        }
 
         await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
         return true;
@@ -959,7 +994,7 @@ app.post('/vision-api', async (req, res) => {
 
 // Add this new endpoint for recording cash transactions
 app.post('/record-cash', async (req, res) => {
-    const { amount, paymentMethod, customerID, particulars } = req.body;
+    const { amount, paymentMethod, customerID, particulars, remarks } = req.body;
     const spreadsheetCustomerID = pickCustomerSheet(customerID);
     const sheetId = customerSheets[customerID];
     try {
@@ -983,6 +1018,11 @@ app.post('/record-cash', async (req, res) => {
             'Amount': amount,
             'Payment Method': paymentMethod,
         };
+        
+        // Add remarks only if customer is "eqmB4"
+        if (customerID === 'eqmB4' && remarks) {
+            rowData['Remarks'] = remarks;
+        }
 
         await writeToSheet(`${sheetId}!A:I`, rowData, spreadsheetCustomerID);
 
@@ -993,6 +1033,7 @@ app.post('/record-cash', async (req, res) => {
                 amount,
                 paymentMethod,
                 particulars,
+                remarks: customerID === 'eqmB4' ? remarks : undefined,
                 timestamp: formatCreatedTime()
             }
         });

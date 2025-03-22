@@ -29,41 +29,39 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.style.opacity = '0.5';
         submitButton.style.cursor = 'not-allowed';
 
-        const amount = parseFloat(document.getElementById('amount').value);
+        const amount = document.getElementById('amount').value;
         const particulars = document.getElementById('particulars').value;
         const customerID = sessionStorage.getItem('customerID');
         
-        // Validate amount
+        // Get remarks value if the user is "eqmB4"
+        let remarks = '';
+        if (customerID === 'eqmB4') {
+            remarks = document.getElementById('remarks').value || '';
+        }
+        
+        // Validate input
         if (!amount || isNaN(amount) || amount <= 0) {
             showToast('Please enter a valid amount', 'error');
-            // Re-enable button if validation fails
-            submitButton.disabled = false;
-            submitButton.style.opacity = '1';
-            submitButton.style.cursor = 'pointer';
             return;
         }
-
+        
         if (!particulars) {
-            showToast('Please enter valid particulars', 'error');
-            // Re-enable button if validation fails
-            submitButton.disabled = false;
-            submitButton.style.opacity = '1';
-            submitButton.style.cursor = 'pointer';
+            showToast('Please enter particulars', 'error');
             return;
         }
         
         try {
-            // Send data to server
             const response = await fetch('/record-cash', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    amount: amount,
+                    amount: parseFloat(amount),
                     paymentMethod: 'Cash',
-                    customerID: customerID,
-                    particulars: particulars
+                    customerID,
+                    particulars,
+                    remarks  // Include remarks in payload
                 })
             });
 
@@ -124,6 +122,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show the modal
         const modal = document.getElementById('manualEntryModal');
         modal.style.display = 'flex';  // Make sure we're targeting the correct modal
+        
+        // Check if current user is "eqmB4" and show remarks field if so
+        const customerID = sessionStorage.getItem('customerID');
+        const remarksField = document.getElementById('remarksField');
+        
+        if (customerID === 'eqmB4') {
+            remarksField.style.display = 'block';
+        } else {
+            remarksField.style.display = 'none';
+        }
     }
 
     function validateLogin() {
@@ -619,6 +627,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (ParticularsInput) ParticularsInput.value = data.Particulars || '';
         if (dateInput) dateInput.value = data.Date || '';
 
+        // Check if user is "eqmB4" and show remarks field if so
+        const customerID = sessionStorage.getItem('customerID');
+        const remarksField = document.getElementById('confirmRemarksField');
+        
+        if (customerID === 'eqmB4' && remarksField) {
+            remarksField.style.display = 'block';
+        } else if (remarksField) {
+            remarksField.style.display = 'none';
+        }
+
         // Add view image button if not exists
         let viewImageBtn = modal.querySelector('.view-image-btn');
         if (!viewImageBtn && currentImageData) {
@@ -661,6 +679,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const referenceNo = document.getElementById('confirmReference').value;
         const Particulars = document.getElementById('confirmParticulars').value;
         const date = document.getElementById('confirmDate').value;
+        
+        // Get remarks value if customer is "eqmB4"
+        const customerID = sessionStorage.getItem('customerID');
+        let remarks = '';
+        if (customerID === 'eqmB4') {
+            remarks = document.getElementById('confirmRemarks')?.value || '';
+        }
 
         // Basic validation for empty fields
         if (!amount || !referenceNo || !Particulars || !date) {
@@ -682,9 +707,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Get customer ID from session storage
-        const customerID = sessionStorage.getItem('customerID');
-
         // Create confirmation data object
         const confirmationData = {
             customerID,
@@ -698,6 +720,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'Recognized Text': currentConfirmationData.recognizedText,
             'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
+        
+        // Only add remarks if customer is "eqmB4" and remarks exist
+        if (customerID === 'eqmB4' && remarks) {
+            confirmationData['Remarks'] = remarks;
+        }
+        
         console.log('confirmationData', confirmationData);
         // Send confirmation to server
         fetch('/confirm-receipt', {

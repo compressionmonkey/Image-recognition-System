@@ -110,6 +110,16 @@
                         Receipt Date is not today. Are you sure you want to add this?
                     </div>
                 </div>
+                
+                <div id="confirmRemarksField" class="form-group" style="display: none;">
+                    <label for="confirmRemarks">Remarks</label>
+                    <input type="text" 
+                           id="confirmRemarks" 
+                           name="confirmRemarks" 
+                           placeholder="Enter Remarks"
+                           style="box-sizing: border-box;">
+                </div>
+                
                 <div class="button-group">
                     <button type="button" class="primary-button" onclick="handleConfirmDetails()">Confirm Details</button>
                 </div>
@@ -161,6 +171,15 @@
                            name="particulars" 
                            required 
                            placeholder="Enter Particulars"
+                           style="box-sizing: border-box;">
+                </div>
+                
+                <div id="remarksField" class="form-group" style="display: none;">
+                    <label for="remarks">Remarks</label>
+                    <input type="text" 
+                           id="remarks" 
+                           name="remarks" 
+                           placeholder="Enter Remarks"
                            style="box-sizing: border-box;">
                 </div>
 
