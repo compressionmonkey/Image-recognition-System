@@ -157,6 +157,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                     })
                 }
             );
+            return;
         } if(spreadsheetCustomerID == '19KhGtgB7lWvB4Ae9v1k4cp7WuA_j0FF3U90RNf52Ljc'){
             response = await fetch(
                 `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
@@ -184,7 +185,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                     })
                 }
             );
-
+            return;
         } else {
         response = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
