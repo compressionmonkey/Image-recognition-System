@@ -1582,3 +1582,119 @@ close-btn:hover {
         -webkit-overflow-scrolling: touch;
     }
 }
+
+#confirmDiningField {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+#confirmDiningField:hover {
+    background-color: #e9ecef;
+}
+
+#confirmDiningField input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #adb5bd;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+#confirmDiningField input[type="checkbox"]:checked {
+    background-color: #000;
+    border-color: #000;
+}
+
+#confirmDiningField input[type="checkbox"]:checked::after {
+    content: '✓';
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+}
+
+#confirmDiningField input[type="checkbox"]:hover {
+    border-color: #000;
+}
+
+#confirmDiningField label {
+    cursor: pointer;
+    font-size: 16px;
+    color: #495057;
+    font-weight: 500;
+    user-select: none;
+}
+
+#confirmDiningField:focus-within {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+.dining-field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.dining-field:hover {
+    background-color: #e9ecef;
+}
+
+.dining-field input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #adb5bd;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.dining-field input[type="checkbox"]:checked {
+    background-color: #000;
+    border-color: #000;
+}
+
+.dining-field input[type="checkbox"]:checked::after {
+    content: '✓';
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+}
+
+.dining-field input[type="checkbox"]:hover {
+    border-color: #000;
+}
+
+.dining-field label {
+    cursor: pointer;
+    font-size: 16px;
+    color: #495057;
+    font-weight: 500;
+    user-select: none;
+}
+
+.dining-field:focus-within {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}

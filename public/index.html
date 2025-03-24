@@ -123,6 +123,15 @@
                            style="box-sizing: border-box;">
                 </div>
                 
+                <div id="confirmDiningField" class="form-group" style="display: none;">
+                    <div class="dining-field">
+                        <input type="checkbox" 
+                               id="confirmDiningCheck" 
+                               name="confirmDining">
+                        <label for="confirmDiningCheck">Dining</label>
+                    </div>
+                </div>
+                
                 <div class="button-group">
                     <button type="button" class="primary-button" onclick="handleConfirmDetails()">Confirm Details</button>
                 </div>
@@ -184,6 +193,15 @@
                            name="remarks" 
                            placeholder="Enter Remarks"
                            style="box-sizing: border-box;">
+                </div>
+
+                <div id="diningField" class="form-group" style="display: none;">
+                    <div class="dining-field">
+                        <input type="checkbox" 
+                               id="diningCheck" 
+                               name="dining">
+                        <label for="diningCheck">Dining</label>
+                    </div>
                 </div>
 
                 <button type="button" class="photo-option-btn" style="background: #000 !important; color: white !important;" onclick="handleManualSubmit()">

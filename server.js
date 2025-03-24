@@ -157,6 +157,34 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
                     })
                 }
             );
+        } if(spreadsheetCustomerID == '19KhGtgB7lWvB4Ae9v1k4cp7WuA_j0FF3U90RNf52Ljc'){
+            response = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token.token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        majorDimension: "ROWS",
+                        values: [[
+                            rowData['Reference Number'] || '',
+                            false, //checked
+                            rowData['Particulars'] || '',
+                            rowData['Amount'] || '',
+                            rowData['Bank'] || '',
+                            createdAt,
+                            rowData['Dining'],
+                            rowData['Payment Method'] || '',
+                            rowData['OCR Timestamp'] || '',
+                            rowData['Recognized Text'] || '',
+                            rowData['Receipt URL'] || ''
+                        ]]
+                    })
+                }
+            );
+
         } else {
         response = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
@@ -902,6 +930,10 @@ async function updateReceiptData(receiptData) {
             rowData['Remarks'] = receiptData['Remarks'];
         }
 
+        if(receiptData.customerID === 'HFpuU' && receiptData['Dining']){
+            rowData['Dining'] = receiptData['Dining'];
+        }
+
         await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
         return true;
     } catch (error) {
@@ -994,7 +1026,7 @@ app.post('/vision-api', async (req, res) => {
 
 // Add this new endpoint for recording cash transactions
 app.post('/record-cash', async (req, res) => {
-    const { amount, paymentMethod, customerID, particulars, remarks } = req.body;
+    const { amount, paymentMethod, customerID, particulars, remarks, isDining } = req.body;
     const spreadsheetCustomerID = pickCustomerSheet(customerID);
     const sheetId = customerSheets[customerID];
     try {
@@ -1022,6 +1054,10 @@ app.post('/record-cash', async (req, res) => {
         // Add remarks only if customer is "eqmB4"
         if (customerID === 'eqmB4' && remarks) {
             rowData['Remarks'] = remarks;
+        }
+
+        if(customerID === 'HFpuU' && isDining){
+            rowData['Dining'] = isDining;
         }
 
         await writeToSheet(`${sheetId}!A:I`, rowData, spreadsheetCustomerID);

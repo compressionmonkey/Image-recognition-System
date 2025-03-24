@@ -38,6 +38,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (customerID === 'eqmB4') {
             remarks = document.getElementById('remarks').value || '';
         }
+        let isDining = false;
+        if(customerID === 'HFpuU'){
+            const diningCheckbox = document.getElementById('diningCheck');
+            isDining = diningCheckbox.checked;
+        }
         
         // Validate input
         if (!amount || isNaN(amount) || amount <= 0) {
@@ -69,7 +74,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     paymentMethod: 'Cash',
                     customerID,
                     particulars,
-                    remarks  // Include remarks in payload
+                    remarks,  // Include remarks in payload
+                    isDining
                 })
             });
 
@@ -113,32 +119,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showManualEntryModal() {
         // Clear any existing values
-        document.getElementById('confirmAmount').value = '';
-        document.getElementById('confirmReference').value = '';
-        
-        // Set default date to today and validate
-        const today = new Date();
-        const dateValue = today.toISOString().split('T')[0];
-        const dateInput = document.getElementById('confirmDate');
-        dateInput.value = dateValue;
-        
-        // Remove any existing listener before adding a new one
-        dateInput.removeEventListener('change', validateDate);
-        dateInput.addEventListener('change', () => validateDate(dateInput.value));
-        validateDate(dateInput.value);
+        document.getElementById('amount').value = '';
+        document.getElementById('particulars').value = '';
         
         // Show the modal
         const modal = document.getElementById('manualEntryModal');
         modal.style.display = 'flex';  // Make sure we're targeting the correct modal
         
-        // Check if current user is "eqmB4" and show remarks field if so
+        // Check if current user is "eqmB4" or "HFpuU" and show appropriate fields
         const customerID = sessionStorage.getItem('customerID');
         const remarksField = document.getElementById('remarksField');
+        const diningField = document.getElementById('diningField');
         
+        // Show/hide remarks field for eqmB4
         if (customerID === 'eqmB4') {
             remarksField.style.display = 'block';
         } else {
             remarksField.style.display = 'none';
+        }
+
+        // Show/hide dining field for HFpuU
+        if (customerID === 'HFpuU') {
+            diningField.style.display = 'block';
+        } else {
+            diningField.style.display = 'none';
         }
     }
 
@@ -708,11 +712,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // Check if user is "eqmB4" and show remarks field if so
         const customerID = sessionStorage.getItem('customerID');
         const remarksField = document.getElementById('confirmRemarksField');
+        const confirmDiningField = document.getElementById('confirmDiningField');
         
+        // Show/hide remarks field for eqmB4
         if (customerID === 'eqmB4' && remarksField) {
             remarksField.style.display = 'block';
         } else if (remarksField) {
             remarksField.style.display = 'none';
+        }
+
+        // Show/hide dining field for HFpuU
+        if (customerID === 'HFpuU' && confirmDiningField) {
+            confirmDiningField.style.display = 'block';
+        } else if (confirmDiningField) {
+            confirmDiningField.style.display = 'none';
         }
 
         // Add view image button if not exists
@@ -796,6 +809,13 @@ document.addEventListener('DOMContentLoaded', function() {
             remarks = document.getElementById('confirmRemarks')?.value || '';
         }
 
+        // Get dining value if customer is "HFpuU"
+        let isDining = false;
+        if (customerID === 'HFpuU') {
+            const diningCheckbox = document.getElementById('confirmDiningCheck');
+            isDining = diningCheckbox.checked;
+        }
+
         // Basic validation for empty fields
         if (!amount || !referenceNo || !Particulars || !date) {
             showToast('Please fill in all fields', 'error');
@@ -830,11 +850,16 @@ document.addEventListener('DOMContentLoaded', function() {
             'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
         
-        // Only add remarks if customer is "eqmB4" and remarks exist
+        // Add remarks if customer is "eqmB4"
         if (customerID === 'eqmB4' && remarks) {
             confirmationData['Remarks'] = remarks;
         }
-        
+
+        // Add dining status if customer is "HFpuU"
+        if (customerID === 'HFpuU' && isDining) {
+            confirmationData['Dining'] = isDining;
+        }
+
         console.log('confirmationData', confirmationData);
         // Send confirmation to server
         fetch('/confirm-receipt', {
