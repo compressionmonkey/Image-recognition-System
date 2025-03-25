@@ -1198,26 +1198,27 @@ app.get('/get-daily-images', async (req, res) => {
 
         // Create date in Bangladesh timezone
         const targetDate = date ? 
-            new Date(new Date(date).toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })) : 
-            new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
-        
+            new Date(date) : 
+            new Date();
+            
         // Set to start of day in Bangladesh time
-        targetDate.setHours(0, 0, 0, 0);
+        const targetDateDhaka = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+        targetDateDhaka.setHours(0, 0, 0, 0);
         
         const selectedDateImages = [];
         let index = 0;
 
         for (const object of allContents) {
-            // Convert LastModified (UTC) to Bangladesh time (UTC+6)
+            // Convert LastModified to Dhaka time properly
             const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
             
             // Add index to the object processing
             object.index = index++;
-            // Compare dates by converting to local date string (YYYY-MM-DD)
-            const fileDateStr = bdFileDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
-            const targetDateStr = targetDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
             
-            // Compare the date strings
+            // Compare dates using local date strings in Dhaka timezone
+            const fileDateStr = bdFileDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
+            const targetDateStr = targetDateDhaka.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
+            
             if (fileDateStr === targetDateStr) {
                 const viewCommand = new GetObjectCommand({
                     Bucket: process.env.AWS_BUCKET_NAME,
@@ -1246,22 +1247,27 @@ app.get('/get-daily-images', async (req, res) => {
                     Key: object.Key
                 }));
 
+                // Format timestamp in Dhaka time
+                const timestamp = bdFileDate.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hour12: true,
+                    timeZone: 'Asia/Dhaka'
+                });
+
                 selectedDateImages.push({
                     id: object.LastModified.getTime(),
                     viewUrl,
                     downloadUrl,
-                    timestamp: bdFileDate.toLocaleString('en-US', {
-                        timeZone: 'Asia/Dhaka',
-                        hour12: true,
-                        hour: 'numeric',
-                        minute: 'numeric'
-                    }),
+                    timestamp,
                     size: formatFileSize(metadata.ContentLength),
                     filename: object.Key.split('/').pop(),
                     lastModified: bdFileDate.toISOString(),
                     debug: {
+                        originalUTC: object.LastModified,
+                        dhakaTime: bdFileDate,
                         fileDate: fileDateStr,
-                        compareDate: targetDateStr
+                        targetDate: targetDateStr
                     }
                 });
             }
@@ -1274,7 +1280,7 @@ app.get('/get-daily-images', async (req, res) => {
             success: true,
             images: selectedDateImages,
             count: selectedDateImages.length,
-            date: targetDate.toLocaleDateString('en-US', {
+            date: targetDateDhaka.toLocaleDateString('en-US', {
                 timeZone: 'Asia/Dhaka',
                 weekday: 'long',
                 year: 'numeric',
@@ -1282,9 +1288,8 @@ app.get('/get-daily-images', async (req, res) => {
                 day: 'numeric'
             }),
             debug: {
-                requestedDate: targetDate.toISOString(),
-                startOfDay: targetDate.toISOString(),
-                endOfDay: targetDate.toISOString(),
+                requestedDate: date,
+                dhakaDate: targetDateDhaka.toISOString(),
                 timezone: 'Asia/Dhaka (UTC+6)'
             }
         });
