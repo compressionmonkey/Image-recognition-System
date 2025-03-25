@@ -561,6 +561,7 @@ document.addEventListener('DOMContentLoaded', function() {
             gallery.appendChild(noImages);
         } else {
             data.images.forEach((image, index) => {
+                console.log('check', image, data)
                 const thumb = createThumbnail(image, index, data.images.length);
                 gallery.appendChild(thumb);
             });
