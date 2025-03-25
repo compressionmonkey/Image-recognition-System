@@ -1179,87 +1179,97 @@ app.get('/get-daily-images', async (req, res) => {
     const { customerID, date } = req.query;
     
     try {
-        // Get customer's table name
         const tableName = checkCurrentUser(customerID);
-        
-        // Create S3 command to list objects in the specific folder
-        const command = new ListObjectsV2Command({
-            Bucket: process.env.AWS_BUCKET_NAME,
-            Prefix: `receipts/${tableName}/`
-        });
+        let allContents = [];
+        let continuationToken = undefined;
 
-        // Get list of all objects in the folder
-        const data = await s3Client.send(command);
-        
-        // Use the provided date or default to yesterday
+        // Loop until we get all objects
+        do {
+            const command = new ListObjectsV2Command({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Prefix: `receipts/${tableName}/`,
+                ContinuationToken: continuationToken
+            });
+
+            const data = await s3Client.send(command);
+            allContents = [...allContents, ...(data.Contents || [])];
+            continuationToken = data.NextContinuationToken;
+        } while (continuationToken);
+
+        // Create date in Bangladesh timezone
         const targetDate = date ? 
-            new Date(date) : 
+            new Date(new Date(date).toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })) : 
             new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
         
+        // Set to start of day in Bangladesh time
         targetDate.setHours(0, 0, 0, 0);
-
-        // Filter and process images for the selected date
-        const selectedDateImages = [];
         
-        for (const object of data.Contents || []) {
-            // Extract timestamp from filename (assuming format: receipts/tableName/timestamp_filename.jpg)
-            const timestampMatch = object.Key.match(/\/(\d+)_/);
-            if (timestampMatch) {
-                const fileDate = new Date(parseInt(timestampMatch[1]));
-                fileDate.setHours(0, 0, 0, 0);
+        const selectedDateImages = [];
+        let index = 0;
 
-                // Check if image is from today
-                if (fileDate.getTime() === targetDate.getTime()) {
-                    // Generate two presigned URLs - one for viewing, one for downloading
-                    const viewCommand = new GetObjectCommand({
+        for (const object of allContents) {
+            // Convert LastModified (UTC) to Bangladesh time (UTC+6)
+            const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+            
+            // Add index to the object processing
+            object.index = index++;
+            // Compare dates by converting to local date string (YYYY-MM-DD)
+            const fileDateStr = bdFileDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
+            const targetDateStr = targetDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
+            
+            // Compare the date strings
+            console.log('fileDateStr',fileDateStr, object.index);
+            if (fileDateStr === targetDateStr) {
+                const viewCommand = new GetObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: object.Key,
+                    ResponseContentType: 'image/jpeg',
+                    ResponseContentDisposition: 'inline',
+                    ResponseCacheControl: 'public, max-age=3600'
+                });
+
+                const [viewUrl, downloadUrl] = await Promise.all([
+                    getSignedUrl(s3Client, viewCommand, { 
+                        expiresIn: 3600,
+                    }),
+                    getSignedUrl(s3Client, new GetObjectCommand({
                         Bucket: process.env.AWS_BUCKET_NAME,
                         Key: object.Key,
-                        ResponseContentType: 'image/jpeg',
-                        ResponseContentDisposition: 'inline',
-                        // Add query parameters for CDN/browser optimization
-                        ResponseCacheControl: 'public, max-age=3600'
-                    });
+                        ResponseContentDisposition: `attachment; filename="${object.Key.split('/').pop()}"`,
+                        ResponseCacheControl: 'private, no-cache'
+                    }), { 
+                        expiresIn: 3600 
+                    })
+                ]);
 
-                    // Generate URLs with different purposes
-                    const [viewUrl, downloadUrl] = await Promise.all([
-                        getSignedUrl(s3Client, viewCommand, { 
-                            expiresIn: 3600,
-                        }),
-                        getSignedUrl(s3Client, new GetObjectCommand({
-                            Bucket: process.env.AWS_BUCKET_NAME,
-                            Key: object.Key,
-                            ResponseContentDisposition: `attachment; filename="${object.Key.split('/').pop()}"`,
-                            ResponseCacheControl: 'private, no-cache'
-                        }), { 
-                            expiresIn: 3600 
-                        })
-                    ]);
+                const metadata = await s3Client.send(new HeadObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: object.Key
+                }));
 
-                    // Get basic metadata
-                    const metadata = await s3Client.send(new HeadObjectCommand({
-                        Bucket: process.env.AWS_BUCKET_NAME,
-                        Key: object.Key
-                    }));
-
-                    selectedDateImages.push({
-                        id: timestampMatch[1],  // Unique identifier
-                        viewUrl,           // Low-quality preview URL
-                        downloadUrl,            // High-quality download URL
-                        timestamp: new Date(parseInt(timestampMatch[1])).toLocaleString('en-US', {
-                            timeZone: 'Asia/Dhaka',
-                            hour12: true,
-                            hour: 'numeric',
-                            minute: 'numeric'
-                        }),
-                        size: formatFileSize(metadata.ContentLength),
-                        filename: object.Key.split('/').pop()
-                    });
-                }
+                selectedDateImages.push({
+                    id: object.LastModified.getTime(),
+                    viewUrl,
+                    downloadUrl,
+                    timestamp: bdFileDate.toLocaleString('en-US', {
+                        timeZone: 'Asia/Dhaka',
+                        hour12: true,
+                        hour: 'numeric',
+                        minute: 'numeric'
+                    }),
+                    size: formatFileSize(metadata.ContentLength),
+                    filename: object.Key.split('/').pop(),
+                    lastModified: bdFileDate.toISOString(),
+                    debug: {
+                        fileDate: fileDateStr,
+                        compareDate: targetDateStr
+                    }
+                });
             }
         }
 
-        // Sort by timestamp (newest first)
-        selectedDateImages.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+        // Sort by LastModified timestamp (newest first)
+        selectedDateImages.sort((a, b) => b.id - a.id);
 
         res.json({
             success: true,
@@ -1271,7 +1281,13 @@ app.get('/get-daily-images', async (req, res) => {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
-            })
+            }),
+            debug: {
+                requestedDate: targetDate.toISOString(),
+                startOfDay: targetDate.toISOString(),
+                endOfDay: targetDate.toISOString(),
+                timezone: 'Asia/Dhaka (UTC+6)'
+            }
         });
 
     } catch (error) {

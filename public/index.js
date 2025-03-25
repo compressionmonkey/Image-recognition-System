@@ -454,11 +454,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const datePickerContainer = document.createElement('div');
         datePickerContainer.className = 'form-group';
         
-        // Set max date to tomorrow
+        // Set max date to today
         const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const maxDate = tomorrow.toISOString().split('T')[0];
+        const maxDate = today.toISOString().split('T')[0];
         
         // Set min date to 3 months ago
         const threeMonthsAgo = new Date();
