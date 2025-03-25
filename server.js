@@ -1204,7 +1204,7 @@ app.get('/get-daily-images', async (req, res) => {
         let index = 0;
 
         for (const object of allContents) {
-            // Convert LastModified to Dhaka time once
+            // First conversion to Dhaka time
             const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
 
             console.log('object.LastModified', object.LastModified);
@@ -1238,12 +1238,11 @@ app.get('/get-daily-images', async (req, res) => {
                     Key: object.Key
                 }));
 
-                // Use the already converted bdFileDate for timestamp
+                // Don't specify timezone again in timestamp formatting since bdFileDate is already in Dhaka time
                 const timestamp = bdFileDate.toLocaleString('en-US', {
                     hour: 'numeric',
                     minute: 'numeric',
-                    hour12: true,
-                    timeZone: 'Asia/Dhaka'
+                    hour12: true
                 });
 
                 console.log('timestamp', timestamp);
