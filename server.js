@@ -1196,50 +1196,38 @@ app.get('/get-daily-images', async (req, res) => {
             continuationToken = data.NextContinuationToken;
         } while (continuationToken);
 
-        // Create date in Bangladesh timezone
-        const targetDate = date ? 
-            new Date(date) : 
-            new Date();
-            
-        // Set to start of day in Bangladesh time
-        const targetDateDhaka = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+        // Create target date in Dhaka timezone once
+        const targetDateDhaka = new Date(date ? date : new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
         targetDateDhaka.setHours(0, 0, 0, 0);
         
         const selectedDateImages = [];
         let index = 0;
 
         for (const object of allContents) {
-            // Convert LastModified to Dhaka time properly
+            // Convert LastModified to Dhaka time once
             const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
             
-            // Add index to the object processing
-            object.index = index++;
+            // Compare dates using simple date comparison after timezone conversion
+            const isSameDate = 
+                bdFileDate.getFullYear() === targetDateDhaka.getFullYear() &&
+                bdFileDate.getMonth() === targetDateDhaka.getMonth() &&
+                bdFileDate.getDate() === targetDateDhaka.getDate();
             
-            // Compare dates using local date strings in Dhaka timezone
-            const fileDateStr = bdFileDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
-            const targetDateStr = targetDateDhaka.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
-            
-            if (fileDateStr === targetDateStr) {
-                const viewCommand = new GetObjectCommand({
-                    Bucket: process.env.AWS_BUCKET_NAME,
-                    Key: object.Key,
-                    ResponseContentType: 'image/jpeg',
-                    ResponseContentDisposition: 'inline',
-                    ResponseCacheControl: 'public, max-age=3600'
-                });
-
+            if (isSameDate) {
                 const [viewUrl, downloadUrl] = await Promise.all([
-                    getSignedUrl(s3Client, viewCommand, { 
-                        expiresIn: 3600,
-                    }),
+                    getSignedUrl(s3Client, new GetObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key,
+                        ResponseContentType: 'image/jpeg',
+                        ResponseContentDisposition: 'inline',
+                        ResponseCacheControl: 'public, max-age=3600'
+                    }), { expiresIn: 3600 }),
                     getSignedUrl(s3Client, new GetObjectCommand({
                         Bucket: process.env.AWS_BUCKET_NAME,
                         Key: object.Key,
                         ResponseContentDisposition: `attachment; filename="${object.Key.split('/').pop()}"`,
                         ResponseCacheControl: 'private, no-cache'
-                    }), { 
-                        expiresIn: 3600 
-                    })
+                    }), { expiresIn: 3600 })
                 ]);
 
                 const metadata = await s3Client.send(new HeadObjectCommand({
@@ -1247,8 +1235,8 @@ app.get('/get-daily-images', async (req, res) => {
                     Key: object.Key
                 }));
 
-                // Format timestamp in Dhaka time
-                const timestamp = bdFileDate.toLocaleTimeString('en-US', {
+                // Use the already converted bdFileDate for timestamp
+                const timestamp = bdFileDate.toLocaleString('en-US', {
                     hour: 'numeric',
                     minute: 'numeric',
                     hour12: true,
@@ -1263,12 +1251,7 @@ app.get('/get-daily-images', async (req, res) => {
                     size: formatFileSize(metadata.ContentLength),
                     filename: object.Key.split('/').pop(),
                     lastModified: bdFileDate.toISOString(),
-                    debug: {
-                        originalUTC: object.LastModified,
-                        dhakaTime: bdFileDate,
-                        fileDate: fileDateStr,
-                        targetDate: targetDateStr
-                    }
+                    index: index++
                 });
             }
         }
@@ -1286,12 +1269,7 @@ app.get('/get-daily-images', async (req, res) => {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
-            }),
-            debug: {
-                requestedDate: date,
-                dhakaDate: targetDateDhaka.toISOString(),
-                timezone: 'Asia/Dhaka (UTC+6)'
-            }
+            })
         });
 
     } catch (error) {
