@@ -1218,7 +1218,6 @@ app.get('/get-daily-images', async (req, res) => {
             const targetDateStr = targetDate.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
             
             // Compare the date strings
-            console.log('fileDateStr',fileDateStr, object.index);
             if (fileDateStr === targetDateStr) {
                 const viewCommand = new GetObjectCommand({
                     Bucket: process.env.AWS_BUCKET_NAME,
