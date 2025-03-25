@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
 import { google } from 'googleapis';
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 
@@ -1175,32 +1175,120 @@ app.post('/upload-receipt', async (req, res) => {
     }
 });
 
-// Optional: Add endpoint to regenerate signed URL for existing images
-// app.get('/get-image-url', async (req, res) => {
-//     try {
-//         const { key } = req.query;
+app.get('/get-daily-images', async (req, res) => {
+    const { customerID, date } = req.query;
+    
+    try {
+        // Get customer's table name
+        const tableName = checkCurrentUser(customerID);
         
-//         const command = new GetObjectCommand({
-//             Bucket: process.env.AWS_BUCKET_NAME,
-//             Key: key
-//         });
-        
-//         const signedUrl = await getSignedUrl(s3Client, command, { 
-//             expiresIn: 3600 
-//         });
+        // Create S3 command to list objects in the specific folder
+        const command = new ListObjectsV2Command({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Prefix: `receipts/${tableName}/`
+        });
 
-//         res.json({
-//             success: true,
-//             url: signedUrl
-//         });
-//     } catch (error) {
-//         console.error('Error generating signed URL:', error);
-//         res.status(500).json({
-//             success: false,
-//             error: 'Failed to generate URL'
-//         });
-//     }
-// });
+        // Get list of all objects in the folder
+        const data = await s3Client.send(command);
+        
+        // Use the provided date or default to yesterday
+        const targetDate = date ? 
+            new Date(date) : 
+            new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+        
+        targetDate.setHours(0, 0, 0, 0);
+
+        // Filter and process images for the selected date
+        const selectedDateImages = [];
+        
+        for (const object of data.Contents || []) {
+            // Extract timestamp from filename (assuming format: receipts/tableName/timestamp_filename.jpg)
+            const timestampMatch = object.Key.match(/\/(\d+)_/);
+            if (timestampMatch) {
+                const fileDate = new Date(parseInt(timestampMatch[1]));
+                fileDate.setHours(0, 0, 0, 0);
+
+                // Check if image is from today
+                if (fileDate.getTime() === targetDate.getTime()) {
+                    // Generate two presigned URLs - one for viewing, one for downloading
+                    const viewCommand = new GetObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key,
+                        ResponseContentType: 'image/jpeg',
+                        ResponseContentDisposition: 'inline',
+                        // Add query parameters for CDN/browser optimization
+                        ResponseCacheControl: 'public, max-age=3600'
+                    });
+
+                    // Generate URLs with different purposes
+                    const [viewUrl, downloadUrl] = await Promise.all([
+                        getSignedUrl(s3Client, viewCommand, { 
+                            expiresIn: 3600,
+                        }),
+                        getSignedUrl(s3Client, new GetObjectCommand({
+                            Bucket: process.env.AWS_BUCKET_NAME,
+                            Key: object.Key,
+                            ResponseContentDisposition: `attachment; filename="${object.Key.split('/').pop()}"`,
+                            ResponseCacheControl: 'private, no-cache'
+                        }), { 
+                            expiresIn: 3600 
+                        })
+                    ]);
+
+                    // Get basic metadata
+                    const metadata = await s3Client.send(new HeadObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key
+                    }));
+
+                    selectedDateImages.push({
+                        id: timestampMatch[1],  // Unique identifier
+                        viewUrl,           // Low-quality preview URL
+                        downloadUrl,            // High-quality download URL
+                        timestamp: new Date(parseInt(timestampMatch[1])).toLocaleString('en-US', {
+                            timeZone: 'Asia/Dhaka',
+                            hour12: true,
+                            hour: 'numeric',
+                            minute: 'numeric'
+                        }),
+                        size: formatFileSize(metadata.ContentLength),
+                        filename: object.Key.split('/').pop()
+                    });
+                }
+            }
+        }
+
+        // Sort by timestamp (newest first)
+        selectedDateImages.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+
+        res.json({
+            success: true,
+            images: selectedDateImages,
+            count: selectedDateImages.length,
+            date: targetDate.toLocaleDateString('en-US', {
+                timeZone: 'Asia/Dhaka',
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            })
+        });
+
+    } catch (error) {
+        console.error('Error fetching daily images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch daily images'
+        });
+    }
+});
+
+// Helper function to format file sizes
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+}
 
 // Export the app for potential serverless environments (like Vercel)
 export default app;

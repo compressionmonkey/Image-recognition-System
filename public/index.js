@@ -436,55 +436,251 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showRecentFiles() {
-        try {
-            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-            if (recentFiles.length === 0) {
-                showToast('No recent files', 'info');
+    async function showRecentFiles() {
+        // Create date picker modal first
+        const modal = document.createElement('div');
+        modal.className = 'photo-options-modal';
+        modal.style.display = 'flex';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Add header
+        const header = document.createElement('h3');
+        header.textContent = 'Select Date';
+        modalContent.appendChild(header);
+        
+        // Add date picker
+        const datePickerContainer = document.createElement('div');
+        datePickerContainer.className = 'form-group';
+        
+        // Set max date to tomorrow
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const maxDate = tomorrow.toISOString().split('T')[0];
+        
+        // Set min date to 3 months ago
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const minDate = threeMonthsAgo.toISOString().split('T')[0];
+        
+        datePickerContainer.innerHTML = `
+            <label for="datePicker">Choose a date to view receipts:</label>
+            <input type="date" 
+                   id="datePicker" 
+                   class="date-input"
+                   max="${maxDate}"
+                   min="${minDate}"
+                   value="${maxDate}">
+        `;
+        
+        modalContent.appendChild(datePickerContainer);
+        
+        // Add buttons
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'button-group';
+        buttonContainer.innerHTML = `
+            <button class="photo-option-btn" id="viewReceiptsBtn">
+                <span class="icon">📄</span> View Receipts
+            </button>
+            <button class="cancel-btn">
+                Cancel
+            </button>
+        `;
+        
+        modalContent.appendChild(buttonContainer);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Add event listeners
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        cancelBtn.onclick = () => modal.remove();
+
+        const viewReceiptsBtn = modal.querySelector('#viewReceiptsBtn');
+        viewReceiptsBtn.onclick = async () => {
+            const selectedDate = document.getElementById('datePicker').value;
+            if (!selectedDate) {
+                showToast('Please select a date', 'error');
                 return;
             }
 
-            const modal = document.createElement('div');
-            modal.className = 'image-preview-modal';
-            modal.innerHTML = `
-                <div class="preview-content">
-                    <h2 style="color: white; text-align: center;">Recent Files</h2>
-                    <div class="recent-files-grid">
-                        ${recentFiles.map(file => `
-                            <div class="recent-file-item">
-                                <img src="data:image/jpeg;base64,${file.imageData}" alt="Recent receipt">
-                                <div class="recent-file-timestamp">
-                                    ${new Date(file.timestamp).toLocaleDateString()}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="preview-controls">
-                        <button class="preview-button close-btn">Close</button>
-                    </div>
+            // Show loading indicator
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'floating-loader';
+            loadingIndicator.innerHTML = `
+                <div class="loader-content">
+                    <div class="loader-spinner"></div>
+                    <span>Loading receipts...</span>
                 </div>
             `;
+            document.body.appendChild(loadingIndicator);
 
-            document.body.appendChild(modal);
-            setTimeout(() => modal.classList.add('show'), 0);
+            try {
+                const customerID = sessionStorage.getItem('customerID');
+                const response = await fetch(`/get-daily-images?customerID=${customerID}&date=${selectedDate}`);
+                const data = await response.json();
+                
+                // Remove all existing photo-options-modal elements
+                const existingModals = document.querySelectorAll('.photo-options-modal');
+                existingModals.forEach(modal => modal.remove());
+                
+                // Create and show gallery modal
+                showGalleryModal(data, selectedDate);
+            } catch (error) {
+                console.error('Error loading images:', error);
+                showToast('Error loading images', 'error');
+            } finally {
+                // Remove loading indicator
+                loadingIndicator.classList.add('fade-out');
+                setTimeout(() => loadingIndicator.remove(), 300);
+            }
+        };
+    }
 
-            modal.querySelector('.close-btn').onclick = () => {
-                modal.classList.remove('show');
-                setTimeout(() => modal.remove(), 300);
-            };
-
-            // Add click handlers for recent files
-            modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
-                item.onclick = () => {
-                    const file = recentFiles[index];
-                    saveImageToBucket(file.imageData, file.filename, false);
-                    modal.remove();
-                };
+    function showGalleryModal(data, selectedDate) {
+        const modal = document.createElement('div');
+        modal.className = 'gallery-modal';
+        modal.style.display = 'flex';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Format the date for display
+        const formattedDate = new Date(selectedDate).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        
+        // Add header
+        const header = document.createElement('h3');
+        header.textContent = `Receipts for ${formattedDate}`;
+        modalContent.appendChild(header);
+        
+        // Add gallery
+        const gallery = document.createElement('div');
+        gallery.className = 'image-gallery';
+        
+        if (data.images.length === 0) {
+            const noImages = document.createElement('p');
+            noImages.style.textAlign = 'center';
+            noImages.style.padding = '20px';
+            noImages.textContent = 'No receipts found for this date';
+            gallery.appendChild(noImages);
+        } else {
+            data.images.forEach((image, index) => {
+                const thumb = createThumbnail(image, index, data.images.length);
+                gallery.appendChild(thumb);
             });
-        } catch (error) {
-            console.error('Error showing recent files:', error);
-            showToast('Failed to load recent files', 'error');
         }
+        
+        modalContent.appendChild(gallery);
+        
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'cancel-btn';
+        closeButton.textContent = 'Close';
+        closeButton.onclick = () => modal.remove();
+        modalContent.appendChild(closeButton);
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+    }
+
+    function createThumbnail(image, index, total) {
+        const thumb = document.createElement('div');
+        thumb.className = 'thumbnail loading';
+        
+        thumb.innerHTML = `
+            <img src="${image.viewUrl}" 
+                 loading="lazy"
+                 alt="Receipt ${index + 1}"
+                 data-index="${index}">
+            <div class="image-info">
+                <span class="time">${image.timestamp}</span>
+                <span class="size">${image.size}</span>
+            </div>
+        `;
+
+        // Handle image load
+        const img = thumb.querySelector('img');
+        img.onload = () => {
+            thumb.classList.remove('loading');
+        };
+
+        // Add click handler for full view
+        thumb.onclick = () => showFullImage(image, index, total);
+        
+        return thumb;
+    }
+
+    function showFullImage(image, index, total) {
+        const viewer = document.createElement('div');
+        viewer.className = 'image-viewer';
+        
+        viewer.innerHTML = `
+            <div class="viewer-content">
+                <img src="${image.thumbnailUrl}" 
+                     alt="Receipt ${index + 1}"
+                     class="preview-image">
+                <div class="controls">
+                    ${index > 0 ? '<button class="prev">Previous</button>' : ''}
+                    ${index < total - 1 ? '<button class="next">Next</button>' : ''}
+                    <button class="download">
+                        Download (${image.size})
+                    </button>
+                </div>
+                <div class="info">
+                    <span>${image.timestamp}</span>
+                    <span>${image.filename}</span>
+                </div>
+            </div>
+        `;
+
+        // Add download handler
+        viewer.querySelector('.download').onclick = () => {
+            // Show download progress
+            const progress = document.createElement('div');
+            progress.className = 'download-progress';
+            progress.textContent = 'Starting download...';
+            viewer.appendChild(progress);
+
+            // Start download
+            fetch(image.downloadUrl)
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = image.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    progress.remove();
+                })
+                .catch(error => {
+                    progress.textContent = 'Download failed. Please try again.';
+                    setTimeout(() => progress.remove(), 3000);
+                });
+        };
+
+        // Add navigation handlers
+        if (index > 0) {
+            viewer.querySelector('.prev').onclick = () => {
+                viewer.remove();
+                showFullImage(images[index - 1], index - 1, total);
+            };
+        }
+        if (index < total - 1) {
+            viewer.querySelector('.next').onclick = () => {
+                viewer.remove();
+                showFullImage(images[index + 1], index + 1, total);
+            };
+        }
+
+        document.body.appendChild(viewer);
     }
 
     // Add the showFailureModal function
