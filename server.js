@@ -1206,6 +1206,9 @@ app.get('/get-daily-images', async (req, res) => {
         for (const object of allContents) {
             // Convert LastModified to Dhaka time once
             const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+
+            console.log('object.LastModified', object.LastModified);
+            console.log('bdFileDate', bdFileDate);
             
             // Compare dates using simple date comparison after timezone conversion
             const isSameDate = 
@@ -1242,6 +1245,8 @@ app.get('/get-daily-images', async (req, res) => {
                     hour12: true,
                     timeZone: 'Asia/Dhaka'
                 });
+
+                console.log('timestamp', timestamp);
 
                 selectedDateImages.push({
                     id: object.LastModified.getTime(),
