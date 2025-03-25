@@ -524,7 +524,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 existingModals.forEach(modal => modal.remove());
                 
                 // Create and show gallery modal
-                showGalleryModal(data, selectedDate);
+                showGalleryModal(data);
             } catch (error) {
                 console.error('Error loading images:', error);
                 showToast('Error loading images', 'error');
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    function showGalleryModal(data, selectedDate) {
+    function showGalleryModal(data) {
         const modal = document.createElement('div');
         modal.className = 'gallery-modal';
         modal.style.display = 'flex';
@@ -544,17 +544,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalContent = document.createElement('div');
         modalContent.className = 'modal-content';
         
-        // Format the date for display
-        const formattedDate = new Date(selectedDate).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-        
-        // Add header
+        // Use the server-formatted date directly
         const header = document.createElement('h3');
-        header.textContent = `Receipts for ${formattedDate}`;
+        header.textContent = `Receipts for ${data.date}`;
         modalContent.appendChild(header);
         
         // Add gallery
