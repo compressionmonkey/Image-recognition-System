@@ -74,6 +74,12 @@
 
     <!-- Add this before </body> -->
     <div id="confirmationModal" class="modal">
+        <div class="modal-content" id="confirmationModalContent">
+            <div class="modal-header">
+                <div class="drag-handle" id="dragHandle">
+                    <span class="drag-icon">☰</span>
+                </div>
+            </div>
         <div class="modal-content">
             <button class="close-btn" onclick="closeConfirmationModal()">&times;</button>
             <!-- <div class="question-icon">❓</div>
@@ -111,6 +117,25 @@
                         Receipt Date is not today. Are you sure you want to add this?
                     </div>
                 </div>
+                
+                <div id="confirmRemarksField" class="form-group" style="display: none;">
+                    <label for="confirmRemarks">Remarks</label>
+                    <input type="text" 
+                           id="confirmRemarks" 
+                           name="confirmRemarks" 
+                           placeholder="Enter Remarks"
+                           style="box-sizing: border-box;">
+                </div>
+                
+                <div id="confirmDiningField" class="form-group" style="display: none;">
+                    <div class="dining-field">
+                        <input type="checkbox" 
+                               id="confirmDiningCheck" 
+                               name="confirmDining">
+                        <label for="confirmDiningCheck">Dining</label>
+                    </div>
+                </div>
+                
                 <div class="button-group">
                     <button type="button" class="primary-button" onclick="handleConfirmDetails()">Confirm Details</button>
                 </div>
@@ -164,6 +189,24 @@
                            required 
                            placeholder="Enter Particulars"
                            style="box-sizing: border-box;">
+                </div>
+                
+                <div id="remarksField" class="form-group" style="display: none;">
+                    <label for="remarks">Remarks</label>
+                    <input type="text" 
+                           id="remarks" 
+                           name="remarks" 
+                           placeholder="Enter Remarks"
+                           style="box-sizing: border-box;">
+                </div>
+
+                <div id="diningField" class="form-group" style="display: none;">
+                    <div class="dining-field">
+                        <input type="checkbox" 
+                               id="diningCheck" 
+                               name="dining">
+                        <label for="diningCheck">Dining</label>
+                    </div>
                 </div>
 
                 <button type="button" class="photo-option-btn" style="background: #000 !important; color: white !important;" onclick="handleManualSubmit()">

@@ -1,11 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
+    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72', 'HFpuU', 'eqmB4', 't0Ctf', 'ChQsf', 'FVQbb'];
     let isLoggedIn = false;
     let children = [];
     let currentConfirmationData = null;
 
     // Add a flag to control prediction loop
     let isPredicting = false;
+
+    // Add this flag at the top level with other variables
+    let isCapturing = false;
 
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
@@ -29,11 +32,22 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.style.opacity = '0.5';
         submitButton.style.cursor = 'not-allowed';
 
-        const amount = parseFloat(document.getElementById('amount').value);
+        const amount = document.getElementById('amount').value;
         const particulars = document.getElementById('particulars').value;
         const customerID = sessionStorage.getItem('customerID');
         
-        // Validate amount
+        // Get remarks value if the user is "eqmB4"
+        let remarks = '';
+        if (customerID === 'eqmB4') {
+            remarks = document.getElementById('remarks').value || '';
+        }
+        let isDining = false;
+        if(customerID === 'HFpuU'){
+            const diningCheckbox = document.getElementById('diningCheck');
+            isDining = diningCheckbox.checked;
+        }
+        
+        // Validate input
         if (!amount || isNaN(amount) || amount <= 0) {
             showToast('Please enter a valid amount', 'error');
             // Re-enable button if validation fails
@@ -42,9 +56,9 @@ document.addEventListener('DOMContentLoaded', function() {
             submitButton.style.cursor = 'pointer';
             return;
         }
-
+        
         if (!particulars) {
-            showToast('Please enter valid particulars', 'error');
+            showToast('Please enter particulars', 'error');
             // Re-enable button if validation fails
             submitButton.disabled = false;
             submitButton.style.opacity = '1';
@@ -53,17 +67,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            // Send data to server
             const response = await fetch('/record-cash', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    amount: amount,
+                    amount: parseFloat(amount),
                     paymentMethod: 'Cash',
-                    customerID: customerID,
-                    particulars: particulars
+                    customerID,
+                    particulars,
+                    remarks,  // Include remarks in payload
+                    isDining
                 })
             });
 
@@ -107,23 +122,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showManualEntryModal() {
         // Clear any existing values
-        document.getElementById('confirmAmount').value = '';
-        document.getElementById('confirmReference').value = '';
-        
-        // Set default date to today and validate
-        const today = new Date();
-        const dateValue = today.toISOString().split('T')[0];
-        const dateInput = document.getElementById('confirmDate');
-        dateInput.value = dateValue;
-        
-        // Remove any existing listener before adding a new one
-        dateInput.removeEventListener('change', validateDate);
-        dateInput.addEventListener('change', () => validateDate(dateInput.value));
-        validateDate(dateInput.value);
+        document.getElementById('amount').value = '';
+        document.getElementById('particulars').value = '';
         
         // Show the modal
         const modal = document.getElementById('manualEntryModal');
         modal.style.display = 'flex';  // Make sure we're targeting the correct modal
+        
+        // Check if current user is "eqmB4" or "HFpuU" and show appropriate fields
+        const customerID = sessionStorage.getItem('customerID');
+        const remarksField = document.getElementById('remarksField');
+        const diningField = document.getElementById('diningField');
+        
+        // Show/hide remarks field for eqmB4
+        if (customerID === 'eqmB4') {
+            remarksField.style.display = 'block';
+        } else {
+            remarksField.style.display = 'none';
+        }
+
+        // Show/hide dining field for HFpuU
+        if (customerID === 'HFpuU') {
+            diningField.style.display = 'block';
+        } else {
+            diningField.style.display = 'none';
+        }
     }
 
     function validateLogin() {
@@ -163,7 +186,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function closeCameraModal() {
         isPredicting = false;  // Stop prediction loop
+        isCapturing = false;  // Reset capturing flag
         
+        // Re-enable capture button if it exists and is disabled
+        const captureButton = document.getElementById('capture-button');
+        if (captureButton && captureButton.disabled) {
+            captureButton.disabled = false;
+            captureButton.style.opacity = '1';
+            captureButton.style.cursor = 'pointer';
+        }
+
         // Clear all highlighters first
         const liveView = document.getElementById('liveView');
         if (liveView) {
@@ -416,35 +448,241 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showRecentFiles() {
-        try {
-            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-            if (recentFiles.length === 0) {
-                showToast('No recent files', 'info');
+    async function showRecentFiles() {
+        // Create date picker modal first
+        const modal = document.createElement('div');
+        modal.className = 'photo-options-modal';
+        modal.style.display = 'flex';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Add header
+        const header = document.createElement('h3');
+        header.textContent = 'Select Date';
+        modalContent.appendChild(header);
+        
+        // Add date picker
+        const datePickerContainer = document.createElement('div');
+        datePickerContainer.className = 'form-group';
+        
+        // Set max date to today
+        const today = new Date();
+        const maxDate = today.toISOString().split('T')[0];
+        
+        // Set min date to 3 months ago
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const minDate = threeMonthsAgo.toISOString().split('T')[0];
+        
+        datePickerContainer.innerHTML = `
+            <label for="datePicker">Choose a date to view receipts:</label>
+            <input type="date" 
+                   id="datePicker" 
+                   class="date-input"
+                   max="${maxDate}"
+                   min="${minDate}"
+                   value="${maxDate}">
+        `;
+        
+        modalContent.appendChild(datePickerContainer);
+        
+        // Add buttons
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'button-group';
+        buttonContainer.innerHTML = `
+            <button class="photo-option-btn" id="viewReceiptsBtn">
+                <span class="icon">📄</span> View Receipts
+            </button>
+            <button class="cancel-btn">
+                Cancel
+            </button>
+        `;
+        
+        modalContent.appendChild(buttonContainer);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Add event listeners
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        cancelBtn.onclick = () => modal.remove();
+
+        const viewReceiptsBtn = modal.querySelector('#viewReceiptsBtn');
+        viewReceiptsBtn.onclick = async () => {
+            const selectedDate = document.getElementById('datePicker').value;
+            if (!selectedDate) {
+                showToast('Please select a date', 'error');
                 return;
             }
 
-            const modal = document.createElement('div');
-            modal.className = 'image-preview-modal';
-            modal.innerHTML = `
-                <div class="preview-content">
-                    <h2 style="color: white; text-align: center;">Recent Files</h2>
-                    <div class="recent-files-grid">
-                        ${recentFiles.map(file => `
-                            <div class="recent-file-item">
-                                <img src="data:image/jpeg;base64,${file.imageData}" alt="Recent receipt">
-                                <div class="recent-file-timestamp">
-                                    ${new Date(file.timestamp).toLocaleDateString()}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="preview-controls">
-                        <button class="preview-button close-btn">Close</button>
-                    </div>
+            // Show loading indicator
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'floating-loader';
+            loadingIndicator.innerHTML = `
+                <div class="loader-content">
+                    <div class="loader-spinner"></div>
+                    <span>Loading receipts...</span>
                 </div>
             `;
+            document.body.appendChild(loadingIndicator);
 
+            try {
+                const customerID = sessionStorage.getItem('customerID');
+                const response = await fetch(`/get-daily-images?customerID=${customerID}&date=${selectedDate}`);
+                const data = await response.json();
+                
+                // Remove all existing photo-options-modal elements
+                const existingModals = document.querySelectorAll('.photo-options-modal');
+                existingModals.forEach(modal => modal.remove());
+                
+                // Create and show gallery modal
+                showGalleryModal(data);
+            } catch (error) {
+                console.error('Error loading images:', error);
+                showToast('Error loading images', 'error');
+            } finally {
+                // Remove loading indicator
+                loadingIndicator.classList.add('fade-out');
+                setTimeout(() => loadingIndicator.remove(), 300);
+            }
+        };
+    }
+
+    function showGalleryModal(data) {
+        const modal = document.createElement('div');
+        modal.className = 'gallery-modal';
+        modal.style.display = 'flex';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Use the server-formatted date directly
+        const header = document.createElement('h3');
+        header.textContent = `Receipts for ${data.date}`;
+        modalContent.appendChild(header);
+        
+        // Add gallery
+        const gallery = document.createElement('div');
+        gallery.className = 'image-gallery';
+        
+        if (data.images.length === 0) {
+            const noImages = document.createElement('p');
+            noImages.style.textAlign = 'center';
+            noImages.style.padding = '20px';
+            noImages.textContent = 'No receipts found for this date';
+            gallery.appendChild(noImages);
+        } else {
+            data.images.forEach((image, index) => {
+                const thumb = createThumbnail(image, index, data.images.length);
+                gallery.appendChild(thumb);
+            });
+        }
+        
+        modalContent.appendChild(gallery);
+        
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'cancel-btn';
+        closeButton.textContent = 'Close';
+        closeButton.onclick = () => modal.remove();
+        modalContent.appendChild(closeButton);
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+    }
+
+    function createThumbnail(image, index, total) {
+        const thumb = document.createElement('div');
+        thumb.className = 'thumbnail loading';
+        
+        thumb.innerHTML = `
+            <img src="${image.viewUrl}" 
+                 loading="lazy"
+                 alt="Receipt ${index + 1}"
+                 data-index="${index}">
+            <div class="image-info">
+                <span class="time">${image.timestamp}</span>
+                <span class="size">${image.size}</span>
+            </div>
+        `;
+
+        // Handle image load
+        const img = thumb.querySelector('img');
+        img.onload = () => {
+            thumb.classList.remove('loading');
+        };
+
+        // Add click handler for full view
+        thumb.onclick = () => showFullImage(image, index, total);
+        
+        return thumb;
+    }
+
+    function showFullImage(image, index, total) {
+        const viewer = document.createElement('div');
+        viewer.className = 'image-viewer';
+        
+        viewer.innerHTML = `
+            <div class="viewer-content">
+                <img src="${image.thumbnailUrl}" 
+                     alt="Receipt ${index + 1}"
+                     class="preview-image">
+                <div class="controls">
+                    ${index > 0 ? '<button class="prev">Previous</button>' : ''}
+                    ${index < total - 1 ? '<button class="next">Next</button>' : ''}
+                    <button class="download">
+                        Download (${image.size})
+                    </button>
+                </div>
+                <div class="info">
+                    <span>${image.timestamp}</span>
+                    <span>${image.filename}</span>
+                </div>
+            </div>
+        `;
+
+        // Add download handler
+        viewer.querySelector('.download').onclick = () => {
+            // Show download progress
+            const progress = document.createElement('div');
+            progress.className = 'download-progress';
+            progress.textContent = 'Starting download...';
+            viewer.appendChild(progress);
+
+            // Start download
+            fetch(image.downloadUrl)
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = image.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    progress.remove();
+                })
+                .catch(error => {
+                    progress.textContent = 'Download failed. Please try again.';
+                    setTimeout(() => progress.remove(), 3000);
+                });
+        };
+
+        // Add navigation handlers
+        if (index > 0) {
+            viewer.querySelector('.prev').onclick = () => {
+                viewer.remove();
+                showFullImage(images[index - 1], index - 1, total);
+            };
+        }
+        if (index < total - 1) {
+            viewer.querySelector('.next').onclick = () => {
+                viewer.remove();
+                showFullImage(images[index + 1], index + 1, total);
+            };
+        }
+
+        document.body.appendChild(viewer);
             document.body.appendChild(modal);
             setTimeout(() => modal.classList.add('show'), 0);
 
@@ -603,6 +841,76 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Add this function to make the modal draggable
+    function makeModalDraggable() {
+        const modal = document.getElementById('confirmationModalContent');
+        const dragHandle = document.getElementById('dragHandle');
+        
+        if (!modal || !dragHandle) return;
+        
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+        
+        // Touch events for mobile
+        dragHandle.addEventListener('touchstart', dragStart, false);
+        document.addEventListener('touchend', dragEnd, false);
+        document.addEventListener('touchmove', drag, false);
+        
+        // Mouse events for desktop
+        dragHandle.addEventListener('mousedown', dragStart, false);
+        document.addEventListener('mouseup', dragEnd, false);
+        document.addEventListener('mousemove', drag, false);
+        
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+            
+            if (e.target === dragHandle || e.target.parentNode === dragHandle) {
+                isDragging = true;
+            }
+        }
+        
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+        
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+                
+                xOffset = currentX;
+                yOffset = currentY;
+                
+                setTranslate(currentX, currentY, modal);
+            }
+        }
+        
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+    }
+
+    // Update the showConfirmationModal function to initialize draggable behavior
     function showConfirmationModal(data) {
         const modal = document.getElementById('confirmationModal');
         const amountInput = document.getElementById('confirmAmount');
@@ -611,13 +919,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const dateInput = document.getElementById('confirmDate');
         currentConfirmationData = data;
 
-        console.log('data', data);
-        console.log(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.referenceNo || '';
         if (ParticularsInput) ParticularsInput.value = data.Particulars || '';
         if (dateInput) dateInput.value = data.Date || '';
+
+        // Check if user is "eqmB4" and show remarks field if so
+        const customerID = sessionStorage.getItem('customerID');
+        const remarksField = document.getElementById('confirmRemarksField');
+        const confirmDiningField = document.getElementById('confirmDiningField');
+        
+        // Show/hide remarks field for eqmB4
+        if (customerID === 'eqmB4' && remarksField) {
+            remarksField.style.display = 'block';
+        } else if (remarksField) {
+            remarksField.style.display = 'none';
+        }
+
+        // Show/hide dining field for HFpuU
+        if (customerID === 'HFpuU' && confirmDiningField) {
+            confirmDiningField.style.display = 'block';
+        } else if (confirmDiningField) {
+            confirmDiningField.style.display = 'none';
+        }
 
         // Add view image button if not exists
         let viewImageBtn = modal.querySelector('.view-image-btn');
@@ -637,6 +962,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show the modal first
         if (modal) {
             modal.style.display = 'flex';
+            
+            // Reset any previous transform
+            const modalContent = document.getElementById('confirmationModalContent');
+            if (modalContent) {
+                modalContent.style.transform = 'translate3d(0px, 0px, 0)';
+            }
+            
+            // Initialize draggable behavior
+            makeModalDraggable();
         } else {
             console.error('Confirmation modal not found in DOM');
         }
@@ -647,6 +981,28 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add date change event listener
         if (dateInput) {
             dateInput.addEventListener('change', (e) => validateDate(e.target.value));
+        }
+    }
+
+    // Update the closeConfirmationModal function to reset the position
+    function closeConfirmationModal() {
+        const modal = document.getElementById('confirmationModal');
+        if (modal) {
+            // Re-enable the confirm button
+            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.style.opacity = '1';
+                confirmButton.style.cursor = 'pointer';
+            }
+            
+            // Reset the modal position before closing
+            const modalContent = document.getElementById('confirmationModalContent');
+            if (modalContent) {
+                modalContent.style.transform = 'translate3d(0px, 0px, 0)';
+            }
+            
+            modal.style.display = 'none';
         }
     }
 
@@ -661,6 +1017,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const referenceNo = document.getElementById('confirmReference').value;
         const Particulars = document.getElementById('confirmParticulars').value;
         const date = document.getElementById('confirmDate').value;
+        
+        // Get remarks value if customer is "eqmB4"
+        const customerID = sessionStorage.getItem('customerID');
+        let remarks = '';
+        if (customerID === 'eqmB4') {
+            remarks = document.getElementById('confirmRemarks')?.value || '';
+        }
+
+        // Get dining value if customer is "HFpuU"
+        let isDining = false;
+        if (customerID === 'HFpuU') {
+            const diningCheckbox = document.getElementById('confirmDiningCheck');
+            isDining = diningCheckbox.checked;
+        }
 
         // Basic validation for empty fields
         if (!amount || !referenceNo || !Particulars || !date) {
@@ -682,9 +1052,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Get customer ID from session storage
-        const customerID = sessionStorage.getItem('customerID');
-
         // Create confirmation data object
         const confirmationData = {
             customerID,
@@ -698,6 +1065,17 @@ document.addEventListener('DOMContentLoaded', function() {
             'Recognized Text': currentConfirmationData.recognizedText,
             'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
+        
+        // Add remarks if customer is "eqmB4"
+        if (customerID === 'eqmB4' && remarks) {
+            confirmationData['Remarks'] = remarks;
+        }
+
+        // Add dining status if customer is "HFpuU"
+        if (customerID === 'HFpuU' && isDining) {
+            confirmationData['Dining'] = isDining;
+        }
+        // Send confirmation to server
         
         fetch('/confirm-receipt', {
             method: 'POST',
@@ -729,20 +1107,6 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmButton.style.cursor = 'pointer';
             showToast('Failed to confirm receipt', 'error');
         });
-    }
-
-    function closeConfirmationModal() {
-        const modal = document.getElementById('confirmationModal');
-        if (modal) {
-            // Re-enable the confirm button
-            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
-            if (confirmButton) {
-                confirmButton.disabled = false;
-                confirmButton.style.opacity = '1';
-                confirmButton.style.cursor = 'pointer';
-            }
-            modal.style.display = 'none';
-        }
     }
 
     async function processImage(file) {
@@ -895,6 +1259,52 @@ document.addEventListener('DOMContentLoaded', function() {
      const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
      const MOTION_MEMORY = 5; // Number of recent motion measurements to track
      const recentMotions = [];
+    // Add this function to create and animate the countdown timer
+
+    function showCountdownTimer() {
+        return new Promise((resolve) => {
+            const liveView = document.getElementById('liveView');
+            const video = document.getElementById('camera-preview');
+            const timer = document.createElement('div');
+            timer.className = 'countdown-timer';
+            liveView.appendChild(timer);
+            let count = 3;
+
+            // Try to focus camera if available
+            if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
+                const track = video.srcObject.getVideoTracks()[0];
+                // Check if camera supports focus mode
+                if (track.getCapabilities && track.getCapabilities().focusMode) {
+                    // Apply focus settings
+                    track.applyConstraints({
+                        advanced: [
+                            { focusMode: "continuous" },  // Continuous auto-focus
+                            { focusDistance: 0.33 }      // Focus at about 30cm distance
+                        ]
+                    }).catch(err => console.log('Focus error:', err));
+                }
+            }
+
+            function updateTimer() {
+                timer.textContent = count;
+                timer.classList.remove('countdown-animation');
+                void timer.offsetWidth; // Trigger reflow
+                timer.classList.add('countdown-animation');           
+
+                if (count > 1) {
+                    count--;
+                    setTimeout(updateTimer, 1000);
+                } else {
+                    setTimeout(() => {
+                        timer.remove();
+                        resolve();
+                    }, 1000);
+                }
+            }
+
+            updateTimer();
+        });
+    }
 
     // Update the predictWebcam function to include the countdown
      async function predictWebcam(video, liveView) {
@@ -944,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Use the more detailed response
                     if (result.phoneDetected) {
+
                         const currentPhoneBox = {
                             x: result.bbox ? result.bbox[0] : liveView.offsetWidth * 0.2,
                             y: result.bbox ? result.bbox[1] : liveView.offsetHeight * 0.2,
@@ -966,18 +1377,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (qualityMetrics.isStable && 
                             qualityMetrics.isSharp && 
                             qualityMetrics.isGoodRatio && 
-                            qualityMetrics.confidence > 0.8) {
+                            qualityMetrics.confidence > 0.8 &&
+                            !isCapturing) {  // Add check for isCapturing
+                            
+                            // Set capturing flag
+                            isCapturing = true;
                             
                             // Pause predictions during capture
                             isPredicting = false;
+                            
+                            // Disable capture button when phone is detected
+                            const captureButton = document.getElementById('capture-button');
+                            if (captureButton) {
+                                captureButton.disabled = true;
+                                captureButton.style.opacity = '0.5';
+                                captureButton.style.cursor = 'not-allowed';
+                            }
 
                             try {
-                                // Take the photo without countdown
                                 await handlePhotoCapture(video, video.srcObject);
                                 return;
                             } catch (error) {
                                 console.error('Error during capture:', error);
                                 isPredicting = true; // Resume predictions if there's an error
+                                isCapturing = false; // Reset capturing flag on error
                             }
                         }
 
@@ -1149,7 +1572,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (captureButton) {
                 captureButton.addEventListener('click', () => {
                     const video = document.getElementById('camera-preview');
-                    if (video && video.srcObject) {
+                    if (video && video.srcObject && !isCapturing) {  // Add check for isCapturing
+                        isCapturing = true;  // Set capturing flag
                         handlePhotoCapture(video, video.srcObject);
                     }
                 });
@@ -1239,15 +1663,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
 
     function validateDate(dateInput) {
-        const validationMessage = document.getElementById('dateValidationMessage');
+        // Remove any existing alert
+        const existingAlert = document.querySelector('.scam-alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+
         const dateInputElement = document.getElementById('confirmDate');
-        
-        // Remove existing classes first
         dateInputElement.classList.remove('date-warning');
         
         if (!dateInput || dateInput === '') {
-            validationMessage.style.display = 'none';
-            validationMessage.classList.remove('show');
             return;
         }
 
@@ -1255,21 +1680,24 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add warning class to input
             dateInputElement.classList.add('date-warning');
             
-            // Update validation message with icon
-            validationMessage.innerHTML = `
-                <span class="warning-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 9v4M12 17h.01M12 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2s2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                </span>
-                Receipt Date is not today. Are you sure you want to add this?
+            // Create and show the scam alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'scam-alert';
+            alertDiv.innerHTML = `
+                <div class="alert-content">
+                    <span class="alert-icon">⚠️</span>
+                    <span class="alert-text">Scam Alert</span>
+                    <span class="alert-subtext">Date not today!</span>
+                </div>
             `;
-            validationMessage.style.display = 'flex';
-            validationMessage.classList.add('show');
-        } else {
-            dateInputElement.classList.remove('date-warning');
-            validationMessage.style.display = 'none';
-            validationMessage.classList.remove('show');
+            
+            document.body.appendChild(alertDiv);
+            
+            // Remove the alert after animation
+            setTimeout(() => {
+                alertDiv.classList.add('fade-out');
+                setTimeout(() => alertDiv.remove(), 500);
+            }, 2000);
         }
     }
 
