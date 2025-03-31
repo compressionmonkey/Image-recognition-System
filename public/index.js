@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add a flag to control prediction loop
     let isPredicting = false;
 
+    // Add this flag at the top level with other variables
+    let isCapturing = false;
+
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
         const loginOverlay = document.getElementById('loginOverlay');
@@ -183,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function closeCameraModal() {
         isPredicting = false;  // Stop prediction loop
+        isCapturing = false;  // Reset capturing flag
         
         // Re-enable capture button if it exists and is disabled
         const captureButton = document.getElementById('capture-button');
@@ -1327,7 +1331,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (qualityMetrics.isStable && 
                             qualityMetrics.isSharp && 
                             qualityMetrics.isGoodRatio && 
-                            qualityMetrics.confidence > 0.8) {
+                            qualityMetrics.confidence > 0.8 &&
+                            !isCapturing) {  // Add check for isCapturing
+                            
+                            // Set capturing flag
+                            isCapturing = true;
                             
                             // Pause predictions during capture
                             isPredicting = false;
@@ -1341,12 +1349,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
 
                             try {
-                                // Take the photo without countdown
                                 await handlePhotoCapture(video, video.srcObject);
                                 return;
                             } catch (error) {
                                 console.error('Error during capture:', error);
                                 isPredicting = true; // Resume predictions if there's an error
+                                isCapturing = false; // Reset capturing flag on error
                             }
                         }
 
@@ -1520,7 +1528,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (captureButton) {
                 captureButton.addEventListener('click', () => {
                     const video = document.getElementById('camera-preview');
-                    if (video && video.srcObject) {
+                    if (video && video.srcObject && !isCapturing) {  // Add check for isCapturing
+                        isCapturing = true;  // Set capturing flag
                         handlePhotoCapture(video, video.srcObject);
                     }
                 });
