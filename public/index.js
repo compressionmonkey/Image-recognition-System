@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add a flag to control prediction loop
     let isPredicting = false;
 
+    // Add this flag at the top level with other variables
+    let isCapturing = false;
+
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
         const loginOverlay = document.getElementById('loginOverlay');
@@ -183,7 +186,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function closeCameraModal() {
         isPredicting = false;  // Stop prediction loop
+        isCapturing = false;  // Reset capturing flag
         
+        // Re-enable capture button if it exists and is disabled
+        const captureButton = document.getElementById('capture-button');
+        if (captureButton && captureButton.disabled) {
+            captureButton.disabled = false;
+            captureButton.style.opacity = '1';
+            captureButton.style.cursor = 'pointer';
+        }
+
         // Clear all highlighters first
         const liveView = document.getElementById('liveView');
         if (liveView) {
@@ -887,8 +899,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const dateInput = document.getElementById('confirmDate');
         currentConfirmationData = data;
 
-        console.log('data', data);
-        console.log(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.referenceNo || '';
@@ -1045,8 +1055,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (customerID === 'HFpuU' && isDining) {
             confirmationData['Dining'] = isDining;
         }
-
-        console.log('confirmationData', confirmationData);
         // Send confirmation to server
         fetch('/confirm-receipt', {
             method: 'POST',
@@ -1143,8 +1151,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
-                console.log(`stream ${JSON.stringify(stream)}`);
-
                 // Create and show camera modal
                 const cameraModal = createCameraModal();
                 document.body.appendChild(cameraModal);
@@ -1222,8 +1228,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Try to focus camera if available
             if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
                 const track = video.srcObject.getVideoTracks()[0];
-                console.log(`track getCapabilities' ${JSON.stringify(track.getCapabilities())}`);
-                console.log(`track focusMode' ${track.getCapabilities().focusMode}`);
                 // Check if camera supports focus mode
                 if (track.getCapabilities && track.getCapabilities().focusMode) {
                     // Apply focus settings
@@ -1285,12 +1289,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let retryCount = 0;
             let success = false;
 
-            console.log(`while loop ${!success && retryCount < maxRetries}`);
-            console.log(`success ${success} retryCount ${retryCount} maxRetries ${maxRetries}`);
-
             while (!success && retryCount < maxRetries) {
                 try {
-                    console.log(`while loop inside ${!success && retryCount < maxRetries}`);
                     const formData = new FormData();
                     formData.append('image', blob);
 
@@ -1309,6 +1309,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Use the more detailed response
                     if (result.phoneDetected) {
+
                         const currentPhoneBox = {
                             x: result.bbox ? result.bbox[0] : liveView.offsetWidth * 0.2,
                             y: result.bbox ? result.bbox[1] : liveView.offsetHeight * 0.2,
@@ -1322,30 +1323,38 @@ document.addEventListener('DOMContentLoaded', function() {
                             lastFrameTime ? (currentTime - lastFrameTime) : 16.67
                         );
 
-                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
-
                         // Update UI with confidence score
                         qualityMetrics.confidence = result.confidence;
-                        console.log(`qualityMetrics ${JSON.stringify(qualityMetrics)}`);
-
                         await updateDetectionUI(qualityMetrics, currentPhoneBox, liveView);
 
                         // Check if conditions are good for automatic capture
                         if (qualityMetrics.isStable && 
                             qualityMetrics.isSharp && 
                             qualityMetrics.isGoodRatio && 
-                            qualityMetrics.confidence > 0.8) {
+                            qualityMetrics.confidence > 0.8 &&
+                            !isCapturing) {  // Add check for isCapturing
+                            
+                            // Set capturing flag
+                            isCapturing = true;
                             
                             // Pause predictions during capture
                             isPredicting = false;
+                            
+                            // Disable capture button when phone is detected
+                            const captureButton = document.getElementById('capture-button');
+                            if (captureButton) {
+                                captureButton.disabled = true;
+                                captureButton.style.opacity = '0.5';
+                                captureButton.style.cursor = 'not-allowed';
+                            }
 
                             try {
-                                // Take the photo without countdown
                                 await handlePhotoCapture(video, video.srcObject);
                                 return;
                             } catch (error) {
                                 console.error('Error during capture:', error);
                                 isPredicting = true; // Resume predictions if there's an error
+                                isCapturing = false; // Reset capturing flag on error
                             }
                         }
 
@@ -1519,7 +1528,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (captureButton) {
                 captureButton.addEventListener('click', () => {
                     const video = document.getElementById('camera-preview');
-                    if (video && video.srcObject) {
+                    if (video && video.srcObject && !isCapturing) {  // Add check for isCapturing
+                        isCapturing = true;  // Set capturing flag
                         handlePhotoCapture(video, video.srcObject);
                     }
                 });
@@ -1609,15 +1619,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
 
     function validateDate(dateInput) {
-        const validationMessage = document.getElementById('dateValidationMessage');
+        // Remove any existing alert
+        const existingAlert = document.querySelector('.scam-alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+
         const dateInputElement = document.getElementById('confirmDate');
-        
-        // Remove existing classes first
         dateInputElement.classList.remove('date-warning');
         
         if (!dateInput || dateInput === '') {
-            validationMessage.style.display = 'none';
-            validationMessage.classList.remove('show');
             return;
         }
 
@@ -1625,21 +1636,24 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add warning class to input
             dateInputElement.classList.add('date-warning');
             
-            // Update validation message with icon
-            validationMessage.innerHTML = `
-                <span class="warning-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 9v4M12 17h.01M12 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2s2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                </span>
-                Receipt Date is not today. Are you sure you want to add this?
+            // Create and show the scam alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'scam-alert';
+            alertDiv.innerHTML = `
+                <div class="alert-content">
+                    <span class="alert-icon">⚠️</span>
+                    <span class="alert-text">Scam Alert</span>
+                    <span class="alert-subtext">Date not today!</span>
+                </div>
             `;
-            validationMessage.style.display = 'flex';
-            validationMessage.classList.add('show');
-        } else {
-            dateInputElement.classList.remove('date-warning');
-            validationMessage.style.display = 'none';
-            validationMessage.classList.remove('show');
+            
+            document.body.appendChild(alertDiv);
+            
+            // Remove the alert after animation
+            setTimeout(() => {
+                alertDiv.classList.add('fade-out');
+                setTimeout(() => alertDiv.remove(), 500);
+            }, 2000);
         }
     }
 

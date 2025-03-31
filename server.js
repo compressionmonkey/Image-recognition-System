@@ -287,12 +287,6 @@ export function determineBankKey(paragraph) {
           { bankKey, score: score.totalScore } : 
           best;
       }, { bankKey: 'Unknown', score: 0 });
-      
-    // Log for debugging
-    console.log('Bank detection scores:', {
-      bestMatch,
-      allScores: scores
-    });
     
     // Return result if confidence threshold met (lowered from 3 to 2)
     return bestMatch.score >= 2 && normalizedText.length > 30 ? 
@@ -437,8 +431,6 @@ function findCurrency(text, result) {
     currencyPatterns.forEach(pattern => {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
-            // Get the full matched text for debugging
-            console.log('Found match: ', match[0], 'Groups:', match.groups, 'Captured:', match[1]);
             
             // Directly use the captured amount if it exists
             let amount = match[1];
@@ -907,7 +899,6 @@ function checkCurrentUser(customerID) {
 
 // Update receipt data function
 async function updateReceiptData(receiptData) {
-    console.log('receiptData', receiptData);
     try {
         const sheetId = customerSheets[receiptData.customerID];
         if (!sheetId) {
@@ -980,16 +971,9 @@ app.post('/vision-api', async (req, res) => {
 
         if (confidence > 0.7) {
             const bankKey = determineBankKey(recognizedText);
-            console.log('recognizedText (raw):', recognizedText);
-            console.log('recognizedText (formatted):', JSON.stringify(recognizedText, null, 2)
-                .replace(/\\n/g, '\n')
-                .replace(/^"|"$/g, '')
-            );
             const receiptData = parseReceiptData(recognizedText, bankKey);
-            console.log('receiptData',receiptData);
             // Send only the essential data
             const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
-            console.log('isReceipt', isReceipt);
             if(isReceipt) {
                 res.json({
                     amount: receiptData.Amount,
@@ -1207,8 +1191,6 @@ app.get('/get-daily-images', async (req, res) => {
             // First conversion to Dhaka time
             const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
 
-            console.log('object.LastModified', object.LastModified);
-            console.log('bdFileDate', bdFileDate);
             
             // Compare dates using simple date comparison after timezone conversion
             const isSameDate = 
@@ -1244,8 +1226,6 @@ app.get('/get-daily-images', async (req, res) => {
                     minute: 'numeric',
                     hour12: true
                 });
-
-                console.log('timestamp', timestamp);
 
                 selectedDateImages.push({
                     id: object.LastModified.getTime(),
