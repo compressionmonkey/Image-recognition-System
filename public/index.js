@@ -1305,13 +1305,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Use the more detailed response
                     if (result.phoneDetected) {
-                        // Disable capture button when phone is detected
-                        const captureButton = document.getElementById('capture-button');
-                        if (captureButton) {
-                            captureButton.disabled = true;
-                            captureButton.style.opacity = '0.5';
-                            captureButton.style.cursor = 'not-allowed';
-                        }
 
                         const currentPhoneBox = {
                             x: result.bbox ? result.bbox[0] : liveView.offsetWidth * 0.2,
@@ -1338,6 +1331,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             // Pause predictions during capture
                             isPredicting = false;
+                            
+                            // Disable capture button when phone is detected
+                            const captureButton = document.getElementById('capture-button');
+                            if (captureButton) {
+                                captureButton.disabled = true;
+                                captureButton.style.opacity = '0.5';
+                                captureButton.style.cursor = 'not-allowed';
+                            }
 
                             try {
                                 // Take the photo without countdown
