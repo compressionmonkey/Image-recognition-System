@@ -1,11 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72'];
+    const validCustomerIDs = ['a8358', '0e702', '571b6', 'be566', '72d72', 'HFpuU', 'eqmB4', 't0Ctf', 'ChQsf', 'FVQbb'];
     let isLoggedIn = false;
     let children = [];
     let currentConfirmationData = null;
 
     // Add a flag to control prediction loop
     let isPredicting = false;
+
+    // Add this flag at the top level with other variables
+    let isCapturing = false;
 
     // Update the window load event listener to show dashboard button if logged in
     window.addEventListener('load', () => {
@@ -15,10 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sessionStorage.getItem('isLoggedIn') === 'true') {
             isLoggedIn = true;
             loginOverlay.style.display = 'none';
-            // userNav.style.display = 'block';
             mainContent.style.display = 'block';
-            
-            // // Hide initial content
         }
     });
 
@@ -29,11 +29,22 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.style.opacity = '0.5';
         submitButton.style.cursor = 'not-allowed';
 
-        const amount = parseFloat(document.getElementById('amount').value);
+        const amount = document.getElementById('amount').value;
         const particulars = document.getElementById('particulars').value;
         const customerID = sessionStorage.getItem('customerID');
         
-        // Validate amount
+        // Get remarks value if the user is "eqmB4"
+        let remarks = '';
+        if (customerID === 'eqmB4') {
+            remarks = document.getElementById('remarks').value || '';
+        }
+        let isDining = false;
+        if(customerID === 'HFpuU'){
+            const diningCheckbox = document.getElementById('diningCheck');
+            isDining = diningCheckbox.checked;
+        }
+        
+        // Validate input
         if (!amount || isNaN(amount) || amount <= 0) {
             showToast('Please enter a valid amount', 'error');
             // Re-enable button if validation fails
@@ -42,9 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
             submitButton.style.cursor = 'pointer';
             return;
         }
-
+        
         if (!particulars) {
-            showToast('Please enter valid particulars', 'error');
+            showToast('Please enter particulars', 'error');
             // Re-enable button if validation fails
             submitButton.disabled = false;
             submitButton.style.opacity = '1';
@@ -53,17 +64,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            // Send data to server
             const response = await fetch('/record-cash', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    amount: amount,
+                    amount: parseFloat(amount),
                     paymentMethod: 'Cash',
-                    customerID: customerID,
-                    particulars: particulars
+                    customerID,
+                    particulars,
+                    remarks,  // Include remarks in payload
+                    isDining
                 })
             });
 
@@ -90,11 +102,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add event listener for the Add Photo button
-    document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
-    
-    document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
-
     function showPhotoOptions() {
         const modal = document.getElementById('photoOptionsModal');
         modal.style.display = 'flex';
@@ -107,23 +114,44 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showManualEntryModal() {
         // Clear any existing values
-        document.getElementById('confirmAmount').value = '';
-        document.getElementById('confirmReference').value = '';
-        
-        // Set default date to today and validate
-        const today = new Date();
-        const dateValue = today.toISOString().split('T')[0];
-        const dateInput = document.getElementById('confirmDate');
-        dateInput.value = dateValue;
-        
-        // Remove any existing listener before adding a new one
-        dateInput.removeEventListener('change', validateDate);
-        dateInput.addEventListener('change', () => validateDate(dateInput.value));
-        validateDate(dateInput.value);
+        document.getElementById('amount').value = '';
+        document.getElementById('particulars').value = '';
         
         // Show the modal
         const modal = document.getElementById('manualEntryModal');
-        modal.style.display = 'flex';  // Make sure we're targeting the correct modal
+        if (!modal) {
+            console.error('Manual entry modal not found');
+            showToast('Could not open manual entry form', 'error');
+            return;
+        }
+
+        // Reset any existing fade-out class
+        modal.classList.remove('fade-out');
+        
+        // Show the modal
+        modal.style.display = 'flex';
+        
+        // Force reflow then add show class for animation
+        modal.offsetHeight;
+        modal.classList.add('show');
+        
+        // Check if current user is "eqmB4" or "HFpuU" and show appropriate fields
+        const customerID = sessionStorage.getItem('customerID');
+        const remarksField = document.getElementById('remarksField');
+        const diningField = document.getElementById('diningField');
+
+        // Show/hide remarks field for eqmB4
+        if (customerID === 'eqmB4') {
+            remarksField.style.display = 'block';
+        } else {
+            remarksField.style.display = 'none';
+        }
+        // Show/hide dining field for HFpuU
+        if (customerID === 'HFpuU') {
+            diningField.style.display = 'block';
+        } else {
+            diningField.style.display = 'none';
+        }
     }
 
     function validateLogin() {
@@ -131,20 +159,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const spinner = document.getElementById('loginSpinner');
         const loginMessage = document.getElementById('loginMessage');
         const mainContent = document.getElementById('mainContent');
-
+        
         loginButton.disabled = true;
         spinner.style.display = 'inline-block';
         loginMessage.textContent = '';
 
         setTimeout(() => {
-            const customerID = document.getElementById('customerID').value.trim();
-            
+            const customerID = document.getElementById('customerID').value.trim();         
             if (validCustomerIDs.includes(customerID)) {
                 isLoggedIn = true;
                 sessionStorage.setItem('isLoggedIn', 'true');
                 sessionStorage.setItem('customerID', customerID);
-                
+
                 // Fade out login overlay and show main content
+
                 const loginOverlay = document.getElementById('loginOverlay');
                 loginOverlay.style.opacity = '0';
                 loginOverlay.style.transition = 'opacity 0.3s ease';
@@ -158,12 +186,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 loginButton.disabled = false;
                 spinner.style.display = 'none';
             }
+
         }, 1000);
     }
 
     function closeCameraModal() {
         isPredicting = false;  // Stop prediction loop
+        isCapturing = false;  // Reset capturing flag
         
+        // Re-enable capture button if it exists and is disabled
+        const captureButton = document.getElementById('capture-button');
+        if (captureButton && captureButton.disabled) {
+            captureButton.disabled = false;
+            captureButton.style.opacity = '1';
+            captureButton.style.cursor = 'pointer';
+        }
+
         // Clear all highlighters first
         const liveView = document.getElementById('liveView');
         if (liveView) {
@@ -416,35 +454,241 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showRecentFiles() {
-        try {
-            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-            if (recentFiles.length === 0) {
-                showToast('No recent files', 'info');
+    async function showRecentFiles() {
+        // Create date picker modal first
+        const modal = document.createElement('div');
+        modal.className = 'photo-options-modal';
+        modal.style.display = 'flex';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Add header
+        const header = document.createElement('h3');
+        header.textContent = 'Select Date';
+        modalContent.appendChild(header);
+        
+        // Add date picker
+        const datePickerContainer = document.createElement('div');
+        datePickerContainer.className = 'form-group';
+        
+        // Set max date to today
+        const today = new Date();
+        const maxDate = today.toISOString().split('T')[0];
+        
+        // Set min date to 3 months ago
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const minDate = threeMonthsAgo.toISOString().split('T')[0];
+        
+        datePickerContainer.innerHTML = `
+            <label for="datePicker">Choose a date to view receipts:</label>
+            <input type="date" 
+                   id="datePicker" 
+                   class="date-input"
+                   max="${maxDate}"
+                   min="${minDate}"
+                   value="${maxDate}">
+        `;
+        
+        modalContent.appendChild(datePickerContainer);
+        
+        // Add buttons
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'button-group';
+        buttonContainer.innerHTML = `
+            <button class="photo-option-btn" id="viewReceiptsBtn">
+                <span class="icon">📄</span> View Receipts
+            </button>
+            <button class="cancel-btn">
+                Cancel
+            </button>
+        `;
+        
+        modalContent.appendChild(buttonContainer);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Add event listeners
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        cancelBtn.onclick = () => modal.remove();
+
+        const viewReceiptsBtn = modal.querySelector('#viewReceiptsBtn');
+        viewReceiptsBtn.onclick = async () => {
+            const selectedDate = document.getElementById('datePicker').value;
+            if (!selectedDate) {
+                showToast('Please select a date', 'error');
                 return;
             }
 
-            const modal = document.createElement('div');
-            modal.className = 'image-preview-modal';
-            modal.innerHTML = `
-                <div class="preview-content">
-                    <h2 style="color: white; text-align: center;">Recent Files</h2>
-                    <div class="recent-files-grid">
-                        ${recentFiles.map(file => `
-                            <div class="recent-file-item">
-                                <img src="data:image/jpeg;base64,${file.imageData}" alt="Recent receipt">
-                                <div class="recent-file-timestamp">
-                                    ${new Date(file.timestamp).toLocaleDateString()}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="preview-controls">
-                        <button class="preview-button close-btn">Close</button>
-                    </div>
+            // Show loading indicator
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'floating-loader';
+            loadingIndicator.innerHTML = `
+                <div class="loader-content">
+                    <div class="loader-spinner"></div>
+                    <span>Loading receipts...</span>
                 </div>
             `;
+            document.body.appendChild(loadingIndicator);
 
+            try {
+                const customerID = sessionStorage.getItem('customerID');
+                const response = await fetch(`/get-daily-images?customerID=${customerID}&date=${selectedDate}`);
+                const data = await response.json();
+                
+                // Remove all existing photo-options-modal elements
+                const existingModals = document.querySelectorAll('.photo-options-modal');
+                existingModals.forEach(modal => modal.remove());
+                
+                // Create and show gallery modal
+                showGalleryModal(data);
+            } catch (error) {
+                console.error('Error loading images:', error);
+                showToast('Error loading images', 'error');
+            } finally {
+                // Remove loading indicator
+                loadingIndicator.classList.add('fade-out');
+                setTimeout(() => loadingIndicator.remove(), 300);
+            }
+        };
+    }
+
+    function showGalleryModal(data) {
+        const modal = document.createElement('div');
+        modal.className = 'gallery-modal';
+        modal.style.display = 'flex';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Use the server-formatted date directly
+        const header = document.createElement('h3');
+        header.textContent = `Receipts for ${data.date}`;
+        modalContent.appendChild(header);
+        
+        // Add gallery
+        const gallery = document.createElement('div');
+        gallery.className = 'image-gallery';
+        
+        if (data.images.length === 0) {
+            const noImages = document.createElement('p');
+            noImages.style.textAlign = 'center';
+            noImages.style.padding = '20px';
+            noImages.textContent = 'No receipts found for this date';
+            gallery.appendChild(noImages);
+        } else {
+            data.images.forEach((image, index) => {
+                const thumb = createThumbnail(image, index, data.images.length);
+                gallery.appendChild(thumb);
+            });
+        }
+        
+        modalContent.appendChild(gallery);
+        
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'cancel-btn';
+        closeButton.textContent = 'Close';
+        closeButton.onclick = () => modal.remove();
+        modalContent.appendChild(closeButton);
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+    }
+
+    function createThumbnail(image, index, total) {
+        const thumb = document.createElement('div');
+        thumb.className = 'thumbnail loading';
+        
+        thumb.innerHTML = `
+            <img src="${image.viewUrl}" 
+                 loading="lazy"
+                 alt="Receipt ${index + 1}"
+                 data-index="${index}">
+            <div class="image-info">
+                <span class="time">${image.timestamp}</span>
+                <span class="size">${image.size}</span>
+            </div>
+        `;
+
+        // Handle image load
+        const img = thumb.querySelector('img');
+        img.onload = () => {
+            thumb.classList.remove('loading');
+        };
+
+        // Add click handler for full view
+        thumb.onclick = () => showFullImage(image, index, total);
+        
+        return thumb;
+    }
+
+    function showFullImage(image, index, total) {
+        const viewer = document.createElement('div');
+        viewer.className = 'image-viewer';
+        
+        viewer.innerHTML = `
+            <div class="viewer-content">
+                <img src="${image.thumbnailUrl}" 
+                     alt="Receipt ${index + 1}"
+                     class="preview-image">
+                <div class="controls">
+                    ${index > 0 ? '<button class="prev">Previous</button>' : ''}
+                    ${index < total - 1 ? '<button class="next">Next</button>' : ''}
+                    <button class="download">
+                        Download (${image.size})
+                    </button>
+                </div>
+                <div class="info">
+                    <span>${image.timestamp}</span>
+                    <span>${image.filename}</span>
+                </div>
+            </div>
+        `;
+
+        // Add download handler
+        viewer.querySelector('.download').onclick = () => {
+            // Show download progress
+            const progress = document.createElement('div');
+            progress.className = 'download-progress';
+            progress.textContent = 'Starting download...';
+            viewer.appendChild(progress);
+
+            // Start download
+            fetch(image.downloadUrl)
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = image.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    progress.remove();
+                })
+                .catch(error => {
+                    progress.textContent = 'Download failed. Please try again.';
+                    setTimeout(() => progress.remove(), 3000);
+                });
+        };
+
+        // Add navigation handlers
+        if (index > 0) {
+            viewer.querySelector('.prev').onclick = () => {
+                viewer.remove();
+                showFullImage(images[index - 1], index - 1, total);
+            };
+        }
+        if (index < total - 1) {
+            viewer.querySelector('.next').onclick = () => {
+                viewer.remove();
+                showFullImage(images[index + 1], index + 1, total);
+            };
+        }
+
+        document.body.appendChild(viewer);
             document.body.appendChild(modal);
             setTimeout(() => modal.classList.add('show'), 0);
 
@@ -454,6 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             // Add click handlers for recent files
+            try {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
@@ -461,10 +706,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     modal.remove();
                 };
             });
-        } catch (error) {
-            console.error('Error showing recent files:', error);
-            showToast('Failed to load recent files', 'error');
-        }
+            }
+            catch (error) {
+                console.error('Error showing recent files:', error);
+                showToast('Failed to load recent files', 'error');
+            } 
     }
 
     // Add the showFailureModal function
@@ -603,6 +849,76 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Add this function to make the modal draggable
+    function makeModalDraggable() {
+        const modal = document.getElementById('confirmationModalContent');
+        const dragHandle = document.getElementById('dragHandle');
+        
+        if (!modal || !dragHandle) return;
+        
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+        
+        // Touch events for mobile
+        dragHandle.addEventListener('touchstart', dragStart, false);
+        document.addEventListener('touchend', dragEnd, false);
+        document.addEventListener('touchmove', drag, false);
+        
+        // Mouse events for desktop
+        dragHandle.addEventListener('mousedown', dragStart, false);
+        document.addEventListener('mouseup', dragEnd, false);
+        document.addEventListener('mousemove', drag, false);
+        
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+            
+            if (e.target === dragHandle || e.target.parentNode === dragHandle) {
+                isDragging = true;
+            }
+        }
+        
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+        
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+                
+                xOffset = currentX;
+                yOffset = currentY;
+                
+                setTranslate(currentX, currentY, modal);
+            }
+        }
+        
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+    }
+
+    // Update the showConfirmationModal function to initialize draggable behavior
     function showConfirmationModal(data) {
         const modal = document.getElementById('confirmationModal');
         const amountInput = document.getElementById('confirmAmount');
@@ -611,13 +927,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const dateInput = document.getElementById('confirmDate');
         currentConfirmationData = data;
 
-        console.log('data', data);
-        console.log(`data ${JSON.stringify(data)}`);
         // Check if elements exist before setting values
         if (amountInput) amountInput.value = data.amount || '';
         if (referenceInput) referenceInput.value = data.referenceNo || '';
         if (ParticularsInput) ParticularsInput.value = data.Particulars || '';
         if (dateInput) dateInput.value = data.Date || '';
+
+        // Check if user is "eqmB4" and show remarks field if so
+        const customerID = sessionStorage.getItem('customerID');
+        const remarksField = document.getElementById('confirmRemarksField');
+        const confirmDiningField = document.getElementById('confirmDiningField');
+        
+        // Show/hide remarks field for eqmB4
+        if (customerID === 'eqmB4' && remarksField) {
+            remarksField.style.display = 'block';
+        } else if (remarksField) {
+            remarksField.style.display = 'none';
+        }
+
+        // Show/hide dining field for HFpuU
+        if (customerID === 'HFpuU' && confirmDiningField) {
+            confirmDiningField.style.display = 'block';
+        } else if (confirmDiningField) {
+            confirmDiningField.style.display = 'none';
+        }
 
         // Add view image button if not exists
         let viewImageBtn = modal.querySelector('.view-image-btn');
@@ -637,6 +970,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show the modal first
         if (modal) {
             modal.style.display = 'flex';
+            
+            // Reset any previous transform
+            const modalContent = document.getElementById('confirmationModalContent');
+            if (modalContent) {
+                modalContent.style.transform = 'translate3d(0px, 0px, 0)';
+            }
+            
+            // Initialize draggable behavior
+            makeModalDraggable();
         } else {
             console.error('Confirmation modal not found in DOM');
         }
@@ -647,6 +989,28 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add date change event listener
         if (dateInput) {
             dateInput.addEventListener('change', (e) => validateDate(e.target.value));
+        }
+    }
+
+    // Update the closeConfirmationModal function to reset the position
+    function closeConfirmationModal() {
+        const modal = document.getElementById('confirmationModal');
+        if (modal) {
+            // Re-enable the confirm button
+            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.style.opacity = '1';
+                confirmButton.style.cursor = 'pointer';
+            }
+            
+            // Reset the modal position before closing
+            const modalContent = document.getElementById('confirmationModalContent');
+            if (modalContent) {
+                modalContent.style.transform = 'translate3d(0px, 0px, 0)';
+            }
+            
+            modal.style.display = 'none';
         }
     }
 
@@ -661,6 +1025,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const referenceNo = document.getElementById('confirmReference').value;
         const Particulars = document.getElementById('confirmParticulars').value;
         const date = document.getElementById('confirmDate').value;
+        
+        // Get remarks value if customer is "eqmB4"
+        const customerID = sessionStorage.getItem('customerID');
+        let remarks = '';
+        if (customerID === 'eqmB4') {
+            remarks = document.getElementById('confirmRemarks')?.value || '';
+        }
+
+        // Get dining value if customer is "HFpuU"
+        let isDining = false;
+        if (customerID === 'HFpuU') {
+            const diningCheckbox = document.getElementById('confirmDiningCheck');
+            isDining = diningCheckbox.checked;
+        }
 
         // Basic validation for empty fields
         if (!amount || !referenceNo || !Particulars || !date) {
@@ -682,9 +1060,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Get customer ID from session storage
-        const customerID = sessionStorage.getItem('customerID');
-
         // Create confirmation data object
         const confirmationData = {
             customerID,
@@ -698,6 +1073,17 @@ document.addEventListener('DOMContentLoaded', function() {
             'Recognized Text': currentConfirmationData.recognizedText,
             'Receipt URL': sessionStorage.getItem('lastReceiptUrl')
         };
+        
+        // Add remarks if customer is "eqmB4"
+        if (customerID === 'eqmB4' && remarks) {
+            confirmationData['Remarks'] = remarks;
+        }
+
+        // Add dining status if customer is "HFpuU"
+        if (customerID === 'HFpuU' && isDining) {
+            confirmationData['Dining'] = isDining;
+        }
+        // Send confirmation to server
         
         fetch('/confirm-receipt', {
             method: 'POST',
@@ -729,20 +1115,6 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmButton.style.cursor = 'pointer';
             showToast('Failed to confirm receipt', 'error');
         });
-    }
-
-    function closeConfirmationModal() {
-        const modal = document.getElementById('confirmationModal');
-        if (modal) {
-            // Re-enable the confirm button
-            const confirmButton = modal.querySelector('.primary-button[onclick="handleConfirmDetails()"]');
-            if (confirmButton) {
-                confirmButton.disabled = false;
-                confirmButton.style.opacity = '1';
-                confirmButton.style.cursor = 'pointer';
-            }
-            modal.style.display = 'none';
-        }
     }
 
     async function processImage(file) {
@@ -895,6 +1267,52 @@ document.addEventListener('DOMContentLoaded', function() {
      const SHARPNESS_THRESHOLD = 50; // Adjust based on testing
      const MOTION_MEMORY = 5; // Number of recent motion measurements to track
      const recentMotions = [];
+    // Add this function to create and animate the countdown timer
+
+    function showCountdownTimer() {
+        return new Promise((resolve) => {
+            const liveView = document.getElementById('liveView');
+            const video = document.getElementById('camera-preview');
+            const timer = document.createElement('div');
+            timer.className = 'countdown-timer';
+            liveView.appendChild(timer);
+            let count = 3;
+
+            // Try to focus camera if available
+            if (video.srcObject && video.srcObject.getVideoTracks().length > 0) {
+                const track = video.srcObject.getVideoTracks()[0];
+                // Check if camera supports focus mode
+                if (track.getCapabilities && track.getCapabilities().focusMode) {
+                    // Apply focus settings
+                    track.applyConstraints({
+                        advanced: [
+                            { focusMode: "continuous" },  // Continuous auto-focus
+                            { focusDistance: 0.33 }      // Focus at about 30cm distance
+                        ]
+                    }).catch(err => console.log('Focus error:', err));
+                }
+            }
+
+            function updateTimer() {
+                timer.textContent = count;
+                timer.classList.remove('countdown-animation');
+                void timer.offsetWidth; // Trigger reflow
+                timer.classList.add('countdown-animation');           
+
+                if (count > 1) {
+                    count--;
+                    setTimeout(updateTimer, 1000);
+                } else {
+                    setTimeout(() => {
+                        timer.remove();
+                        resolve();
+                    }, 1000);
+                }
+            }
+
+            updateTimer();
+        });
+    }
 
     // Update the predictWebcam function to include the countdown
      async function predictWebcam(video, liveView) {
@@ -944,6 +1362,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Use the more detailed response
                     if (result.phoneDetected) {
+
                         const currentPhoneBox = {
                             x: result.bbox ? result.bbox[0] : liveView.offsetWidth * 0.2,
                             y: result.bbox ? result.bbox[1] : liveView.offsetHeight * 0.2,
@@ -966,18 +1385,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (qualityMetrics.isStable && 
                             qualityMetrics.isSharp && 
                             qualityMetrics.isGoodRatio && 
-                            qualityMetrics.confidence > 0.8) {
+                            qualityMetrics.confidence > 0.8 &&
+                            !isCapturing) {  // Add check for isCapturing
+                            
+                            // Set capturing flag
+                            isCapturing = true;
                             
                             // Pause predictions during capture
                             isPredicting = false;
+                            
+                            // Disable capture button when phone is detected
+                            const captureButton = document.getElementById('capture-button');
+                            if (captureButton) {
+                                captureButton.disabled = true;
+                                captureButton.style.opacity = '0.5';
+                                captureButton.style.cursor = 'not-allowed';
+                            }
 
                             try {
-                                // Take the photo without countdown
                                 await handlePhotoCapture(video, video.srcObject);
                                 return;
                             } catch (error) {
                                 console.error('Error during capture:', error);
                                 isPredicting = true; // Resume predictions if there's an error
+                                isCapturing = false; // Reset capturing flag on error
                             }
                         }
 
@@ -1126,6 +1557,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cameraModal.className = 'camera-modal';
         cameraModal.innerHTML = `
             <div class="camera-content">
+                <button class="close-btn" onclick="closeCameraModal()">&times;</button>
                 <div id="liveView" class="videoView">
                     <video id="camera-preview" autoplay playsinline></video>
                 </div>
@@ -1148,7 +1580,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (captureButton) {
                 captureButton.addEventListener('click', () => {
                     const video = document.getElementById('camera-preview');
-                    if (video && video.srcObject) {
+                    if (video && video.srcObject && !isCapturing) {  // Add check for isCapturing
+                        isCapturing = true;  // Set capturing flag
                         handlePhotoCapture(video, video.srcObject);
                     }
                 });
@@ -1238,15 +1671,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
 
     function validateDate(dateInput) {
-        const validationMessage = document.getElementById('dateValidationMessage');
+        // Remove any existing alert
+        const existingAlert = document.querySelector('.scam-alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+
         const dateInputElement = document.getElementById('confirmDate');
-        
-        // Remove existing classes first
         dateInputElement.classList.remove('date-warning');
         
         if (!dateInput || dateInput === '') {
-            validationMessage.style.display = 'none';
-            validationMessage.classList.remove('show');
             return;
         }
 
@@ -1254,21 +1688,24 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add warning class to input
             dateInputElement.classList.add('date-warning');
             
-            // Update validation message with icon
-            validationMessage.innerHTML = `
-                <span class="warning-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 9v4M12 17h.01M12 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2s2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                </span>
-                Receipt Date is not today. Are you sure you want to add this?
+            // Create and show the scam alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'scam-alert';
+            alertDiv.innerHTML = `
+                <div class="alert-content">
+                    <span class="alert-icon">⚠️</span>
+                    <span class="alert-text">Scam Alert</span>
+                    <span class="alert-subtext">Date not today!</span>
+                </div>
             `;
-            validationMessage.style.display = 'flex';
-            validationMessage.classList.add('show');
-        } else {
-            dateInputElement.classList.remove('date-warning');
-            validationMessage.style.display = 'none';
-            validationMessage.classList.remove('show');
+            
+            document.body.appendChild(alertDiv);
+            
+            // Remove the alert after animation
+            setTimeout(() => {
+                alertDiv.classList.add('fade-out');
+                setTimeout(() => alertDiv.remove(), 500);
+            }, 2000);
         }
     }
 
@@ -1292,14 +1729,87 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Update the processMultipleImages function to use the more comprehensive loading modal
     async function processMultipleImages(filesArray) {
-        showToast('Processing multiple images...', 'info');
+        // Create and show loading modal with the comprehensive UI
+        const loadingModal = document.createElement('div');
+        loadingModal.className = 'loading-modal';
+        loadingModal.innerHTML = `
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <h3 class="loading-message">Preparing files...</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">0/${filesArray.length} files analyzed</div>
+                    <div class="time-estimate">Estimating time remaining...</div>
+                    <div class="loading-stage">
+                        <div class="stage-item active" data-stage="prepare">
+                            <span class="stage-icon"></span>
+                            <span>Preparing files</span>
+                        </div>
+                        <div class="stage-item" data-stage="analyze">
+                            <span class="stage-icon"></span>
+                            <span>Analyzing receipts</span>
+                        </div>
+                        <div class="stage-item" data-stage="process">
+                            <span class="stage-icon"></span>
+                            <span>Processing results</span>
+                        </div>
+                    </div>
+                    <div class="network-speed"></div>
+                    <div class="loading-note">It could take up to 20 seconds depending on your internet speed.</div>
+                    <button class="loading-cancel-btn">Don't want to wait?</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingModal);
+
+        // Add event listener for the cancel button
+        const cancelBtn = loadingModal.querySelector('.loading-cancel-btn');
+        cancelBtn.addEventListener('click', () => {
+            // Hide the loading modal but continue the processing in background
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => {
+                loadingModal.style.display = 'none';
+                
+                // Show a floating action button to return to the upload when it's done
+                const floatingBtn = document.createElement('div');
+                floatingBtn.className = 'floating-action-btn hidden';
+                floatingBtn.id = 'uploadStatusBtn';
+                floatingBtn.innerHTML = `
+                    <div class="fab-icon">
+                        <div class="fab-spinner"></div>
+                    </div>
+                    <div class="fab-label">Processing...</div>
+                `;
+                document.body.appendChild(floatingBtn);
+                
+                // Show the button with animation
+                setTimeout(() => floatingBtn.classList.remove('hidden'), 100);
+            }, 300);
+        });
+
+        // References to loading elements
+        const loadingMessage = loadingModal.querySelector('.loading-message');
+        const progressFill = loadingModal.querySelector('.progress-fill');
+        const progressText = loadingModal.querySelector('.progress-text');
+        const timeEstimate = loadingModal.querySelector('.time-estimate');
 
         try {
+            // Automatically trigger the "Don't want to wait" button after 3 seconds
+            setTimeout(() => {
+                // Only auto-dismiss if the modal is still visible (user hasn't manually dismissed)
+                if (loadingModal.style.display !== 'none') {
+                    cancelBtn.click();
+                }
+            }, 3000);
+
             // Convert all files to processable format
             const processedFiles = await Promise.all(filesArray.map(async (file, index) => {
                 // Create a promise for each file processing
-                return new Promise((resolve) => {
+                const result = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         const img = new Image();
@@ -1318,14 +1828,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             canvas.width = width;
                             canvas.height = height;
-                            
-                            // Disable image smoothing for sharper edges
                             ctx.imageSmoothingEnabled = false;
-                            
-                            // Draw image without filters
                             ctx.drawImage(img, 0, 0, width, height);
                             
-                            // Use higher quality JPEG encoding
                             const finalImage = canvas.toDataURL('image/jpeg', 0.95);
                             const base64Image = finalImage.split(',')[1];
                             
@@ -1333,45 +1838,111 @@ document.addEventListener('DOMContentLoaded', function() {
                                 index,
                                 filename: file.name,
                                 base64Image,
-                                file // Include the original file for reference
+                                file
                             });
                         };
                         img.src = event.target.result;
                     };
                     reader.readAsDataURL(file);
                 });
+
+                // Update progress after each file is processed
+                const progressPercentage = (((index + 1) / filesArray.length) * 33); // First stage is 33% of total
+                progressFill.style.width = `${progressPercentage}%`;
+                progressText.textContent = `${index + 1}/${filesArray.length} images processed`;
+
+                return result;
             }));
+
+            // Update message and stage for OCR processing
+            const prepareStage = loadingModal.querySelector('.stage-item[data-stage="prepare"]');
+            const analyzeStage = loadingModal.querySelector('.stage-item[data-stage="analyze"]');
+            
+            prepareStage.classList.remove('active');
+            prepareStage.classList.add('completed');
+            analyzeStage.classList.add('active');
+            
+            loadingMessage.textContent = 'Analyzing receipts...';
+            timeEstimate.textContent = 'This may take a few moments...';
+            progressFill.style.width = '33%';
 
             // Send processed images to server and get OCR results
             const ocrResults = await uploadMultipleToServer(processedFiles);
             
-            // Combine OCR results with file data
-            if (ocrResults && ocrResults.allResults) {
-                // Map each file with its corresponding OCR data
-                const filesWithOcr = processedFiles.map(processedFile => {
-                    // Find matching OCR result by index
-                    const ocrData = ocrResults.allResults.find(
-                        result => result.index === processedFile.index
-                    );
-                    
-                    // Return the file with OCR data attached
-                    return {
-                        ...processedFile,
-                        ocrData: ocrData || { error: 'No OCR data found' }
-                    };
-                });
+            // Update to final processing stage
+            const processStage = loadingModal.querySelector('.stage-item[data-stage="process"]');
+            analyzeStage.classList.remove('active');
+            analyzeStage.classList.add('completed');
+            processStage.classList.add('active');
+            
+            loadingMessage.textContent = 'Processing results...';
+            timeEstimate.textContent = 'Almost done...';
+            progressFill.style.width = '66%';
+            
+            // Simulate final processing
+            setTimeout(() => {
+                progressFill.style.width = '100%';
+                progressText.textContent = `${filesArray.length}/${filesArray.length} images processed`;
                 
-                // Return the files with OCR data
+                // Clean up loading modal
+                setTimeout(() => {
+                    loadingModal.classList.add('fade-out');
+                    setTimeout(() => loadingModal.remove(), 300);
+                    
+                    // Update floating button if it exists
+                    const floatingBtn = document.getElementById('uploadStatusBtn');
+                    if (floatingBtn) {
+                        floatingBtn.innerHTML = `
+                            <div class="fab-icon completed">
+                                <svg viewBox="0 0 24 24" width="24" height="24">
+                                    <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                                </svg>
+                            </div>
+                            <div class="fab-label">Processing Complete</div>
+                        `;
+                        
+                        // Automatically fade out and remove the button after 3 seconds
+                        setTimeout(() => {
+                            floatingBtn.classList.add('hidden');
+                            setTimeout(() => floatingBtn.remove(), 300);
+                        }, 3000);
+                    }
+                }, 500);
+            }, 500);
+
+            if (ocrResults && ocrResults.allResults) {
+                const filesWithOcr = processedFiles.map(processedFile => ({
+                    ...processedFile,
+                    ocrData: ocrResults.allResults.find(
+                        result => result.index === processedFile.index
+                    ) || { error: 'No OCR data found' }
+                }));
                 return filesWithOcr;
             }
             
-            // If no OCR results, return the processed files anyway
             return processedFiles;
             
         } catch (error) {
             console.error('Error processing multiple images:', error);
             showToast('Failed to process images', 'error');
-            // Return original files with error indication
+            
+            // Clean up loading modal on error
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => loadingModal.remove(), 300);
+            
+            // Update floating button if it exists
+            const floatingBtn = document.getElementById('uploadStatusBtn');
+            if (floatingBtn) {
+                floatingBtn.innerHTML = `
+                    <div class="fab-icon error">
+                        <svg viewBox="0 0 24 24" width="24" height="24">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                    </div>
+                    <div class="fab-label">Processing Failed</div>
+                `;
+            }
+            
             return filesArray.map((file, index) => ({
                 index,
                 file,
@@ -1381,7 +1952,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Update the uploadMultipleToServer function to use the more comprehensive loading modal
     async function uploadMultipleToServer(processedFiles) {
+        // Create a new loading modal or pass it as a parameter
+        const loadingModal = document.querySelector('.loading-modal'); // Get the existing modal
+        
         try {
             // Store the first image data globally (for potential use)
             if (processedFiles.length > 0) {
@@ -1398,6 +1973,32 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (cameraModal) {
                 closeCameraModal();
+            }
+
+            // Update the existing loading modal if it exists
+            if (loadingModal) {
+                const loadingMessage = loadingModal.querySelector('.loading-message');
+                const progressFill = loadingModal.querySelector('.progress-fill');
+                const progressText = loadingModal.querySelector('.progress-text');
+                const timeEstimate = loadingModal.querySelector('.time-estimate');
+                
+                // Update loading message and stage for analysis phase
+                const analyzeStage = loadingModal.querySelector('.stage-item[data-stage="analyze"]');
+                if (analyzeStage) {
+                    analyzeStage.classList.add('active');
+                }
+                
+                if (loadingMessage) {
+                    loadingMessage.textContent = 'Analyzing receipts...';
+                }
+                
+                if (timeEstimate) {
+                    timeEstimate.textContent = 'This may take a few moments...';
+                }
+                
+                if (progressFill) {
+                    progressFill.style.width = '50%';
+                }
             }
 
             // Make API call
@@ -1421,6 +2022,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
             });
 
+            // Update progress if loading modal exists
+            if (loadingModal) {
+                const progressFill = loadingModal.querySelector('.progress-fill');
+                if (progressFill) {
+                    progressFill.style.width = '75%';
+                }
+            }
+
             const data = await response.json();
 
             // Log relevant response details
@@ -1441,6 +2050,26 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error uploading multiple images:', error);
             showFailureModal('Processing Error', 'An error occurred while processing your images. Please try again.');
+            
+            // Update floating button if it exists
+            const floatingBtn = document.getElementById('uploadStatusBtn');
+            if (floatingBtn) {
+                floatingBtn.innerHTML = `
+                    <div class="fab-icon error">
+                        <svg viewBox="0 0 24 24" width="24" height="24">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                    </div>
+                    <div class="fab-label">Analysis Failed</div>
+                `;
+                
+                // Automatically fade out and remove the button after 3 seconds
+                setTimeout(() => {
+                    floatingBtn.classList.add('hidden');
+                    setTimeout(() => floatingBtn.remove(), 300);
+                }, 3000);
+            }
+            
             return null;
         }
     }
@@ -1502,127 +2131,257 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
+    // Update the handleSubmitAll function to start the upload immediately
+    // and show the loading indicator without blocking the user
     async function handleSubmitAll() {
-        if (!validateAllEntries()) {
+        // Get all image entries
+        const imageEntries = window.imageEntries || [];
+        if (imageEntries.length === 0) {
+            showToast('No images to upload', 'error');
             return;
         }
 
-        // Disable the submit button first to prevent multiple submissions
+        // Validate all entries first
+        // const validationResult = validateAllEntries();
+        if (!validateAllEntries()) {
+            // showToast(validationResult.message, 'error');
+            return;
+        }
+
+        // Disable submit button to prevent multiple submissions
         const submitButton = document.getElementById('submitAllUploads');
         if (submitButton) {
             submitButton.disabled = true;
-            submitButton.style.opacity = '0.5';
+            submitButton.style.opacity = '0.7';
             submitButton.style.cursor = 'not-allowed';
-            submitButton.innerHTML = '<span class="spinner" style="display: inline-block;"></span> Processing...';
+            submitButton.innerHTML = 'Uploading...';
         }
-        
-        try {
-            // Reset validation states first
-            imageEntries.forEach(entry => {
-                const inputs = entry.element.querySelectorAll('input');
-                inputs.forEach(input => {
-                    input.classList.remove('invalid-input');
-                    const errorMsg = input.parentElement.querySelector('.validation-error');
-                    if (errorMsg) errorMsg.remove();
-                });
-            });
-            
-            // Perform comprehensive validation
-            let hasErrors = false;
-            const validationResults = imageEntries.map(entry => entry.validate());
-            
-            // Check if any entries have validation errors
-            if (validationResults.some(result => !result.valid)) {
-                hasErrors = true;
-                // Display errors for each entry
-                validationResults.forEach((result, index) => {
-                    if (!result.valid) {
-                        const entry = imageEntries[index];
-                        
-                        // Mark invalid fields and show error messages
-                        Object.entries(result.errors).forEach(([field, message]) => {
-                            const input = entry.element.querySelector(`.${field}-input`);
-                            if (input) {
-                                input.classList.add('invalid-input');
-                                
-                                // Add error message below the input
-                                const errorMsg = document.createElement('div');
-                                errorMsg.className = 'validation-error';
-                                errorMsg.textContent = message;
-                                input.parentElement.appendChild(errorMsg);
-                                
-                                // Scroll to the first error
-                                if (field === Object.keys(result.errors)[0] && index === validationResults.findIndex(r => !r.valid)) {
-                                    setTimeout(() => {
-                                        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    }, 100);
-                                }
-                            }
-                        });
-                    }
-                });
-                
-                showToast('Please correct the highlighted fields', 'error');
-                
-                // Re-enable the button if validation fails
-                if (submitButton) {
-                    submitButton.disabled = false;
-                    submitButton.style.opacity = '1';
-                    submitButton.style.cursor = 'pointer';
-                    submitButton.innerHTML = 'Submit All';
-                }
-                
-                // Important: Return early to prevent API call
-                return;
-            }
 
-            // Only proceed if no validation errors
-            if (!hasErrors) {
-                // Show loading toast
-                showToast('Uploading files...', 'info');
+        // Create loading modal
+        const loadingModal = document.createElement('div');
+        loadingModal.className = 'loading-modal';
+        loadingModal.innerHTML = `
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <h3 class="loading-message">Preparing files...</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">0/${imageEntries.length} files uploaded</div>
+                    <div class="time-estimate">Estimating time remaining...</div>
+                    <div class="loading-stage">
+                        <div class="stage-item active" data-stage="prepare">
+                            <span class="stage-icon"></span>
+                            <span>Preparing files</span>
+                        </div>
+                        <div class="stage-item" data-stage="upload">
+                            <span class="stage-icon"></span>
+                            <span>Uploading to server</span>
+                        </div>
+                        <div class="stage-item" data-stage="process">
+                            <span class="stage-icon"></span>
+                            <span>Processing receipts</span>
+                        </div>
+                    </div>
+                    <div class="network-speed"></div>
+                    <div class="loading-note">It could take up to 20 seconds depending on your internet speed.</div>
+                    <button class="loading-cancel-btn">Close & Continue in Background</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingModal);
+
+        // Add event listener for the cancel button
+        const cancelBtn = loadingModal.querySelector('.loading-cancel-btn');
+        cancelBtn.addEventListener('click', () => {
+            // Hide the loading modal but continue the upload in background
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => {
+                loadingModal.style.display = 'none';
                 
-                // Create FormData for bulk file upload
-                const formData = new FormData();
-                const customerID = sessionStorage.getItem('customerID');
+                // Show a floating action button to return to the upload when it's done
+                const floatingBtn = document.createElement('div');
+                floatingBtn.className = 'floating-action-btn hidden';
+                floatingBtn.id = 'uploadStatusBtn';
+                floatingBtn.innerHTML = `
+                    <div class="fab-icon">
+                        <div class="fab-spinner"></div>
+                    </div>
+                    <div class="fab-label">Uploading...</div>
+                `;
+                document.body.appendChild(floatingBtn);
+                
+                // Show the button with animation
+                setTimeout(() => floatingBtn.classList.remove('hidden'), 100);
+                
+                // Allow user to continue using the app
+                const modal = document.getElementById('multipleUploadsModal');
+                modal.classList.remove('show');
+                                    setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 300);
+            }, 300);
+        });
+
+        // References to loading elements
+        const loadingMessage = loadingModal.querySelector('.loading-message');
+        const progressFill = loadingModal.querySelector('.progress-fill');
+        const progressText = loadingModal.querySelector('.progress-text');
+        const timeEstimate = loadingModal.querySelector('.time-estimate');
+        const networkSpeed = loadingModal.querySelector('.network-speed');
+
+        try {
+            // Prepare FormData
+            const formData = new FormData();
+            const metadata = [];
+            const customerID = sessionStorage.getItem('customerID');
+            
+            if (!customerID) {
+                throw new Error('Customer ID not found. Please log in again.');
+            }
+            
                 formData.append('customerID', customerID);
                 
-                // Add all files to FormData
-                const receiptMetadata = [];
+            // Add each file to FormData and collect metadata
+            for (let i = 0; i < imageEntries.length; i++) {
+                const entry = imageEntries[i];
+                const element = entry.element;
                 
-                imageEntries.forEach((entry, index) => {
-                    // Add the file to FormData
+                // Get values from form fields
+                const amount = element.querySelector('.amount-input').value;
+                const reference = element.querySelector('.reference-input').value;
+                const particulars = element.querySelector('.particulars-input').value;
+                const date = element.querySelector('.date-input').value;
+                
+                // Add file to FormData
                     formData.append('files', entry.file);
                     
-                    // Collect metadata for each receipt
-                    receiptMetadata.push({
-                        index,
-                        amount: entry.element.querySelector('.amount-input').value,
-                        reference: entry.element.querySelector('.reference-input').value,
-                        particulars: entry.element.querySelector('.particulars-input').value,
-                        date: entry.element.querySelector('.date-input').value,
-                        ocrData: entry.originalOcrData || {}
-                    });
+                // Collect metadata
+                metadata.push({
+                    index: i,
+                    amount: amount,
+                    reference: reference,
+                    particulars: particulars,
+                    date: date,
+                    ocrData: entry.originalOcrData || null
                 });
-                
-                // Add metadata as JSON
-                formData.append('metadata', JSON.stringify(receiptMetadata));
-                
-                // Store metadata in session storage for reference
-                sessionStorage.setItem('receiptMetadata', JSON.stringify(receiptMetadata));
-                
-                // Upload all files and process data in a single request
-                const response = await fetch('/upload-multiple-receipts-form', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Upload failed');
+            }
+            
+            // Add metadata as JSON string
+            formData.append('metadata', JSON.stringify(metadata));
+            
+            // Update loading message and stage
+            loadingMessage.textContent = 'Uploading files...';
+            const prepareStage = loadingModal.querySelector('.stage-item[data-stage="prepare"]');
+            const uploadStage = loadingModal.querySelector('.stage-item[data-stage="upload"]');
+            
+            prepareStage.classList.remove('active');
+            prepareStage.classList.add('completed');
+            uploadStage.classList.add('active');
+            
+            // Create and configure XMLHttpRequest for upload with progress tracking
+            const xhr = new XMLHttpRequest();
+            const startTime = Date.now();
+            let lastLoaded = 0;
+            let lastTime = startTime;
+            let uploadSpeed = 0;
+            
+            xhr.open('POST', '/upload-multiple-receipts-form');
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    // Calculate progress percentage
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    
+                    // Update progress bar
+                    progressFill.style.width = `${percent}%`;
+                    progressText.textContent = `${Math.round(event.loaded / 1024)} KB of ${Math.round(event.total / 1024)} KB uploaded`;
+                    
+                    // Calculate time elapsed and estimated time remaining
+                    const currentTime = Date.now();
+                    const elapsedTime = (currentTime - startTime) / 1000; // in seconds
+                    
+                    // Calculate upload speed (bytes per second)
+                    const timeDelta = (currentTime - lastTime) / 1000;
+                    if (timeDelta > 0.5) { // Update speed every 500ms
+                        const loadedDelta = event.loaded - lastLoaded;
+                        uploadSpeed = loadedDelta / timeDelta; // bytes per second
+                        
+                        // Update for next calculation
+                        lastLoaded = event.loaded;
+                        lastTime = currentTime;
+                        
+                        // Display network speed
+                        const speedKBps = Math.round(uploadSpeed / 1024);
+                        networkSpeed.textContent = `${speedKBps} KB/s`;
+                        networkSpeed.classList.add('fluctuating');
+                    }
+                    
+                    // Estimate remaining time
+                    if (uploadSpeed > 0) {
+                        const remainingBytes = event.total - event.loaded;
+                        const remainingSeconds = remainingBytes / uploadSpeed;
+                        
+                        // Format remaining time
+                        if (remainingSeconds < 1) {
+                            timeEstimate.textContent = 'Almost done...';
+                        } else if (remainingSeconds < 60) {
+                            timeEstimate.textContent = `About ${Math.round(remainingSeconds)} seconds remaining`;
+                        } else {
+                            const minutes = Math.floor(remainingSeconds / 60);
+                            const seconds = Math.round(remainingSeconds % 60);
+                            timeEstimate.textContent = `About ${minutes}:${seconds.toString().padStart(2, '0')} minutes remaining`;
+                        }
+                    }
                 }
-                
-                // Check sheet processing results if available
+            });
+            
+            // Handle successful upload
+            xhr.addEventListener('load', async () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        
+                        // Update stages for processing phase
+                        const uploadStage = loadingModal.querySelector('.stage-item[data-stage="upload"]');
+                        const processStage = loadingModal.querySelector('.stage-item[data-stage="process"]');
+                        
+                        uploadStage.classList.remove('active');
+                        uploadStage.classList.add('completed');
+                        processStage.classList.add('active');
+                        
+                        // Update loading message for processing phase
+                        loadingMessage.textContent = 'Processing receipts...';
+                        timeEstimate.textContent = 'Almost done...';
+                        
+                        // Hide network speed during processing
+                        networkSpeed.style.display = 'none';
+                        
+                        // Check if the loading modal is still visible
+                        const isModalVisible = loadingModal.style.display !== 'none';
+                        
+                        // Update floating action button if it exists
+                        const floatingBtn = document.getElementById('uploadStatusBtn');
+                        if (floatingBtn) {
+                            floatingBtn.innerHTML = `
+                                <div class="fab-icon completed">
+                                    <svg viewBox="0 0 24 24" width="24" height="24">
+                                        <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                                    </svg>
+                                </div>
+                                <div class="fab-label">Processing Complete</div>
+                            `;
+                            
+                            // Automatically fade out and remove the button after 3 seconds
+                            setTimeout(() => {
+                                floatingBtn.classList.add('hidden');
+                                setTimeout(() => floatingBtn.remove(), 300);
+                            }, 3000);
+                        }
+                        
+                        // Check sheet processing results
                 if (data.sheetResults) {
                     if (data.sheetResults.failureCount > 0) {
                         showToast(`Processed ${data.sheetResults.successCount} of ${data.sheetResults.totalProcessed} receipts`, 'warning');
@@ -1642,22 +2401,171 @@ document.addEventListener('DOMContentLoaded', function() {
                     sessionStorage.setItem('allReceiptKeys', JSON.stringify(data.keys));
                 }
                 
-                // Show success animation
+                        // Show success animation if modal is visible
+                        if (isModalVisible) {
                 showConfetti();
+                        }
+                        
+                        // Close the loading modal if it's visible
+                        if (isModalVisible) {
+                            loadingModal.classList.add('fade-out');
+                            setTimeout(() => loadingModal.remove(), 300);
+                        }
+                        
+                        // If the loading modal was hidden, show completion notification
+                        if (!isModalVisible && !floatingBtn) {
+                            showUploadCompletionModal(data);
+                        }
+                        
+                        // Clear the uploads container
+                        window.imageEntries = [];
+                        
+                    } catch (error) {
+                        console.error('Error parsing response:', error);
+                        showToast('Error processing server response', 'error');
+                        
+                        // Update floating button to show error
+                        const floatingBtn = document.getElementById('uploadStatusBtn');
+                        if (floatingBtn) {
+                            floatingBtn.innerHTML = `
+                                <div class="fab-icon error">
+                                    <svg viewBox="0 0 24 24" width="24" height="24">
+                                        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                                    </svg>
+                                </div>
+                                <div class="fab-label">Upload Failed</div>
+                            `;
+                        }
+                        
+                        // Clean up loading modal if visible
+                        if (loadingModal.style.display !== 'none') {
+                            loadingModal.classList.add('fade-out');
+                            setTimeout(() => loadingModal.remove(), 300);
+                        }
+                    }
+                } else {
+                    console.error('Upload failed with status:', xhr.status);
+                    showToast('Upload failed: ' + (xhr.statusText || 'Server error'), 'error');
+                    
+                    // Update floating button to show error
+                    const floatingBtn = document.getElementById('uploadStatusBtn');
+                    if (floatingBtn) {
+                        floatingBtn.innerHTML = `
+                            <div class="fab-icon error">
+                                <svg viewBox="0 0 24 24" width="24" height="24">
+                                    <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                                </svg>
+                            </div>
+                            <div class="fab-label">Upload Failed</div>
+                        `;
+                    }
+                    
+                    // Clean up loading modal if visible
+                    if (loadingModal.style.display !== 'none') {
+                        loadingModal.classList.add('fade-out');
+                        setTimeout(() => loadingModal.remove(), 300);
+                    }
+                }
                 
-                // Close the modal
-                const modal = document.getElementById('multipleUploadsModal');
-                modal.classList.remove('show');
+                // Re-enable submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+            });
+            
+            // Handle network errors
+            xhr.addEventListener('error', () => {
+                console.error('Network error during upload');
+                showToast('Network error during upload. Please check your connection.', 'error');
+                
+                // Update floating button to show error
+                const floatingBtn = document.getElementById('uploadStatusBtn');
+                if (floatingBtn) {
+                    floatingBtn.innerHTML = `
+                        <div class="fab-icon error">
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                            </svg>
+                        </div>
+                        <div class="fab-label">Network Error</div>
+                    `;
+                }
+                
+                // Clean up loading modal if visible
+                if (loadingModal.style.display !== 'none') {
+                    loadingModal.classList.add('fade-out');
+                    setTimeout(() => loadingModal.remove(), 300);
+                }
+                
+                // Re-enable submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+            });
+            
+            // Handle timeout
+            xhr.addEventListener('timeout', () => {
+                console.error('Upload timed out');
+                showToast('Upload timed out. Please try again.', 'error');
+                
+                // Update floating button to show error
+                const floatingBtn = document.getElementById('uploadStatusBtn');
+                if (floatingBtn) {
+                    floatingBtn.innerHTML = `
+                        <div class="fab-icon error">
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                            </svg>
+                        </div>
+                        <div class="fab-label">Upload Timed Out</div>
+                    `;
+                }
+                
+                // Clean up loading modal if visible
+                if (loadingModal.style.display !== 'none') {
+                    loadingModal.classList.add('fade-out');
+                    setTimeout(() => loadingModal.remove(), 300);
+                }
+                
+                // Re-enable submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.innerHTML = 'Submit All';
+                }
+            });
+            
+            // Set timeout to 2 minutes
+            xhr.timeout = 120000;
+            
+            // Send the FormData
+            xhr.send(formData);
+            
+            // Automatically trigger the "Don't want to wait" button after 3 seconds
+            // This allows the user to continue using the app while upload happens in background
                 setTimeout(() => {
-                    modal.style.display = 'none';
-                    document.getElementById('uploadsContainer').innerHTML = '';
-                }, 300);
-            }
+                // Only auto-dismiss if the modal is still visible (user hasn't manually dismissed)
+                if (loadingModal.style.display !== 'none') {
+                    cancelBtn.click();
+                }
+            }, 3000);
+            
         } catch (error) {
-            console.error('Error processing uploads:', error);
-            showToast('Failed to process uploads: ' + error.message, 'error');
-        } finally {
-            // Always re-enable the button
+            console.error('Error preparing upload:', error);
+            showToast(error.message || 'Error preparing upload', 'error');
+            
+            // Clean up loading modal
+            loadingModal.classList.add('fade-out');
+            setTimeout(() => loadingModal.remove(), 300);
+            
+            // Re-enable submit button
             if (submitButton) {
                 submitButton.disabled = false;
                 submitButton.style.opacity = '1';
@@ -2023,21 +2931,78 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Add this new function to show completion modal
+    function showUploadCompletionModal(data) {
+        const completionModal = document.createElement('div');
+        completionModal.className = 'completion-modal';
+        
+        const successCount = data.sheetResults?.successCount || data.count || 0;
+        const totalCount = data.sheetResults?.totalProcessed || data.count || 0;
+        const hasErrors = (data.sheetResults?.failureCount || 0) > 0;
+        
+        completionModal.innerHTML = `
+            <div class="completion-content">
+                <div class="completion-icon ${hasErrors ? 'partial' : 'success'}">
+                    ${hasErrors ? 
+                        `<svg viewBox="0 0 24 24" width="48" height="48">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v2h-2v-2zm0-8h2v6h-2V9z"/>
+                        </svg>` : 
+                        `<svg viewBox="0 0 24 24" width="48" height="48">
+                            <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                        </svg>`
+                    }
+                </div>
+                <h3>${hasErrors ? 'Upload Partially Complete' : 'Upload Complete'}</h3>
+                <p class="completion-message">
+                    ${successCount} of ${totalCount} receipts were successfully processed.
+                </p>
+                <div class="completion-actions">
+                    <button class="completion-btn primary">View Dashboard</button>
+                    <button class="completion-btn secondary">Close</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(completionModal);
+        
+        // Add event listeners
+        const primaryBtn = completionModal.querySelector('.completion-btn.primary');
+        primaryBtn.addEventListener('click', () => {
+            completionModal.classList.add('fade-out');
+            setTimeout(() => completionModal.remove(), 300);
+            routeUser(); // Navigate to dashboard
+        });
+        
+        const secondaryBtn = completionModal.querySelector('.completion-btn.secondary');
+        secondaryBtn.addEventListener('click', () => {
+            completionModal.classList.add('fade-out');
+            setTimeout(() => completionModal.remove(), 300);
+        });
+        
+        // Show confetti for successful uploads
+        if (!hasErrors) {
+            showConfetti();
+        }
+        
+        // Force reflow then add show class for animation
+        completionModal.offsetHeight;
+        completionModal.classList.add('show');
+    }
+
     // Make functions available globally
     window.handlePhotoOption = handlePhotoOption;
     window.showPhotoOptions = showPhotoOptions;
     window.closePhotoOptions = closePhotoOptions;
     window.closeCameraModal = closeCameraModal;
-    window.validateLogin = validateLogin;
     window.showManualEntryModal = showManualEntryModal;
     window.closeManualEntryModal = closeManualEntryModal;
     window.closeFailureModal  = closeFailureModal;
     window.handleManualSubmit  = handleManualSubmit;
     window.handleConfirmDetails = handleConfirmDetails;
+    window.validateLogin = validateLogin;
     window.closeConfirmationModal = closeConfirmationModal;
     window.routeUser = routeUser;
     window.showRecentFiles = showRecentFiles;
     window.handleSubmitAll = handleSubmitAll;
     window.showLargeImagePreview = showLargeImagePreview;
-
 });

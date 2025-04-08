@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nlp from 'compromise';
 import { google } from 'googleapis';
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import multer from 'multer';
 import multerS3 from 'multer-s3';
@@ -67,9 +67,14 @@ app.get('/', (req, res) => {
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
     '0e702': 'Dhapa',    // CUSTOMER_2
-    '571b6': 'Kaldens',    // CUSTOMER_3
+    '571b6': 'RoofTop',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
-    '72d72': 'Customer5'     // CUSTOMER_5
+    '72d72': 'OmBakery',     // CUSTOMER_5
+    'HFpuU': 'SunRiseBakery',     // CUSTOMER_6
+    'eqmB4': 'JunctionMart',     // CUSTOMER_7
+    't0Ctf': 'Customer8',     // CUSTOMER_8
+    'ChQsf': 'Customer9',     // CUSTOMER_9
+    'FVQbb': 'Customer10',     // CUSTOMER_10
 };
 
 function pickCustomerSheet(customerID) {
@@ -79,11 +84,21 @@ function pickCustomerSheet(customerID) {
         case '0e702':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_DHAPA_ID;
         case '571b6':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_KALDENS_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_ROOFTOP_ID;
         case 'be566':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
         case '72d72':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_OMBAKERY_ID;
+        case 'HFpuU':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_SUNRISEBAKERY_ID;
+        case 'eqmB4':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_JUNCTIONMART_ID;
+        case 't0Ctf':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER8_ID;
+        case 'ChQsf':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER9_ID;
+        case 'FVQbb':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER10_ID;
     }
 }
 
@@ -119,10 +134,101 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
         // Get the access token
         const token = await jwtClient.getAccessToken();
 
+        // Add this before the fetch call
+        console.log('Debug - Request details:', {
+            spreadsheetCustomerID,
+            range,
+            rowData: JSON.stringify(rowData),
+            url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`
+        });
+        let response;
         const createdAt = formatCreatedTime();
         
         // Make the request to Google Sheets API
-        const response = await axios({
+        if(spreadsheetCustomerID == '17hsl2RUbeXaeGCbcf3wFHLxn0yQH9aDIRCjGxykUgnY'){
+            response = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token.token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        majorDimension: "ROWS",
+                        values: [[
+                            rowData['Reference Number'] || '',
+                            false, //checked
+                            rowData['Particulars'] || '',
+                            rowData['Amount'] || '',
+                            rowData['Bank'] || '',
+                            createdAt,
+                            rowData['Remarks'] || '',
+                            rowData['Payment Method'] || '',
+                            rowData['OCR Timestamp'] || '',
+                            rowData['Recognized Text'] || '',
+                            rowData['Receipt URL'] || ''
+                        ]]
+                    })
+                }
+            );
+            return;
+        } if(spreadsheetCustomerID == '19KhGtgB7lWvB4Ae9v1k4cp7WuA_j0FF3U90RNf52Ljc'){
+            response = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token.token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        majorDimension: "ROWS",
+                        values: [[
+                            rowData['Reference Number'] || '',
+                            false, //checked
+                            rowData['Particulars'] || '',
+                            rowData['Amount'] || '',
+                            rowData['Bank'] || '',
+                            createdAt,
+                            rowData['Dining'],
+                            rowData['Payment Method'] || '',
+                            rowData['OCR Timestamp'] || '',
+                            rowData['Recognized Text'] || '',
+                            rowData['Receipt URL'] || ''
+                        ]]
+                    })
+                }
+            );
+            return;
+        } else {
+        response = await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    majorDimension: "ROWS",
+                    values: [[
+                        rowData['Reference Number'] || '',
+                        false, //checked
+                        rowData['Particulars'] || '',
+                        rowData['Amount'] || '',
+                        rowData['Bank'] || '',
+                        createdAt,
+                        rowData['Payment Method'] || '',
+                        rowData['OCR Timestamp'] || '',
+                        rowData['Recognized Text'] || '',
+                        rowData['Receipt URL'] || ''
+                    ]]
+                })
+            }
+        );
+        }
+        response = await axios({
             method: 'post',
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
             headers: {
@@ -357,6 +463,7 @@ function findCurrency(text, result) {
     currencyPatterns.forEach(pattern => {
         const matches = [...text.matchAll(pattern)];
         matches.forEach(match => {
+            
             // Directly use the captured amount if it exists
             let amount = match[1];
             if (amount) {
@@ -824,7 +931,6 @@ function checkCurrentUser(customerID) {
 
 // Update receipt data function
 async function updateReceiptData(receiptData) {
-    console.log('receiptData', receiptData);
     try {
         const sheetId = customerSheets[receiptData.customerID];
         if (!sheetId) {
@@ -842,6 +948,15 @@ async function updateReceiptData(receiptData) {
             'Particulars': receiptData['Particulars'],
             'Receipt URL': receiptData['Receipt URL']
         };
+        
+        // Add remarks only if customer is "eqmB4" and remarks exist
+        if (receiptData.customerID === 'eqmB4' && receiptData['Remarks']) {
+            rowData['Remarks'] = receiptData['Remarks'];
+        }
+
+        if(receiptData.customerID === 'HFpuU' && receiptData['Dining']){
+            rowData['Dining'] = receiptData['Dining'];
+        }
 
         await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
         return true;
@@ -882,57 +997,138 @@ const s3Upload = multer({
 async function updateReceiptDataBulk(receiptDataArray) {
     console.log(`Processing ${receiptDataArray.length} receipts in bulk`);
     
-    // Track results for each receipt
+    // Group receipts by customer ID to handle different spreadsheets
+    const receiptsByCustomer = {};
+    
+    // Track results for reporting
     const results = [];
     
-    // Process receipts sequentially to avoid potential rate limiting with Google Sheets API
+    // First, organize receipts by customer ID
     for (let i = 0; i < receiptDataArray.length; i++) {
         const receiptData = receiptDataArray[i];
-        try {
-            // Get sheet ID for this customer
-            const sheetId = customerSheets[receiptData.customerID];
-            if (!sheetId) {
-                results.push({
-                    success: false,
-                    error: 'Invalid customer ID or sheet ID not found',
-                    receiptId: receiptData.referenceNo || 'Unknown',
-                    amount: receiptData.amount || '0.00'
-                });
-                continue; // Skip to next receipt
-            }
-            
-            const spreadsheetCustomerID = pickCustomerSheet(receiptData.customerID);
-            
-            // Format data for Google Sheets
-            const rowData = {
-                'OCR Timestamp': receiptData['OCR Timestamp'] || new Date().toISOString(),
-                'Reference Number': receiptData.referenceNo || 'MANUAL',
-                'Amount': receiptData.amount,
-                'Recognized Text': receiptData['Recognized Text'] || '',
-                'Payment Method': receiptData['Payment Method'] || 'Bank Receipt',
-                'Bank': receiptData['Bank'] || 'Unknown',
-                'Particulars': receiptData['Particulars'] || '',
-                'Receipt URL': receiptData['Receipt URL']
-            };
-
-            // Write to sheet with error handling
-            await writeToSheet(`${sheetId}!A:H`, rowData, spreadsheetCustomerID);
-            
-            // Record success
-            results.push({
-                success: true,
-                receiptId: receiptData.referenceNo || 'MANUAL',
-                amount: receiptData.amount
-            });
-        } catch (error) {
-            console.error(`Error updating receipt data at index ${i}:`, error);
-            // Record failure but continue processing others
+        const customerID = receiptData.customerID;
+        
+        if (!customerSheets[customerID]) {
             results.push({
                 success: false,
-                error: error.message || 'Unknown error occurred',
+                error: 'Invalid customer ID or sheet ID not found',
                 receiptId: receiptData.referenceNo || 'Unknown',
                 amount: receiptData.amount || '0.00'
             });
+            continue;
+        }
+        
+        if (!receiptsByCustomer[customerID]) {
+            receiptsByCustomer[customerID] = [];
+        }
+        
+        receiptsByCustomer[customerID].push({
+            receiptData,
+            index: i
+        });
+    }
+    
+    try {
+        // Read and use service account credentials
+        let credentials;
+        try {
+            // Clean the credentials string by removing control characters
+            const credentialsString = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+            
+            credentials = JSON.parse(credentialsString);
+        } catch (parseError) {
+            console.error('Error parsing credentials:', parseError);
+            throw new Error('Invalid Google credentials format. Please check your environment variables.');
+        }
+        
+        // Create JWT client using service account credentials
+        const jwtClient = new google.auth.JWT(
+            credentials.client_email,
+            null,
+            credentials.private_key,
+            ['https://www.googleapis.com/auth/spreadsheets']
+        );
+
+        // Authorize the client
+        await jwtClient.authorize();
+
+        // Get the access token
+        const token = await jwtClient.getAccessToken();
+        
+        // Process each customer's receipts in a single batch request
+        for (const [customerID, receipts] of Object.entries(receiptsByCustomer)) {
+            const sheetId = customerSheets[customerID];
+            const spreadsheetCustomerID = pickCustomerSheet(customerID);
+            
+            // Prepare values for batch update
+            const values = receipts.map(({ receiptData }) => {
+                const createdAt = formatCreatedTime();
+                return [
+                    receiptData.referenceNo || 'MANUAL',
+                    false, // checked
+                    receiptData['Particulars'] || '',
+                    receiptData.amount || '0.00',
+                    receiptData['Bank'] || '',
+                    createdAt,
+                    receiptData['Payment Method'] || 'Bank Receipt',
+                    receiptData['OCR Timestamp'] || '',
+                    receiptData['Recognized Text'] || '',
+                    receiptData['Receipt URL'] || ''
+                ];
+            });
+            
+            // Make a single batch request to Google Sheets API
+            const response = await axios({
+                method: 'post',
+                url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${sheetId}!A:J:append?valueInputOption=USER_ENTERED`,
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    majorDimension: "ROWS",
+                    values: values
+                }
+            });
+            
+            console.log(`Batch update successful for customer ${customerID}:`, response.data);
+            
+            // Mark all receipts for this customer as successful
+            receipts.forEach(({ receiptData, index }) => {
+                results[index] = {
+                    success: true,
+                    receiptId: receiptData.referenceNo || 'MANUAL',
+                    amount: receiptData.amount || '0.00'
+                };
+            });
+        }
+        
+        // Fill in any missing results (should not happen, but just in case)
+        for (let i = 0; i < receiptDataArray.length; i++) {
+            if (!results[i]) {
+                results[i] = {
+                    success: false,
+                    error: 'Receipt was not processed',
+                    receiptId: receiptDataArray[i].referenceNo || 'Unknown',
+                    amount: receiptDataArray[i].amount || '0.00'
+                };
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error in batch update:', error);
+        
+        // Mark any remaining unprocessed receipts as failed
+        for (let i = 0; i < receiptDataArray.length; i++) {
+            if (!results[i]) {
+                results[i] = {
+                    success: false,
+                    error: error.message || 'Unknown error occurred during batch update',
+                    receiptId: receiptDataArray[i].referenceNo || 'Unknown',
+                    amount: receiptDataArray[i].amount || '0.00'
+                };
+            }
         }
     }
     
@@ -1111,16 +1307,9 @@ app.post('/vision-api', async (req, res) => {
 
         if (confidence > 0.7) {
             const bankKey = determineBankKey(recognizedText);
-            console.log('recognizedText (raw):', recognizedText);
-            console.log('recognizedText (formatted):', JSON.stringify(recognizedText, null, 2)
-                .replace(/\\n/g, '\n')
-                .replace(/^"|"$/g, '')
-            );
             const receiptData = parseReceiptData(recognizedText, bankKey);
-            console.log('receiptData',receiptData);
             // Send only the essential data
             const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
-            console.log('isReceipt', isReceipt);
             if(isReceipt) {
                 res.json({
                     amount: receiptData.Amount,
@@ -1158,7 +1347,7 @@ app.post('/vision-api', async (req, res) => {
 
 // Add this new endpoint for recording cash transactions
 app.post('/record-cash', async (req, res) => {
-    const { amount, paymentMethod, customerID, particulars } = req.body;
+    const { amount, paymentMethod, customerID, particulars, remarks, isDining } = req.body;
     const spreadsheetCustomerID = pickCustomerSheet(customerID);
     const sheetId = customerSheets[customerID];
     try {
@@ -1182,6 +1371,15 @@ app.post('/record-cash', async (req, res) => {
             'Amount': amount,
             'Payment Method': paymentMethod,
         };
+        
+        // Add remarks only if customer is "eqmB4"
+        if (customerID === 'eqmB4' && remarks) {
+            rowData['Remarks'] = remarks;
+        }
+
+        if(customerID === 'HFpuU' && isDining){
+            rowData['Dining'] = isDining;
+        }
 
         console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
         console.log("Debug - sheetId: ", sheetId, "rowData: ", rowData, "spreadsheetCustomerID: ", spreadsheetCustomerID);
@@ -1194,6 +1392,7 @@ app.post('/record-cash', async (req, res) => {
                 amount,
                 paymentMethod,
                 particulars,
+                remarks: customerID === 'eqmB4' ? remarks : undefined,
                 timestamp: formatCreatedTime()
             }
         });
@@ -1298,6 +1497,118 @@ app.post('/upload-receipt', async (req, res) => {
     }
 });
 
+app.get('/get-daily-images', async (req, res) => {
+    const { customerID, date } = req.query;
+    
+    try {
+        const tableName = checkCurrentUser(customerID);
+        let allContents = [];
+        let continuationToken = undefined;
+
+        // Loop until we get all objects
+        do {
+            const command = new ListObjectsV2Command({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Prefix: `receipts/${tableName}/`,
+                ContinuationToken: continuationToken
+            });
+
+            const data = await s3Client.send(command);
+            allContents = [...allContents, ...(data.Contents || [])];
+            continuationToken = data.NextContinuationToken;
+        } while (continuationToken);
+
+        // Create target date in Dhaka timezone once
+        const targetDateDhaka = new Date(date ? date : new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+        targetDateDhaka.setHours(0, 0, 0, 0);
+        
+        const selectedDateImages = [];
+        let index = 0;
+
+        for (const object of allContents) {
+            // First conversion to Dhaka time
+            const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+
+            
+            // Compare dates using simple date comparison after timezone conversion
+            const isSameDate = 
+                bdFileDate.getFullYear() === targetDateDhaka.getFullYear() &&
+                bdFileDate.getMonth() === targetDateDhaka.getMonth() &&
+                bdFileDate.getDate() === targetDateDhaka.getDate();
+            
+            if (isSameDate) {
+                const [viewUrl, downloadUrl] = await Promise.all([
+                    getSignedUrl(s3Client, new GetObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key,
+                        ResponseContentType: 'image/jpeg',
+                        ResponseContentDisposition: 'inline',
+                        ResponseCacheControl: 'public, max-age=3600'
+                    }), { expiresIn: 3600 }),
+                    getSignedUrl(s3Client, new GetObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key,
+                        ResponseContentDisposition: `attachment; filename="${object.Key.split('/').pop()}"`,
+                        ResponseCacheControl: 'private, no-cache'
+                    }), { expiresIn: 3600 })
+                ]);
+
+                const metadata = await s3Client.send(new HeadObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: object.Key
+                }));
+
+                // Don't specify timezone again in timestamp formatting since bdFileDate is already in Dhaka time
+                const timestamp = bdFileDate.toLocaleString('en-US', {
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hour12: true
+                });
+
+                selectedDateImages.push({
+                    id: object.LastModified.getTime(),
+                    viewUrl,
+                    downloadUrl,
+                    timestamp,
+                    size: formatFileSize(metadata.ContentLength),
+                    filename: object.Key.split('/').pop(),
+                    lastModified: bdFileDate.toISOString(),
+                    index: index++
+                });
+            }
+        }
+
+        // Sort by LastModified timestamp (newest first)
+        selectedDateImages.sort((a, b) => b.id - a.id);
+
+        res.json({
+            success: true,
+            images: selectedDateImages,
+            count: selectedDateImages.length,
+            date: targetDateDhaka.toLocaleDateString('en-US', {
+                timeZone: 'Asia/Dhaka',
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            })
+        });
+
+    } catch (error) {
+        console.error('Error fetching daily images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch daily images'
+        });
+    }
+});
+
+// Helper function to format file sizes
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+}
 // Optional: Add endpoint to regenerate signed URL for existing images
 // app.get('/get-image-url', async (req, res) => {
 //     try {
@@ -1325,7 +1636,7 @@ app.post('/upload-receipt', async (req, res) => {
 //     });
 
 app.post('/multiple-vision-api', async (req, res) => {
-    const { images, customerID, deviceInfo, screenResolution, paymentMethod, startTime } = req.body;
+    const { images, customerID } = req.body;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
     if (!images || !Array.isArray(images) || images.length === 0) {
@@ -1336,9 +1647,61 @@ app.post('/multiple-vision-api', async (req, res) => {
     }
 
     try {
+        // First upload all images to S3 and get the URLs
+        const imagesWithS3Urls = await Promise.all(images.map(async (img, index) => {
+            try {
+                // Convert base64 to buffer
+                const buffer = Buffer.from(img.image, 'base64');
+                
+                // Generate unique filename
+                const timestamp = Date.now();
+                let tableName;
+                
+                try {
+                    tableName = checkCurrentUser(customerID);
+                } catch (e) {
+                    // Fall back to 'unknown' if customer ID is invalid
+                    tableName = 'unknown';
+                }
+                
+                const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${img.filename || 'receipt.jpg'}`;
+                
+                // Set up S3 upload parameters
+                const uploadParams = {
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: uniqueFilename,
+                    Body: buffer,
+                    ContentType: 'image/jpeg'
+                };
+
+                // Upload to S3
+                const command = new PutObjectCommand(uploadParams);
+                await s3Client.send(command);
+
+                // Generate pre-signed URL
+                const getObjectCommand = new GetObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: uniqueFilename
+                });
+                
+                const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+                    expiresIn: 86400 // URL valid for 24 hours
+                });
+
+                return {
+                    ...img,
+                    imageUrl: signedUrl,
+                    imageFileName: uniqueFilename
+                };
+            } catch (error) {
+                console.error(`Error uploading image ${index} to S3:`, error);
+                // Return the original image without S3 details
+                return img;
+            }
+        }));
+
         // Prepare the API request for Google Vision API
-        // This is a batch request with multiple images in one call
-        const requests = images.map(img => ({
+        const requests = imagesWithS3Urls.map(img => ({
             image: {
                 content: img.image
             },
@@ -1387,10 +1750,12 @@ app.post('/multiple-vision-api', async (req, res) => {
                     const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
                     
                     if (isReceipt) {
-                        // Add the corresponding image filename and index
+                        // Add the corresponding image filename, index, and S3 URL
                         resultsArray.push({
-                            index: images[i].index,
-                            filename: images[i].filename,
+                            index: imagesWithS3Urls[i].index,
+                            filename: imagesWithS3Urls[i].filename,
+                            imageUrl: imagesWithS3Urls[i].imageUrl,
+                            imageFileName: imagesWithS3Urls[i].imageFileName,
                             amount: receiptData.Amount,
                             referenceNo: receiptData.ReferenceNo,
                             Date: receiptData.Date,
@@ -1402,8 +1767,10 @@ app.post('/multiple-vision-api', async (req, res) => {
                     } else {
                         // Add a failed result
                         resultsArray.push({
-                            index: images[i].index,
-                            filename: images[i].filename,
+                            index: imagesWithS3Urls[i].index,
+                            filename: imagesWithS3Urls[i].filename,
+                            imageUrl: imagesWithS3Urls[i].imageUrl,
+                            imageFileName: imagesWithS3Urls[i].imageFileName,
                             error: 'No receipt data detected',
                             recognizedText
                         });
@@ -1411,8 +1778,10 @@ app.post('/multiple-vision-api', async (req, res) => {
                 } else {
                     // Add a failed result due to low confidence
                     resultsArray.push({
-                        index: images[i].index,
-                        filename: images[i].filename,
+                        index: imagesWithS3Urls[i].index,
+                        filename: imagesWithS3Urls[i].filename,
+                        imageUrl: imagesWithS3Urls[i].imageUrl,
+                        imageFileName: imagesWithS3Urls[i].imageFileName,
                         error: 'Text confidence score is below threshold',
                         confidence: confidence,
                         threshold: 0.7
