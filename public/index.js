@@ -18,10 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sessionStorage.getItem('isLoggedIn') === 'true') {
             isLoggedIn = true;
             loginOverlay.style.display = 'none';
-            // userNav.style.display = 'block';
             mainContent.style.display = 'block';
-            
-            // // Hide initial content
         }
     });
 
@@ -105,11 +102,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add event listener for the Add Photo button
-    document.getElementById('addPhotoBtn').addEventListener('click', showPhotoOptions);
-    
-    document.getElementById('addCashBtn').addEventListener('click', showManualEntryModal);
-
     function showPhotoOptions() {
         const modal = document.getElementById('photoOptionsModal');
         modal.style.display = 'flex';
@@ -127,20 +119,33 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show the modal
         const modal = document.getElementById('manualEntryModal');
-        modal.style.display = 'flex';  // Make sure we're targeting the correct modal
+        if (!modal) {
+            console.error('Manual entry modal not found');
+            showToast('Could not open manual entry form', 'error');
+            return;
+        }
+
+        // Reset any existing fade-out class
+        modal.classList.remove('fade-out');
+        
+        // Show the modal
+        modal.style.display = 'flex';
+        
+        // Force reflow then add show class for animation
+        modal.offsetHeight;
+        modal.classList.add('show');
         
         // Check if current user is "eqmB4" or "HFpuU" and show appropriate fields
         const customerID = sessionStorage.getItem('customerID');
         const remarksField = document.getElementById('remarksField');
         const diningField = document.getElementById('diningField');
-        
+
         // Show/hide remarks field for eqmB4
         if (customerID === 'eqmB4') {
             remarksField.style.display = 'block';
         } else {
             remarksField.style.display = 'none';
         }
-
         // Show/hide dining field for HFpuU
         if (customerID === 'HFpuU') {
             diningField.style.display = 'block';
@@ -154,20 +159,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const spinner = document.getElementById('loginSpinner');
         const loginMessage = document.getElementById('loginMessage');
         const mainContent = document.getElementById('mainContent');
-
+        
         loginButton.disabled = true;
         spinner.style.display = 'inline-block';
         loginMessage.textContent = '';
 
         setTimeout(() => {
-            const customerID = document.getElementById('customerID').value.trim();
-            
+            const customerID = document.getElementById('customerID').value.trim();         
             if (validCustomerIDs.includes(customerID)) {
                 isLoggedIn = true;
                 sessionStorage.setItem('isLoggedIn', 'true');
                 sessionStorage.setItem('customerID', customerID);
-                
+
                 // Fade out login overlay and show main content
+
                 const loginOverlay = document.getElementById('loginOverlay');
                 loginOverlay.style.opacity = '0';
                 loginOverlay.style.transition = 'opacity 0.3s ease';
@@ -181,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 loginButton.disabled = false;
                 spinner.style.display = 'none';
             }
+
         }, 1000);
     }
 
@@ -692,6 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             // Add click handlers for recent files
+            try {
             modal.querySelectorAll('.recent-file-item').forEach((item, index) => {
                 item.onclick = () => {
                     const file = recentFiles[index];
@@ -699,10 +706,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     modal.remove();
                 };
             });
-        } catch (error) {
-            console.error('Error showing recent files:', error);
-            showToast('Failed to load recent files', 'error');
-        }
+            }
+            catch (error) {
+                console.error('Error showing recent files:', error);
+                showToast('Failed to load recent files', 'error');
+            } 
     }
 
     // Add the showFailureModal function
@@ -2923,23 +2931,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Make functions available globally
-    window.handlePhotoOption = handlePhotoOption;
-    window.showPhotoOptions = showPhotoOptions;
-    window.closePhotoOptions = closePhotoOptions;
-    window.closeCameraModal = closeCameraModal;
-    window.validateLogin = validateLogin;
-    window.showManualEntryModal = showManualEntryModal;
-    window.closeManualEntryModal = closeManualEntryModal;
-    window.closeFailureModal  = closeFailureModal;
-    window.handleManualSubmit  = handleManualSubmit;
-    window.handleConfirmDetails = handleConfirmDetails;
-    window.closeConfirmationModal = closeConfirmationModal;
-    window.routeUser = routeUser;
-    window.showRecentFiles = showRecentFiles;
-    window.handleSubmitAll = handleSubmitAll;
-    window.showLargeImagePreview = showLargeImagePreview;
-
     // Add this new function to show completion modal
     function showUploadCompletionModal(data) {
         const completionModal = document.createElement('div');
@@ -2997,4 +2988,21 @@ document.addEventListener('DOMContentLoaded', function() {
         completionModal.offsetHeight;
         completionModal.classList.add('show');
     }
+
+    // Make functions available globally
+    window.handlePhotoOption = handlePhotoOption;
+    window.showPhotoOptions = showPhotoOptions;
+    window.closePhotoOptions = closePhotoOptions;
+    window.closeCameraModal = closeCameraModal;
+    window.showManualEntryModal = showManualEntryModal;
+    window.closeManualEntryModal = closeManualEntryModal;
+    window.closeFailureModal  = closeFailureModal;
+    window.handleManualSubmit  = handleManualSubmit;
+    window.handleConfirmDetails = handleConfirmDetails;
+    window.validateLogin = validateLogin;
+    window.closeConfirmationModal = closeConfirmationModal;
+    window.routeUser = routeUser;
+    window.showRecentFiles = showRecentFiles;
+    window.handleSubmitAll = handleSubmitAll;
+    window.showLargeImagePreview = showLargeImagePreview;
 });

@@ -134,7 +134,6 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
         // Get the access token
         const token = await jwtClient.getAccessToken();
 
-        const createdAt = formatCreatedTime(); // Returns: "25/01/2025 13:12:00"
         // Add this before the fetch call
         console.log('Debug - Request details:', {
             spreadsheetCustomerID,
@@ -229,7 +228,7 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             }
         );
         }
-        const response = await axios({
+        response = await axios({
             method: 'post',
             url: `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetCustomerID}/values/${range}:append?valueInputOption=USER_ENTERED`,
             headers: {
