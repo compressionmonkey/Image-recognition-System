@@ -1274,6 +1274,8 @@ app.post('/vision-api', async (req, res) => {
     const imageBase64 = req.body.image;
     const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
+    const start = Date.now(); // Start time
+
     try {
         const response = await axios({
             method: 'post',
@@ -1299,6 +1301,8 @@ app.post('/vision-api', async (req, res) => {
             }
         });
 
+        const totalDuration = Date.now() - start;
+
         const data = response.data;
 
         const textResult = data.responses[0]?.fullTextAnnotation;
@@ -1319,7 +1323,8 @@ app.post('/vision-api', async (req, res) => {
                     Time: receiptData.Time,
                     PaymentMethod: receiptData.PaymentMethod,
                     Bank: receiptData.Bank,
-                    recognizedText
+                    recognizedText,
+                    processingTimeMs: totalDuration
                     });
                     return;
             } else {
