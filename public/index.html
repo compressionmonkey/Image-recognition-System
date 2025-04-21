@@ -62,10 +62,10 @@
             </div>
         </div>
         <div class="action-buttons">
-            <button id="addPhotoBtn" class="action-button photo-button">
+            <button id="addPhotoBtn" class="action-button photo-button" onclick="window.showPhotoOptions()">
                 <span class="icon">📸</span> Add ReceiptPhoto
             </button>
-            <button id="addCashBtn" class="action-button cash-button">
+            <button id="addCashBtn" class="action-button cash-button" onclick="window.showManualEntryModal()">
                 <span class="icon">💰</span> Add Cash Receipt
             </button>
         </div>
@@ -74,7 +74,14 @@
 
     <!-- Add this before </body> -->
     <div id="confirmationModal" class="modal">
+        <div class="modal-content" id="confirmationModalContent">
+            <div class="modal-header">
+                <div class="drag-handle" id="dragHandle">
+                    <span class="drag-icon">☰</span>
+                </div>
+            </div>
         <div class="modal-content">
+            <button class="close-btn" onclick="closeConfirmationModal()">&times;</button>
             <!-- <div class="question-icon">❓</div>
             <h2>Is this the correct details?</h2> -->
             <form id="confirmationForm">
@@ -110,6 +117,25 @@
                         Receipt Date is not today. Are you sure you want to add this?
                     </div>
                 </div>
+
+                <div id="confirmRemarksField" class="form-group" style="display: none;">
+                    <label for="confirmRemarks">Remarks</label>
+                    <input type="text" 
+                           id="confirmRemarks" 
+                           name="confirmRemarks" 
+                           placeholder="Enter Remarks"
+                           style="box-sizing: border-box;">
+                </div>
+                
+                <div id="confirmDiningField" class="form-group" style="display: none;">
+                    <div class="dining-field">
+                        <input type="checkbox" 
+                               id="confirmDiningCheck" 
+                               name="confirmDining">
+                        <label for="confirmDiningCheck">Dining</label>
+                    </div>
+                </div>
+                
                 <div class="button-group">
                     <button type="button" class="primary-button" onclick="handleConfirmDetails()">Confirm Details</button>
                 </div>
@@ -142,6 +168,7 @@
     <!-- Manual Receipt Entry Modal -->
     <div id="manualEntryModal" class="photo-options-modal" style="display: none;">
         <div class="modal-content">
+            <button class="close-btn" onclick="closeManualEntryModal()">&times;</button>
             <h3>Add Cash Receipt</h3>
             <form id="manualReceiptForm">
                 <div class="form-group">
@@ -168,7 +195,6 @@
                     <span class="icon" style="color: white !important;">💾</span>
                     Submit
                 </button>
-                <button type="button" class="cancel-btn" onclick="closeManualEntryModal()">Cancel</button>
             </form>
         </div>
     </div>
