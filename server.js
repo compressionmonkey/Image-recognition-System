@@ -67,9 +67,14 @@ app.get('/', (req, res) => {
 const customerSheets = {
     'a8358': 'Ambient',      // CUSTOMER_1
     '0e702': 'Dhapa',    // CUSTOMER_2
-    '571b6': 'Kaldens',    // CUSTOMER_3
+    '571b6': 'RoofTop',    // CUSTOMER_3
     'be566': 'MeatShop',    // CUSTOMER_4
-    '72d72': 'Customer5'     // CUSTOMER_5
+    '72d72': 'OmBakery',     // CUSTOMER_5
+    'HFpuU': 'SunRiseBakery',     // CUSTOMER_6
+    'eqmB4': 'JunctionMart',     // CUSTOMER_7
+    't0Ctf': 'Customer8',     // CUSTOMER_8
+    'ChQsf': 'Customer9',     // CUSTOMER_9
+    'FVQbb': 'Customer10',     // CUSTOMER_10
 };
 
 function pickCustomerSheet(customerID) {
@@ -79,11 +84,21 @@ function pickCustomerSheet(customerID) {
         case '0e702':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_DHAPA_ID;
         case '571b6':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_KALDENS_ID;
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_ROOFTOP_ID;
         case 'be566':
             return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
-        case '72d72':
-            return process.env.GOOGLE_SHEETS_SPREADSHEET_MEATSHOP_ID;
+            case '72d72':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_OMBAKERY_ID;
+        case 'HFpuU':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_SUNRISEBAKERY_ID;
+        case 'eqmB4':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_JUNCTIONMART_ID;
+        case 't0Ctf':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER8_ID;
+        case 'ChQsf':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER9_ID;
+        case 'FVQbb':
+            return process.env.GOOGLE_SHEETS_SPREADSHEET_CUSTOMER10_ID;
     }
 }
 
@@ -1302,31 +1317,111 @@ app.post('/upload-receipt', async (req, res) => {
     }
 });
 
-// Optional: Add endpoint to regenerate signed URL for existing images
-// app.get('/get-image-url', async (req, res) => {
-//     try {
-//         const { key } = req.query;
-        
-//         const command = new GetObjectCommand({
-//             Bucket: process.env.AWS_BUCKET_NAME,
-//             Key: key
-//         });
-        
-//         const signedUrl = await getSignedUrl(s3Client, command, { 
-//             expiresIn: 3600 
-//         });
+app.get('/get-daily-images', async (req, res) => {
+    const { customerID, date } = req.query;
+    try {
+        const tableName = checkCurrentUser(customerID);
+        let allContents = [];
+        let continuationToken = undefined;
+        // Loop until we get all objects
 
-//         res.json({
-//             success: true,
-//             url: signedUrl
-//         });
-//     } catch (error) {
-//         console.error('Error generating signed URL:', error);
-//         res.status(500).json({
-//             success: false,
-//             error: 'Failed to generate URL'
-//         });
-//     });
+        do {
+            const command = new ListObjectsV2Command({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Prefix: `receipts/${tableName}/`,
+                ContinuationToken: continuationToken
+            });
+
+            const data = await s3Client.send(command);
+            allContents = [...allContents, ...(data.Contents || [])];
+            continuationToken = data.NextContinuationToken;
+        } while (continuationToken);
+        // Create target date in Dhaka timezone once
+        const targetDateDhaka = new Date(date ? date : new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+        targetDateDhaka.setHours(0, 0, 0, 0);
+        const selectedDateImages = [];
+        let index = 0;
+        for (const object of allContents) {
+            // First conversion to Dhaka time
+            const bdFileDate = new Date(object.LastModified.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+            // Compare dates using simple date comparison after timezone conversion
+            const isSameDate = bdFileDate.getFullYear() === targetDateDhaka.getFullYear() && bdFileDate.getMonth() === targetDateDhaka.getMonth() && bdFileDate.getDate() === targetDateDhaka.getDate();
+
+            if (isSameDate) {
+                const [viewUrl, downloadUrl] = await Promise.all([
+                    getSignedUrl(s3Client, new GetObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key,
+                        ResponseContentType: 'image/jpeg',
+                        ResponseContentDisposition: 'inline',
+                        ResponseCacheControl: 'public, max-age=3600'
+                    }), { expiresIn: 3600 }),
+                    getSignedUrl(s3Client, new GetObjectCommand({
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: object.Key,
+                        ResponseContentDisposition: `attachment; filename="${object.Key.split('/').pop()}"`,
+                        ResponseCacheControl: 'private, no-cache'
+                    }), { expiresIn: 3600 })
+                ]);
+
+                const metadata = await s3Client.send(new HeadObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: object.Key
+                }));
+
+                // Don't specify timezone again in timestamp formatting since bdFileDate is already in Dhaka time
+                const timestamp = bdFileDate.toLocaleString('en-US', {
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hour12: true
+                });
+
+                selectedDateImages.push({
+                    id: object.LastModified.getTime(),
+                    viewUrl,
+                    downloadUrl,
+                    timestamp,
+                    size: formatFileSize(metadata.ContentLength),
+                    filename: object.Key.split('/').pop(),
+                    lastModified: bdFileDate.toISOString(),
+                    index: index++
+                });
+            }
+        }
+
+        // Sort by LastModified timestamp (newest first)
+        selectedDateImages.sort((a, b) => b.id - a.id);
+        res.json({
+            success: true,
+            images: selectedDateImages,
+            count: selectedDateImages.length,
+            date: targetDateDhaka.toLocaleDateString('en-US', {
+                timeZone: 'Asia/Dhaka',
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            })
+        });
+
+    } catch (error) {
+        console.error('Error fetching daily images:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch daily images'
+        });
+    }
+});
+
+
+
+// Helper function to format file sizes
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+}
 
 app.post('/multiple-vision-api', async (req, res) => {
     const { images, customerID, deviceInfo, screenResolution, paymentMethod, startTime } = req.body;
@@ -1340,9 +1435,61 @@ app.post('/multiple-vision-api', async (req, res) => {
     }
 
     try {
+        // First upload all images to S3 and get the URLs
+        const imagesWithS3Urls = await Promise.all(images.map(async (img, index) => {
+            try {
+                // Convert base64 to buffer
+                const buffer = Buffer.from(img.image, 'base64');
+                // Generate unique filename
+                const timestamp = Date.now();
+                let tableName;
+
+                try {
+                    tableName = checkCurrentUser(customerID);
+                } catch (e) {
+                    // Fall back to 'unknown' if customer ID is invalid
+                    tableName = 'unknown';
+                }
+
+                const uniqueFilename = `receipts/${tableName}/${timestamp}_${index}_${img.filename || 'receipt.jpg'}`;
+                // Set up S3 upload parameters
+
+                const uploadParams = {
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: uniqueFilename,
+                    Body: buffer,
+                    ContentType: 'image/jpeg'
+                };
+
+                // Upload to S3
+                const command = new PutObjectCommand(uploadParams);
+                await s3Client.send(command);
+
+                // Generate pre-signed URL
+                const getObjectCommand = new GetObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: uniqueFilename
+                });
+
+                const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { 
+                    expiresIn: 86400 // URL valid for 24 hours
+                });
+
+                return {
+                    ...img,
+                    imageUrl: signedUrl,
+                    imageFileName: uniqueFilename
+                };
+
+            } catch (error) {
+                console.error(`Error uploading image ${index} to S3:`, error);
+                // Return the original image without S3 details
+                return img;
+            }
+        }));
         // Prepare the API request for Google Vision API
         // This is a batch request with multiple images in one call
-        const requests = images.map(img => ({
+        const requests = imagesWithS3Urls.map(img => ({
             image: {
                 content: img.image
             },
@@ -1391,10 +1538,12 @@ app.post('/multiple-vision-api', async (req, res) => {
                     const isReceipt = receiptData.Amount || receiptData.ReferenceNo || receiptData.Bank !== 'Unknown';
                     
                     if (isReceipt) {
-                        // Add the corresponding image filename and index
+                        // Add the corresponding image filename, index, and S3 URL
                         resultsArray.push({
-                            index: images[i].index,
-                            filename: images[i].filename,
+                            index: imagesWithS3Urls[i].index,
+                            filename: imagesWithS3Urls[i].filename,
+                            imageUrl: imagesWithS3Urls[i].imageUrl,
+                            imageFileName: imagesWithS3Urls[i].imageFileName,
                             amount: receiptData.Amount,
                             referenceNo: receiptData.ReferenceNo,
                             Date: receiptData.Date,
@@ -1406,8 +1555,10 @@ app.post('/multiple-vision-api', async (req, res) => {
                     } else {
                         // Add a failed result
                         resultsArray.push({
-                            index: images[i].index,
-                            filename: images[i].filename,
+                            index: imagesWithS3Urls[i].index,
+                            filename: imagesWithS3Urls[i].filename,
+                            imageUrl: imagesWithS3Urls[i].imageUrl,
+                            imageFileName: imagesWithS3Urls[i].imageFileName,
                             error: 'No receipt data detected',
                             recognizedText
                         });
@@ -1415,8 +1566,10 @@ app.post('/multiple-vision-api', async (req, res) => {
                 } else {
                     // Add a failed result due to low confidence
                     resultsArray.push({
-                        index: images[i].index,
-                        filename: images[i].filename,
+                        index: imagesWithS3Urls[i].index,
+                        filename: imagesWithS3Urls[i].filename,
+                        imageUrl: imagesWithS3Urls[i].imageUrl,
+                        imageFileName: imagesWithS3Urls[i].imageFileName,
                         error: 'Text confidence score is below threshold',
                         confidence: confidence,
                         threshold: 0.7
