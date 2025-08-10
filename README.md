@@ -12,7 +12,7 @@
 - **Multi-Bank Support**: Intelligent recognition for 7+ banks (BNB, BOB, PNB, goBOB, DK, TBank, BDBL)
 - **Real-time OCR**: Google Cloud Vision API integration with 95%+ accuracy
 - **AWS Native**: S3 storage, CloudFront CDN, and serverless-ready architecture
-- **Production Scale**: Handles 10,000+ receipts with intelligent queuing
+- **Production Scale**: Handles 20,000+ receipts monthly with intelligent queuing
 - **Mobile-First**: Responsive design with camera integration and touch gestures
 
 ## 🏗️ **Architecture Overview**
