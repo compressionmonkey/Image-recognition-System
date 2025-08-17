@@ -1,6 +1,6 @@
 # 🧾 Tshong AI - Intelligent Receipt Recognition System
 
-> **Showcased at AWS Conference** - A production-ready, multi-bank receipt processing system with real-time OCR, intelligent data extraction, and seamless AWS integration.
+A production-ready, multi-bank receipt processing system with real-time OCR, intelligent data extraction, and seamless AWS integration.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
