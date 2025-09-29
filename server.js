@@ -43,6 +43,81 @@ function formatCreatedTime() {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
+// Function to properly format private key for Google API
+function formatPrivateKey(privateKey) {
+    if (!privateKey) {
+        throw new Error('Private key is required');
+    }
+
+    let formattedKey = privateKey.trim();
+    
+    // Handle escaped newlines
+    if (formattedKey.includes('\\n')) {
+        formattedKey = formattedKey.replace(/\\n/g, '\n');
+    }
+    
+    // Remove any extra whitespace and normalize line endings
+    formattedKey = formattedKey.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Check if key already has proper headers
+    const hasBeginHeader = formattedKey.includes('-----BEGIN PRIVATE KEY-----');
+    const hasEndHeader = formattedKey.includes('-----END PRIVATE KEY-----');
+    
+    if (!hasBeginHeader || !hasEndHeader) {
+        throw new Error('Private key must contain BEGIN and END headers');
+    }
+    
+    // Extract the key content between headers
+    const beginMarker = '-----BEGIN PRIVATE KEY-----';
+    const endMarker = '-----END PRIVATE KEY-----';
+    
+    const beginIndex = formattedKey.indexOf(beginMarker);
+    const endIndex = formattedKey.indexOf(endMarker);
+    
+    if (beginIndex === -1 || endIndex === -1 || endIndex <= beginIndex) {
+        throw new Error('Invalid private key format - malformed headers');
+    }
+    
+    // Extract just the key content (between the headers)
+    let keyContent = formattedKey
+        .substring(beginIndex + beginMarker.length, endIndex)
+        .replace(/\s+/g, '') // Remove all whitespace
+        .trim();
+    
+    // Fix common base64 issues that cause OpenSSL decoder errors
+    // Remove any non-base64 characters that might have slipped through
+    keyContent = keyContent.replace(/[^A-Za-z0-9+/=]/g, '');
+    
+    // Ensure proper padding
+    const paddingNeeded = (4 - (keyContent.length % 4)) % 4;
+    if (paddingNeeded > 0) {
+        keyContent += '='.repeat(paddingNeeded);
+    }
+    
+    // Validate key content (should be base64)
+    if (!/^[A-Za-z0-9+/]+=*$/.test(keyContent)) {
+        throw new Error('Private key content is not valid base64');
+    }
+    
+    // Additional validation: try to decode base64 to catch corruption
+    try {
+        Buffer.from(keyContent, 'base64');
+    } catch (base64Error) {
+        throw new Error('Private key base64 content is corrupted: ' + base64Error.message);
+    }
+    
+    // Split into 64-character lines as per PEM format
+    const lines = [];
+    for (let i = 0; i < keyContent.length; i += 64) {
+        lines.push(keyContent.substring(i, i + 64));
+    }
+    
+    // Reconstruct the properly formatted key
+    const properlyFormattedKey = beginMarker + '\n' + lines.join('\n') + '\n' + endMarker;
+    
+    return properlyFormattedKey;
+}
+
 // Modify your static file serving
 app.use('/index.js', (req, res) => {
     if (process.env.NODE_ENV === 'development') {
@@ -92,17 +167,82 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
     try {
         console.log("Debug - rowData before sending:", JSON.stringify(rowData, null, 2));
         
-        // Read and use service account credentials with better handling for control characters
+        // === DEBUGGING CREDENTIALS ===
+        console.log('=== DEBUGGING CREDENTIALS ===');
+        console.log('ENV vars available:', Object.keys(process.env).filter(k => k.includes('GOOGLE')));
+        
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64) {
+            try {
+                const decoded = Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64, 'base64').toString();
+                console.log('Decoded successfully');
+                
+                const credentials = JSON.parse(decoded);
+                console.log('Parsed successfully');
+                console.log('Credential keys:', Object.keys(credentials));
+                console.log('Has private_key:', !!credentials.private_key);
+                console.log('Has client_email:', !!credentials.client_email);
+                console.log('Has project_id:', !!credentials.project_id);
+                
+            } catch (error) {
+                console.error('Error in decoding/parsing:', error.message);
+            }
+        }
+        
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+            try {
+                const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+                console.log('JSON credentials parsed successfully');
+                console.log('JSON credential keys:', Object.keys(credentials));
+            } catch (error) {
+                console.error('Error parsing JSON credentials:', error.message);
+            }
+        }
+        
+        console.log('=== END DEBUG ===');
+        
+        // Read and use service account credentials with improved error handling
         let credentials;
         try {
-            // Clean the credentials string by removing control characters
-            const credentialsString = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
-                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+            let credentialsString;
             
+            // Try different credential sources - prioritize Base64 for production reliability
+            if (process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64) {
+                console.log('Using GOOGLE_APPLICATION_CREDENTIALS_BASE64');
+                try {
+                    credentialsString = Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64, 'base64').toString('utf8');
+                } catch (decodeError) {
+                    throw new Error('Failed to decode base64 credentials: ' + decodeError.message);
+                }
+            } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+                console.log('Using GOOGLE_APPLICATION_CREDENTIALS_JSON');
+                credentialsString = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+            } else {
+                throw new Error('No Google credentials found. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS_BASE64 environment variable.');
+            }
+
+            // Clean the credentials string by removing unwanted control characters but preserve newlines
+            credentialsString = credentialsString
+                .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "")
+                .trim();
+            
+            // Parse JSON
             credentials = JSON.parse(credentialsString);
+            
+            // Validate and fix private key formatting
+            if (!credentials.private_key) {
+                throw new Error('Private key not found in credentials');
+            }
+
+            credentials.private_key = formatPrivateKey(credentials.private_key);
+            
         } catch (parseError) {
-            console.error('Error parsing credentials:', parseError);
-            throw new Error('Invalid Google credentials format. Please check your environment variables.');
+            console.error('Error parsing credentials:', parseError.message);
+            throw new Error(`Invalid Google credentials format: ${parseError.message}. Please check your environment variables.`);
+        }
+        
+        // Validate required fields
+        if (!credentials.client_email || !credentials.private_key) {
+            throw new Error('Missing required credentials: client_email or private_key');
         }
         
         // Create JWT client using service account credentials
@@ -113,8 +253,50 @@ async function writeToSheet(range, rowData, spreadsheetCustomerID) {
             ['https://www.googleapis.com/auth/spreadsheets']
         );
 
+        // Add debugging for credentials
+        console.log('Debug - Client email:', credentials.client_email);
+        console.log('Debug - Private key length:', credentials.private_key?.length);
+        console.log('Debug - Private key starts with:', credentials.private_key?.substring(0, 50));
+        console.log('Debug - Private key ends with:', credentials.private_key?.substring(credentials.private_key.length - 50));
+
         // Authorize the client
-        await jwtClient.authorize();
+        try {
+            console.log('Attempting JWT authorization...');
+            await jwtClient.authorize();
+            console.log('✓ JWT authorization successful');
+        } catch (authError) {
+            console.error('JWT Authorization failed:', {
+                message: authError.message,
+                code: authError.code,
+                status: authError.status
+            });
+            
+            // Provide more specific error messages based on the actual error
+            if (authError.message.includes('Invalid JWT Signature')) {
+                throw new Error(`JWT Signature validation failed. This could be due to:
+                    1. Service account key might be expired or revoked
+                    2. System clock might be out of sync
+                    3. Service account might not have proper permissions
+                    4. Project ID mismatch
+                    Original error: ${authError.message}`);
+            } else if (authError.message.includes('invalid_grant')) {
+                throw new Error(`Google API rejected the authentication request. This could be due to:
+                    1. Service account is disabled
+                    2. Service account doesn't have access to Google Sheets API
+                    3. The service account key is invalid or expired
+                    4. Project billing is not enabled
+                    Original error: ${authError.message}`);
+            } else if (authError.message.includes('access_denied')) {
+                throw new Error(`Access denied. Please ensure:
+                    1. The service account has Google Sheets API enabled
+                    2. The service account has proper IAM permissions
+                    3. The spreadsheet is shared with the service account email
+                    Original error: ${authError.message}`);
+            }
+            
+            // Generic error for other cases
+            throw new Error(`Google authentication failed: ${authError.message}. Please check your service account configuration.`);
+        }
 
         // Get the access token
         const token = await jwtClient.getAccessToken();
